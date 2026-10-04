@@ -50,10 +50,21 @@ OrionCard(
 );
 
 OrionBadge(child: const Text('New'));
+
+OrionSegmentedControl<String>(
+  segments: const [
+    OrionSegment(value: 'overview', label: Text('Overview')),
+    OrionSegment(value: 'live', label: Text('Live')),
+    OrionSegment(value: 'tickets', label: Text('Tickets')),
+  ],
+  value: selected,
+  onChanged: (value) => setState(() => selected = value),
+);
 ```
 
 - `OrionButton` owns async in-flight locking, opt-in debounce, loading/disabled states, a 44 pt hit-target floor, and Enter/Space activation.
 - `OrionCard` keeps frosted glass in a clipped static layer; interactive cards compress only the foreground content.
 - `OrionBadge` applies the ambient `labelSmall` style through `DefaultTextStyle`.
+- `OrionSegmentedControl` is a single-select pill track. The selected pill slides on the press spring, arrow keys follow the text direction, and `onChanged: null` mutes the track.
 
 

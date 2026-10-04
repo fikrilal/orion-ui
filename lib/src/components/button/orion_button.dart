@@ -245,7 +245,7 @@ Widget _buttonFace({
                 ),
               )
             else if (leading != null)
-              _LeadingSlot(child: _tint(style.foreground, leading!)),
+              _LeadingSlot(child: _tint(style.foreground, leading)),
             DefaultTextStyle(
               style: (style.textStyle ?? const TextStyle()).copyWith(
                 color: style.foreground,
@@ -255,7 +255,7 @@ Widget _buttonFace({
             if (trailing != null)
               Padding(
                 padding: const EdgeInsets.only(left: OrionSpacing.space8),
-                child: _tint(style.foreground, trailing!),
+                child: _tint(style.foreground, trailing),
               ),
           ],
         ),

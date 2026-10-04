@@ -30,3 +30,30 @@ final tokens = OrionTheme.of(context);
 - `OrionThemeData` — a `ThemeExtension` carrying motion, radii, blur, and shadow tokens.
 - `OrionTheme.of(context)` — a single lookup over `ThemeData.extensions` with a documented fallback.
 
+## Components
+
+Concrete widgets built on the primitives and tokens. Role colors come from the host `ColorScheme`.
+
+```dart
+OrionButton(
+  variant: OrionButtonVariant.glow,
+  size: OrionButtonSize.large,
+  onPressed: () async => submit(), // async actions lock the button automatically
+  leading: const Icon(Icons.rocket_launch),
+  child: const Text('Deploy'),
+);
+
+OrionCard(
+  frosted: true,
+  onTap: () {},
+  child: const Text('The blur is a static layer: press feedback never scales it.'),
+);
+
+OrionBadge(child: const Text('New'));
+```
+
+- `OrionButton` owns async in-flight locking, opt-in debounce, loading/disabled states, a 44 pt hit-target floor, and Enter/Space activation.
+- `OrionCard` keeps frosted glass in a clipped static layer; interactive cards compress only the foreground content.
+- `OrionBadge` applies the ambient `labelSmall` style through `DefaultTextStyle`.
+
+

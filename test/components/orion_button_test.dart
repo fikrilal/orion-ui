@@ -91,6 +91,117 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsNothing);
     });
 
+    testWidgets('leading and trailing icons use the button foreground', (
+      tester,
+    ) async {
+      await _pumpButton(
+        tester,
+        OrionButton(
+          onPressed: () {},
+          leading: const Icon(Icons.download),
+          trailing: const Icon(Icons.arrow_forward),
+          child: const Text('Save'),
+        ),
+      );
+
+      final Color foreground = OrionButtonStyle.resolve(
+        variant: OrionButtonVariant.solid,
+        size: OrionButtonSize.medium,
+        scheme: Theme.of(tester.element(find.byType(OrionButton))).colorScheme,
+        theme: OrionTheme.of(tester.element(find.byType(OrionButton))),
+        textTheme: Theme.of(tester.element(find.byType(OrionButton))).textTheme,
+        enabled: true,
+        focused: false,
+      ).foreground;
+
+      for (final icon in [Icons.download, Icons.arrow_forward]) {
+        expect(
+          IconTheme.of(tester.element(find.byIcon(icon))).color,
+          foreground,
+        );
+      }
+    });
+
+    testWidgets('isLoading shows a spinner and ignores taps', (tester) async {
+      var calls = 0;
+      await _pumpButton(
+        tester,
+        OrionButton(
+          isLoading: true,
+          onPressed: () {
+            calls++;
+          },
+          child: const Text('Save'),
+        ),
+      );
+
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      await tester.tap(find.byType(OrionButton));
+      await tester.pump();
+      expect(calls, 0);
+    });
+
+    testWidgets('isExpanded fills a bounded width and stays safe in a row', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 320,
+                child: OrionButton(
+                  isExpanded: true,
+                  onPressed: () {},
+                  child: const Text('Save'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        tester
+            .getSize(
+              find.descendant(
+                of: find.byType(OrionButton),
+                matching: find.byType(DecoratedBox),
+              ),
+            )
+            .width,
+        320,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Row(
+              children: [
+                OrionButton(
+                  isExpanded: true,
+                  onPressed: () {},
+                  child: const Text('Save'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      expect(
+        tester
+            .getSize(
+              find.descendant(
+                of: find.byType(OrionButton),
+                matching: find.byType(DecoratedBox),
+              ),
+            )
+            .width,
+        lessThan(320),
+      );
+    });
+
     testWidgets('debounce suppresses presses inside the double-tap window', (
       tester,
     ) async {

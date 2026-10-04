@@ -7,7 +7,7 @@ import 'package:orion_ui/src/core/orion_pressable.dart';
 import 'package:orion_ui/src/theme/orion_theme.dart';
 import 'package:orion_ui/src/theme/orion_theme_data.dart';
 
-/// Surface container with optional frosted glass and press feedback.
+/// Quiet inset surface with optional frosted glass and press feedback.
 ///
 /// The frosted backdrop is a static, clipped layer behind the content: press
 /// feedback compresses only the foreground, so live blur matrices never scale

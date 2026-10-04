@@ -34,7 +34,7 @@ abstract final class OrionTheme {
     );
   }
 
-  /// Default light theme using the neutral Orion palette.
+  /// Default light theme using the shadcn neutral light palette.
   static ThemeData light() => apply(
     ThemeData(
       brightness: Brightness.light,
@@ -42,7 +42,7 @@ abstract final class OrionTheme {
     ),
   );
 
-  /// Default dark theme using the neutral Orion palette.
+  /// Default dark theme using the shadcn neutral dark palette.
   static ThemeData dark() => apply(
     ThemeData(brightness: Brightness.dark, colorScheme: OrionColors.darkScheme),
   );

@@ -11,7 +11,7 @@ Tactile, physics-driven design engineering component kit for Flutter.
 
 ## Theme & Tokens
 
-Role colors stay in Material `ColorScheme` and typography in `ThemeData.textTheme`; Orion tokens add what Material cannot express — springs, press scale, haptics, radii, blur, and elevation.
+Role colors stay in Material `ColorScheme` and typography in `ThemeData.textTheme`. `OrionTheme.light()` and `OrionTheme.dark()` install the shadcn neutral palette. Orion tokens add what Material cannot express — springs, press scale, haptics, radii, blur, and elevation.
 
 ```dart
 MaterialApp(

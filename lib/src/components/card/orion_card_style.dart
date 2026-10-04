@@ -34,6 +34,9 @@ class OrionCardStyle {
   final double? blurSigma;
 
   /// Resolves the style for a [frosted] card from ambient tokens.
+  ///
+  /// An opaque card is a quiet inset panel: muted fill, no hairline, no
+  /// shadow. Frosted cards keep a translucent surface and the same outline.
   static OrionCardStyle resolve({
     required ColorScheme scheme,
     required OrionThemeData theme,
@@ -42,11 +45,11 @@ class OrionCardStyle {
     return OrionCardStyle(
       background: frosted
           ? scheme.surface.withValues(alpha: 0.72)
-          : scheme.surfaceContainer,
-      border: BorderSide(color: scheme.outlineVariant),
-      radius: BorderRadius.circular(theme.surfaceRadius),
+          : scheme.secondary,
+      border: BorderSide.none,
+      radius: BorderRadius.circular(OrionRadii.radius16),
       padding: const EdgeInsets.all(OrionSpacing.space16),
-      shadow: theme.shadow,
+      shadow: const <BoxShadow>[],
       blurSigma: frosted ? theme.blurSigma : null,
     );
   }

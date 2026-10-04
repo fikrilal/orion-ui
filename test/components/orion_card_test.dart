@@ -12,6 +12,39 @@ Future<void> _pumpCard(WidgetTester tester, OrionCard card) {
 
 void main() {
   group('OrionCard', () {
+    testWidgets('plain card is a muted panel without a border or shadow', (
+      tester,
+    ) async {
+      await _pumpCard(tester, const OrionCard(child: Text('Card')));
+
+      final DecoratedBox box = tester.widget<DecoratedBox>(
+        find.descendant(
+          of: find.byType(OrionCard),
+          matching: find.byType(DecoratedBox),
+        ),
+      );
+      final BoxDecoration decoration = box.decoration as BoxDecoration;
+      final ColorScheme scheme = Theme.of(
+        tester.element(find.byType(OrionCard)),
+      ).colorScheme;
+
+      expect(decoration.color, isNull);
+      expect(decoration.border, const Border.fromBorderSide(BorderSide.none));
+      expect(decoration.boxShadow, isEmpty);
+      expect(
+        decoration.borderRadius,
+        BorderRadius.circular(OrionRadii.radius16),
+      );
+
+      final ColoredBox fill = tester.widget<ColoredBox>(
+        find.descendant(
+          of: find.byType(OrionCard),
+          matching: find.byType(ColoredBox),
+        ),
+      );
+      expect(fill.color, scheme.secondary);
+    });
+
     testWidgets('renders its child without a backdrop filter', (tester) async {
       await _pumpCard(tester, const OrionCard(child: Text('Card')));
 

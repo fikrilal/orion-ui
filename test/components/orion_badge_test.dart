@@ -43,6 +43,7 @@ void main() {
         decoration.borderRadius,
         BorderRadius.circular(OrionRadii.radiusPill),
       );
+      expect(decoration.border, isNull);
 
       final ThemeData theme = Theme.of(tester.element(find.byType(OrionBadge)));
       expect(
@@ -67,6 +68,46 @@ void main() {
           _badgeDecoration(tester).decoration as BoxDecoration;
       expect(decoration.color, const Color(0xFF123456));
       expect(_badgeTextStyle(tester).style.color, const Color(0xFFABCDEF));
+    });
+
+    testWidgets('draws an optional border', (tester) async {
+      const BorderSide side = BorderSide(color: Color(0xFF222222), width: 1);
+      await _pumpBadge(
+        tester,
+        const OrionBadge(border: side, child: Text('New')),
+      );
+
+      final BoxDecoration decoration =
+          _badgeDecoration(tester).decoration as BoxDecoration;
+      expect(decoration.border, const Border.fromBorderSide(side));
+    });
+
+    testWidgets('size changes padding and type', (tester) async {
+      await _pumpBadge(
+        tester,
+        const OrionBadge(size: OrionBadgeSize.small, child: Text('New')),
+      );
+      expect(
+        tester.getRect(find.text('New')).left -
+            tester.getRect(find.byType(OrionBadge)).left,
+        OrionSpacing.space4,
+      );
+
+      await _pumpBadge(
+        tester,
+        const OrionBadge(size: OrionBadgeSize.large, child: Text('New')),
+      );
+      final ThemeData theme = Theme.of(tester.element(find.byType(OrionBadge)));
+      expect(
+        _badgeTextStyle(tester).style,
+        theme.textTheme.labelMedium!.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      );
+      final Rect badge = tester.getRect(find.byType(OrionBadge));
+      final Rect label = tester.getRect(find.text('New'));
+      expect(label.left - badge.left, OrionSpacing.space12);
+      expect(label.top - badge.top, OrionSpacing.space8);
     });
 
     testWidgets('uses the token padding scale', (tester) async {

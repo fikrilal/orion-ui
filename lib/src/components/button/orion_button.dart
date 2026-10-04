@@ -16,8 +16,9 @@ import 'package:orion_ui/src/theme/orion_tokens.dart';
 /// opt-in debounce, loading and disabled states, and keyboard activation.
 ///
 /// When [onPressed] returns a [Future], the button enters a loading state for
-/// the lifetime of that future and ignores further presses. Synchronous actions
-/// never show the loading state.
+/// the lifetime of that future and ignores further presses. [isLoading] forces
+/// that same state from outside. Synchronous actions never show the loading
+/// state on their own.
 class OrionButton extends StatefulWidget {
   const OrionButton({
     super.key,
@@ -28,6 +29,8 @@ class OrionButton extends StatefulWidget {
     this.leading,
     this.trailing,
     this.debounce = false,
+    this.isLoading = false,
+    this.isExpanded = false,
     this.focusNode,
     this.autofocus = false,
     this.semanticLabel,
@@ -56,6 +59,18 @@ class OrionButton extends StatefulWidget {
   /// the previous accepted press.
   final bool debounce;
 
+  /// Forces the loading spinner and ignores presses.
+  ///
+  /// Use this when a parent owns the pending state. A [Future] returned from
+  /// [onPressed] still locks the button without this flag.
+  final bool isLoading;
+
+  /// Stretches the painted button to the parent's width.
+  ///
+  /// Ignored when the parent width is unbounded, such as a [Row] that does not
+  /// wrap this button in [Expanded].
+  final bool isExpanded;
+
   /// Optional focus node for the button.
   final FocusNode? focusNode;
 
@@ -74,14 +89,18 @@ class _OrionButtonState extends State<OrionButton> {
   bool _focused = false;
   DateTime? _lastAcceptedPress;
 
-  bool get _enabled => widget.onPressed != null;
+  bool get _hasAction => widget.onPressed != null;
+
+  bool get _loading => widget.isLoading || _pending;
+
+  bool get _canPress => _hasAction && !_loading;
 
   void _press() {
     unawaited(_handlePress());
   }
 
   Future<void> _handlePress() async {
-    if (!_enabled || _pending) {
+    if (!_canPress) {
       return;
     }
 
@@ -114,89 +133,61 @@ class _OrionButtonState extends State<OrionButton> {
     final ThemeData theme = Theme.of(context);
     final ColorScheme scheme = theme.colorScheme;
     final OrionThemeData orion = OrionTheme.of(context);
-    final bool enabled = _enabled;
-
     final OrionButtonStyle style = OrionButtonStyle.resolve(
       variant: widget.variant,
       size: widget.size,
       scheme: scheme,
       theme: orion,
       textTheme: theme.textTheme,
-      enabled: enabled,
+      enabled: _hasAction,
       focused: _focused,
-    );
-
-    final Widget visual = DecoratedBox(
-      decoration: BoxDecoration(
-        color: style.background,
-        borderRadius: style.radius,
-        border: style.border == null
-            ? null
-            : Border.fromBorderSide(style.border!),
-        boxShadow: style.shadow,
-      ),
-      child: SizedBox(
-        height: style.height,
-        child: Padding(
-          padding: style.padding!,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (_pending)
-                _LeadingSlot(
-                  child: SizedBox.square(
-                    dimension: OrionSizing.iconSmall,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.0,
-                      color: style.foreground,
-                    ),
-                  ),
-                )
-              else if (widget.leading != null)
-                _LeadingSlot(child: widget.leading!),
-              DefaultTextStyle(
-                style: (style.textStyle ?? const TextStyle()).copyWith(
-                  color: style.foreground,
-                ),
-                child: widget.child,
-              ),
-              if (widget.trailing != null)
-                Padding(
-                  padding: const EdgeInsets.only(left: OrionSpacing.space8),
-                  child: widget.trailing,
-                ),
-            ],
-          ),
-        ),
-      ),
     );
 
     final Widget pressable = MergeSemantics(
       child: Semantics(
         button: true,
-        enabled: enabled,
+        enabled: _canPress,
         label: widget.semanticLabel,
         child: OrionPressable(
-          onTap: enabled ? _press : null,
+          onTap: _canPress ? _press : null,
           pressedScale: orion.pressScale,
           springSpec: orion.pressSpring,
           releaseSpringSpec: orion.releaseSpring,
           hapticType: orion.tapHaptic,
           longPressHapticType: orion.longPressHaptic,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              minWidth: OrionSizing.minHitTarget,
-              minHeight: OrionSizing.minHitTarget,
-            ),
-            child: Center(widthFactor: 1.0, heightFactor: 1.0, child: visual),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final bool expand =
+                  widget.isExpanded && constraints.hasBoundedWidth;
+              final Widget visual = _buttonFace(
+                style: style,
+                expand: expand,
+                loading: _loading,
+                label: widget.child,
+                leading: widget.leading,
+                trailing: widget.trailing,
+              );
+              return ConstrainedBox(
+                constraints: const BoxConstraints(
+                  minWidth: OrionSizing.minHitTarget,
+                  minHeight: OrionSizing.minHitTarget,
+                ),
+                child: expand
+                    ? visual
+                    : Center(
+                        widthFactor: 1.0,
+                        heightFactor: 1.0,
+                        child: visual,
+                      ),
+              );
+            },
           ),
         ),
       ),
     );
 
     return FocusableActionDetector(
-      enabled: enabled,
+      enabled: _canPress,
       focusNode: widget.focusNode,
       autofocus: widget.autofocus,
       onShowFocusHighlight: (bool value) {
@@ -215,6 +206,69 @@ class _OrionButtonState extends State<OrionButton> {
       child: pressable,
     );
   }
+}
+
+Widget _buttonFace({
+  required OrionButtonStyle style,
+  required bool expand,
+  required bool loading,
+  required Widget label,
+  required Widget? leading,
+  required Widget? trailing,
+}) {
+  return DecoratedBox(
+    decoration: BoxDecoration(
+      color: style.background,
+      borderRadius: style.radius,
+      border: style.border == null
+          ? null
+          : Border.fromBorderSide(style.border!),
+      boxShadow: style.shadow,
+    ),
+    child: SizedBox(
+      height: style.height,
+      width: expand ? double.infinity : null,
+      child: Padding(
+        padding: style.padding!,
+        child: Row(
+          mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (loading)
+              _LeadingSlot(
+                child: SizedBox.square(
+                  dimension: OrionSizing.iconSmall,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.0,
+                    color: style.foreground,
+                  ),
+                ),
+              )
+            else if (leading != null)
+              _LeadingSlot(child: _tint(style.foreground, leading!)),
+            DefaultTextStyle(
+              style: (style.textStyle ?? const TextStyle()).copyWith(
+                color: style.foreground,
+              ),
+              child: label,
+            ),
+            if (trailing != null)
+              Padding(
+                padding: const EdgeInsets.only(left: OrionSpacing.space8),
+                child: _tint(style.foreground, trailing!),
+              ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+Widget _tint(Color color, Widget child) {
+  return IconTheme.merge(
+    data: IconThemeData(color: color),
+    child: child,
+  );
 }
 
 class _LeadingSlot extends StatelessWidget {

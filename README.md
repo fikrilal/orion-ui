@@ -62,6 +62,11 @@ OrionSegmentedControl<String>(
 );
 
 OrionSegmentedProgress(count: 4, value: 2.5);
+
+OrionSwitch(
+  value: enabled,
+  onChanged: (value) => setState(() => enabled = value),
+);
 ```
 
 - `OrionButton` owns async in-flight locking, opt-in debounce, loading/disabled states, a 44 pt hit-target floor, and Enter/Space activation.
@@ -69,5 +74,6 @@ OrionSegmentedProgress(count: 4, value: 2.5);
 - `OrionBadge` applies the ambient `labelSmall` style through `DefaultTextStyle`.
 - `OrionSegmentedControl` is a single-select pill track. The selected pill slides on the press spring, arrow keys follow the text direction, and `onChanged: null` mutes the track.
 - `OrionSegmentedProgress` fills equal segments from the start. `value` may be fractional, and the fill settles on a critically damped spring.
+- `OrionSwitch` slides a thumb on the gentle spring. Enter and Space flip it, and `onChanged: null` disables it.
 
 

@@ -3,6 +3,7 @@ export 'src/components/button/orion_button.dart';
 export 'src/components/button/orion_button_style.dart';
 export 'src/components/card/orion_card.dart';
 export 'src/components/card/orion_card_style.dart';
+export 'src/components/progress/orion_segmented_progress.dart';
 export 'src/components/segmented/orion_segmented_control.dart';
 export 'src/core/orion_haptics.dart';
 export 'src/core/orion_pressable.dart';

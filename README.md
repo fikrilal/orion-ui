@@ -76,6 +76,12 @@ OrionNavigationBar(
   selectedIndex: index,
   onChanged: (value) => setState(() => index = value),
 );
+
+OrionTextField(
+  label: 'Name',
+  hint: 'Ada Lovelace',
+  onChanged: (value) => setState(() => name = value),
+);
 ```
 
 - `OrionButton` owns async in-flight locking, opt-in debounce, loading/disabled states, a 44 pt hit-target floor, and Enter/Space activation.
@@ -85,5 +91,6 @@ OrionNavigationBar(
 - `OrionSegmentedProgress` fills equal segments from the start. `value` may be fractional, and the fill settles on a critically damped spring.
 - `OrionSwitch` slides a thumb on the gentle spring. Enter and Space flip it, and `onChanged: null` disables it.
 - `OrionNavigationBar` is a floating surface capsule. The selection pill slides on the press spring. `dragPosition` follows a finger drag, and a jump of more than one destination does not select the tabs in between. `visible: false` fades the bar down by 8 pt.
+- `OrionTextField` is a single-line field. The focus ring rides the press spring, and losing focus settles without a second flash. A non-empty `error` replaces the helper and paints `ColorScheme.error`. `enabled: false` mutes the field.
 
 

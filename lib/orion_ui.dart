@@ -6,6 +6,7 @@ export 'src/components/card/orion_card_style.dart';
 export 'src/components/navigation/orion_navigation_bar.dart';
 export 'src/components/progress/orion_segmented_progress.dart';
 export 'src/components/switch/orion_switch.dart';
+export 'src/components/text_field/orion_text_field.dart';
 export 'src/components/segmented/orion_segmented_control.dart';
 export 'src/core/orion_haptics.dart';
 export 'src/core/orion_pressable.dart';

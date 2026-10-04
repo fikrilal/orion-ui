@@ -67,6 +67,15 @@ OrionSwitch(
   value: enabled,
   onChanged: (value) => setState(() => enabled = value),
 );
+
+OrionNavigationBar(
+  destinations: const [
+    OrionNavigationDestination(icon: Icon(Icons.chat_bubble_outline), label: 'Chats'),
+    OrionNavigationDestination(icon: Icon(Icons.people_outline), label: 'Contacts'),
+  ],
+  selectedIndex: index,
+  onChanged: (value) => setState(() => index = value),
+);
 ```
 
 - `OrionButton` owns async in-flight locking, opt-in debounce, loading/disabled states, a 44 pt hit-target floor, and Enter/Space activation.
@@ -75,5 +84,6 @@ OrionSwitch(
 - `OrionSegmentedControl` is a single-select pill track. The selected pill slides on the press spring, arrow keys follow the text direction, and `onChanged: null` mutes the track.
 - `OrionSegmentedProgress` fills equal segments from the start. `value` may be fractional, and the fill settles on a critically damped spring.
 - `OrionSwitch` slides a thumb on the gentle spring. Enter and Space flip it, and `onChanged: null` disables it.
+- `OrionNavigationBar` is a floating surface capsule. The selection pill slides on the press spring. `dragPosition` follows a finger drag, and a jump of more than one destination does not select the tabs in between. `visible: false` fades the bar down by 8 pt.
 
 

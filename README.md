@@ -68,6 +68,11 @@ OrionSwitch(
   onChanged: (value) => setState(() => enabled = value),
 );
 
+OrionCheckbox(
+  value: remember, // null shows the indeterminate bar
+  onChanged: (value) => setState(() => remember = value ?? false),
+);
+
 OrionNavigationBar(
   destinations: const [
     OrionNavigationDestination(icon: Icon(Icons.chat_bubble_outline), label: 'Chats'),
@@ -90,6 +95,7 @@ OrionTextField(
 - `OrionSegmentedControl` is a single-select pill track. The selected pill slides on the press spring, arrow keys follow the text direction, and `onChanged: null` mutes the track.
 - `OrionSegmentedProgress` fills equal segments from the start. `value` may be fractional, and the fill settles on a critically damped spring.
 - `OrionSwitch` slides a thumb on the gentle spring. Enter and Space flip it, and `onChanged: null` disables it.
+- `OrionCheckbox` is a tap-only box whose fill, border, and mark ride the gentle spring, sized for the full checked/unchecked travel rather than the shorter press release. `value: null` draws the indeterminate bar and reports `true` on the first tap. It owns no label; compose the row around it. Enter and Space flip it without a haptic, and `onChanged: null` disables it.
 - `OrionNavigationBar` is a floating surface capsule. The selection pill slides on the press spring. `dragPosition` follows a finger drag, and a jump of more than one destination does not select the tabs in between. `visible: false` fades the bar down by 8 pt.
 - `OrionTextField` is a single-line field. The focus ring rides the press spring, and losing focus settles without a second flash. A non-empty `error` replaces the helper and paints `ColorScheme.error`. `enabled: false` mutes the field.
 

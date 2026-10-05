@@ -73,6 +73,13 @@ OrionCheckbox(
   onChanged: (value) => setState(() => remember = value ?? false),
 );
 
+OrionChip(
+  label: const Text('Live'),
+  selected: filters.contains('live'),
+  onSelected: (value) => setState(() =>
+      value ? filters.add('live') : filters.remove('live')),
+);
+
 OrionNavigationBar(
   destinations: const [
     OrionNavigationDestination(icon: Icon(Icons.chat_bubble_outline), label: 'Chats'),
@@ -96,6 +103,7 @@ OrionTextField(
 - `OrionSegmentedProgress` fills equal segments from the start. `value` may be fractional, and the fill settles on a critically damped spring.
 - `OrionSwitch` slides a thumb on the gentle spring. Enter and Space flip it, and `onChanged: null` disables it.
 - `OrionCheckbox` is a tap-only box whose fill, border, and mark ride the gentle spring, sized for the full checked/unchecked travel rather than the shorter press release. `value: null` draws the indeterminate bar and reports `true` on the first tap. It owns no label; compose the row around it. Enter and Space flip it without a haptic, and `onChanged: null` disables it.
+- `OrionChip` is a tap-only pill whose fill, hairline, check, and label ride the same gentle travel spring as the checkbox. The parent owns the selection, `onSelected` reports the opposite, and a check marks selection so it is not carried by color alone. Enter and Space flip it without a haptic, and `onSelected: null` disables it.
 - `OrionNavigationBar` is a floating surface capsule. The selection pill slides on the press spring. `dragPosition` follows a finger drag, and a jump of more than one destination does not select the tabs in between. `visible: false` fades the bar down by 8 pt.
 - `OrionTextField` is a single-line field. The focus ring rides the press spring, and losing focus settles without a second flash. A non-empty `error` replaces the helper and paints `ColorScheme.error`. `enabled: false` mutes the field.
 

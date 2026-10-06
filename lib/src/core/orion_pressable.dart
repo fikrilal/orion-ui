@@ -31,7 +31,7 @@ class OrionPressable extends StatefulWidget {
     this.springSpec = OrionSpringSpec.snappy,
     this.releaseSpringSpec,
     this.hapticType = OrionHapticType.selectionClick,
-    this.longPressHapticType = OrionHapticType.mediumImpact,
+    this.impactHapticType = OrionHapticType.mediumImpact,
     this.behavior = HitTestBehavior.opaque,
     this.cursor,
   }) : assert(
@@ -65,7 +65,7 @@ class OrionPressable extends StatefulWidget {
   final OrionHapticType hapticType;
 
   /// The tactile haptic feedback triggered upon long-press recognition.
-  final OrionHapticType longPressHapticType;
+  final OrionHapticType impactHapticType;
 
   /// How this gesture detector behaves during hit testing.
   final HitTestBehavior behavior;
@@ -200,7 +200,7 @@ class OrionPressableState extends State<OrionPressable>
     if (widget.onLongPress == null) return;
 
     _isLongPressing = true;
-    OrionHaptics.trigger(widget.longPressHapticType);
+    OrionHaptics.trigger(widget.impactHapticType);
     widget.onLongPress!();
   }
 

@@ -44,7 +44,8 @@ void main() {
       expect(OrionSpringSpec.snappy.dampingRatio, 0.36);
 
       expect(OrionSpringSpec.gentle.stiffness, 260.0);
-      expect(OrionSpringSpec.gentle.dampingRatio, 0.72);
+      // Recalibrated into the band production references use for travel.
+      expect(OrionSpringSpec.gentle.dampingRatio, 0.8);
 
       expect(OrionSpringSpec.immediate.stiffness, 500.0);
       expect(OrionSpringSpec.immediate.dampingRatio, 0.85);

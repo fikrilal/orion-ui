@@ -42,24 +42,20 @@ class OrionWheelItem<T> {
 /// one. Only the settle is animated, on one [OrionSpringDriver], and its
 /// [SpringSimulation] finishes exactly on the detent, never between two.
 ///
-/// The drag cannot retarget the spring per pointer move: [OrionSpringDriver]
-/// retargets through `AnimationController.animateWith`, which restarts the
-/// ticker, and a restarted ticker evaluates its simulation at `t = 0` on the
-/// next frame. Retargeting per move would re-anchor the spring every frame and
-/// it would never travel. Moving the offset during the drag is what keeps the
-/// wheel under the finger; the spring owns the settle.
+/// The drag moves the wheel directly rather than retargeting the spring on every
+/// pointer event: a spring chasing a target that moves each frame always trails the
+/// finger, and the gesture's velocity is the release's business, not the drag's. That
+/// is this component's choice, not a limit of [OrionSpringDriver], which re-anchors its
+/// simulation on retarget without restarting its clock.
 ///
-/// **The wheel owns its own vertical drags, so it must not be placed inside a
-/// vertically scrolling parent.** It is a picker: it claims every vertical drag
-/// that starts on it, and a parent scrollable would never see them. Give it a
-/// bounded, non-scrolling surface.
+/// The wheel claims every vertical drag that starts on it, so it must not sit inside a
+/// vertically scrolling parent: give it a bounded, non-scrolling surface, and a bounded
+/// width. Crossing a detent emits a single selection click while rolling, and keyboard
+/// and tap moves stay silent. Arrow keys move one item, and Home and End jump to the
+/// bounds.
 ///
-/// A bounded width is required. Crossing a detent emits one
-/// [OrionHaptics.selectionClick] while the wheel is rolling under the finger,
-/// including the glide after a flick; keyboard and tap moves are silent.
-///
-/// See also:
-/// - [OrionSegmentedControl], for a short row of always-visible options.
+/// See also [OrionSegmentedControl], which is the same one-of-many choice at a fixed
+/// size rather than a rolling column.
 class OrionWheelPicker<T> extends StatefulWidget {
   /// Creates a controlled wheel picker.
   const OrionWheelPicker({

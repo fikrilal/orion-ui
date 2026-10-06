@@ -15,6 +15,7 @@ class OrionSpringSpec {
     this.mass = 1.0,
     required this.stiffness,
     required this.dampingRatio,
+    this.clampOvershoot = false,
   }) : assert(mass > 0, 'mass must be positive'),
        assert(stiffness > 0, 'stiffness must be positive'),
        assert(dampingRatio > 0, 'dampingRatio must be positive');
@@ -31,6 +32,11 @@ class OrionSpringSpec {
   /// - $\zeta > 1.0$: Overdamped (sluggish, no bounce).
   final double dampingRatio;
 
+  /// Whether the value must not pass its target, for the cases where passing it would
+  /// read as a mistake rather than as life: a dismissal, an exit, or anything that
+  /// moves a layout edge. The spring still decelerates; it just stops at the target.
+  final bool clampOvershoot;
+
   /// Creates a Flutter [SpringDescription] utilizing the damping ratio formula:
   /// $c = 2 \cdot \zeta \cdot \sqrt{k \cdot m}$.
   SpringDescription toDescription() {
@@ -41,13 +47,21 @@ class OrionSpringSpec {
     );
   }
 
-  /// Default snappy spring for buttons, switches, and tactile controls.
-  /// Damping ratio 0.36 produces a visible, crisp release bounce of ~1.2%.
+  /// Press spring for the release of a held control, where the travel is a few percent
+  /// of the scale. Damping ratio 0.36 is deliberately bouncy: on a 0.04 scale release
+  /// it peaks near 1.012, which reads as tactility rather than as wobble.
+  ///
+  /// Do not use it for travel. Over a full 0 to 1 change the same ratio peaks near
+  /// 1.30, and a spring that overshoots its target by a third has to be clamped or
+  /// damped by hand at every call site.
   static const snappy = OrionSpringSpec(stiffness: 380.0, dampingRatio: 0.36);
 
-  /// Gentle spring for larger surfaces, cards, and modal sheets.
-  /// Damping ratio 0.72 provides a smooth settle with subtle bounce.
-  static const gentle = OrionSpringSpec(stiffness: 260.0, dampingRatio: 0.72);
+  /// Travel spring for surfaces that move a visible distance: rows, sheets, tracks.
+  ///
+  /// Damping ratio 0.8 sits inside the band production references use for movement
+  /// (0.8 to 1.0 across the Reanimated and Skia components in `.reference/`), and peaks
+  /// near 1.015 of the travel - enough to feel physical, not enough to read as bounce.
+  static const gentle = OrionSpringSpec(stiffness: 260.0, dampingRatio: 0.8);
 
   /// Immediate, highly responsive spring for micro-indicators and badges.
   /// Damping ratio 0.85 settles rapidly without noticeable oscillation.
@@ -62,9 +76,11 @@ class OrionSpringSpec {
     return other is OrionSpringSpec &&
         other.mass == mass &&
         other.stiffness == stiffness &&
-        other.dampingRatio == dampingRatio;
+        other.dampingRatio == dampingRatio &&
+        other.clampOvershoot == clampOvershoot;
   }
 
   @override
-  int get hashCode => Object.hash(mass, stiffness, dampingRatio);
+  int get hashCode =>
+      Object.hash(mass, stiffness, dampingRatio, clampOvershoot);
 }

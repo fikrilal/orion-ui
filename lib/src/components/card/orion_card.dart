@@ -60,7 +60,7 @@ class OrionCard extends StatelessWidget {
         pressedScale: orion.pressScale,
         springSpec: orion.pressSpring,
         releaseSpringSpec: orion.releaseSpring,
-        hapticType: orion.tapHaptic,
+        hapticType: orion.selectionHaptic,
         child: foreground,
       );
     }

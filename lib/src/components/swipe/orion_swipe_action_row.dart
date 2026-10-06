@@ -279,7 +279,7 @@ class _OrionSwipeActionRowState extends State<OrionSwipeActionRow>
     if (limit > 0 && abs >= limit) {
       if (!_revealed) {
         _revealed = true;
-        OrionHaptics.trigger(_orion.tapHaptic);
+        OrionHaptics.trigger(_orion.selectionHaptic);
       }
     } else if (_revealed && abs < limit * 0.85) {
       _revealed = false;
@@ -349,7 +349,7 @@ class _OrionSwipeActionRowState extends State<OrionSwipeActionRow>
     if (!_open) {
       return;
     }
-    OrionHaptics.trigger(_orion.tapHaptic);
+    OrionHaptics.trigger(_orion.selectionHaptic);
     _setOpen(false);
   }
 
@@ -358,7 +358,7 @@ class _OrionSwipeActionRowState extends State<OrionSwipeActionRow>
     if (!_enabled || action.onPressed == null) {
       return;
     }
-    OrionHaptics.trigger(_orion.tapHaptic);
+    OrionHaptics.trigger(_orion.selectionHaptic);
     action.onPressed!.call();
     _setOpen(false);
   }

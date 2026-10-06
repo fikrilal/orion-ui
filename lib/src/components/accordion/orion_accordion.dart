@@ -249,7 +249,7 @@ class _OrionAccordionState extends State<OrionAccordion>
             pressedScale: orion.pressScale,
             springSpec: orion.pressSpring,
             releaseSpringSpec: orion.releaseSpring,
-            hapticType: orion.tapHaptic,
+            hapticType: orion.selectionHaptic,
             child: ConstrainedBox(
               constraints: const BoxConstraints(
                 minWidth: OrionSizing.minHitTarget,

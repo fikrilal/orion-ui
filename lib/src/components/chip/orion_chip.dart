@@ -13,7 +13,7 @@ import 'package:orion_ui/src/theme/orion_tokens.dart';
 /// those around it, the way the gallery does.
 ///
 /// [OrionPressable] owns the press: it compresses on the press spring and emits
-/// [OrionThemeData.tapHaptic] only once the tap wins the gesture arena. One
+/// [OrionThemeData.selectionHaptic] only once the tap wins the gesture arena. One
 /// [OrionSpringDriver] owns the state travel from 0 to 1 on the gentle spring,
 /// driving the fill, the hairline, the label color, and the check together, so
 /// no surface snaps while the others travel. Selection is not carried by color
@@ -192,7 +192,7 @@ class _OrionChipState extends State<OrionChip>
             pressedScale: orion.pressScale,
             springSpec: orion.pressSpring,
             releaseSpringSpec: orion.releaseSpring,
-            hapticType: orion.tapHaptic,
+            hapticType: orion.selectionHaptic,
             child: ConstrainedBox(
               constraints: const BoxConstraints(
                 minWidth: OrionSizing.minHitTarget,

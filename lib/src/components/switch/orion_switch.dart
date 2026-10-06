@@ -106,7 +106,7 @@ class _OrionSwitchState extends State<OrionSwitch>
       return;
     }
     if (haptic) {
-      OrionHaptics.trigger(OrionTheme.of(context).tapHaptic);
+      OrionHaptics.trigger(OrionTheme.of(context).selectionHaptic);
     }
     widget.onChanged!(!widget.value);
   }

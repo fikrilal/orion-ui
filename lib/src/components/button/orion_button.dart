@@ -153,8 +153,8 @@ class _OrionButtonState extends State<OrionButton> {
           pressedScale: orion.pressScale,
           springSpec: orion.pressSpring,
           releaseSpringSpec: orion.releaseSpring,
-          hapticType: orion.tapHaptic,
-          longPressHapticType: orion.longPressHaptic,
+          hapticType: orion.selectionHaptic,
+          impactHapticType: orion.impactHaptic,
           child: LayoutBuilder(
             builder: (context, constraints) {
               final bool expand =

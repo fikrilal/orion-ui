@@ -10,8 +10,8 @@ void main() {
       expect(data.pressScale, 0.96);
       expect(data.pressSpring, OrionSpringSpec.snappy);
       expect(data.releaseSpring, OrionSpringSpec.snappy);
-      expect(data.tapHaptic, OrionHapticType.selectionClick);
-      expect(data.longPressHaptic, OrionHapticType.mediumImpact);
+      expect(data.selectionHaptic, OrionHapticType.selectionClick);
+      expect(data.impactHaptic, OrionHapticType.mediumImpact);
       expect(data.controlRadius, OrionRadii.radius12);
       expect(data.surfaceRadius, OrionRadii.radius24);
       expect(data.blurSigma, 12.0);

@@ -14,7 +14,7 @@ import 'package:orion_ui/src/theme/orion_tokens.dart';
 /// One [OrionSpringDriver] drives the fill, the border, and the mark on the
 /// travel spring (see `_travel`), which is tuned for the full 0 to 1 state
 /// change rather than for a press release. The mark is clipped by the box, so
-/// the overshoot cannot paint outside it. A tap emits [OrionThemeData.tapHaptic]
+/// the overshoot cannot paint outside it. A tap emits [OrionThemeData.selectionHaptic]
 /// once the tap wins the gesture arena; Enter and Space flip the box silently.
 class OrionCheckbox extends StatefulWidget {
   /// Creates a controlled checkbox.
@@ -130,7 +130,7 @@ class _OrionCheckboxState extends State<OrionCheckbox>
       return;
     }
     if (haptic) {
-      OrionHaptics.trigger(OrionTheme.of(context).tapHaptic);
+      OrionHaptics.trigger(OrionTheme.of(context).selectionHaptic);
     }
     widget.onChanged!(!(widget.value ?? false));
   }

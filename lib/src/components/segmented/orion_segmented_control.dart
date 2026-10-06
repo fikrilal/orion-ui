@@ -224,7 +224,7 @@ class _OrionSegmentedControlState<T> extends State<OrionSegmentedControl<T>>
                 pressedScale: orion.pressScale,
                 pressSpring: orion.pressSpring,
                 releaseSpring: orion.releaseSpring,
-                haptic: orion.tapHaptic,
+                haptic: orion.selectionHaptic,
                 onTap: enabled ? () => _select(segment.value) : null,
               ),
             ),

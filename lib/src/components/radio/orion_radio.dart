@@ -16,7 +16,7 @@ import 'package:orion_ui/src/theme/orion_tokens.dart';
 /// rides the travel spring (see `_travel`), which is tuned for the full 0 to 1
 /// state change rather than for a press release. The dot is clipped by the
 /// circle, so the overshoot cannot paint outside it. A tap emits
-/// [OrionThemeData.tapHaptic] once the tap wins the gesture arena; Enter and
+/// [OrionThemeData.selectionHaptic] once the tap wins the gesture arena; Enter and
 /// Space select silently.
 ///
 /// The mark and the shape both differ from [OrionCheckbox] on purpose: the two
@@ -135,7 +135,7 @@ class _OrionRadioState extends State<OrionRadio>
       return;
     }
     if (haptic) {
-      OrionHaptics.trigger(OrionTheme.of(context).tapHaptic);
+      OrionHaptics.trigger(OrionTheme.of(context).selectionHaptic);
     }
     widget.onChanged!(true);
   }

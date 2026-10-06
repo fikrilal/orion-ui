@@ -190,7 +190,7 @@ class _OrionNavigationBarState extends State<OrionNavigationBar>
       return;
     }
     if (haptic) {
-      OrionHaptics.trigger(OrionTheme.of(context).tapHaptic);
+      OrionHaptics.trigger(OrionTheme.of(context).selectionHaptic);
     }
     widget.onChanged!(index);
   }

@@ -176,7 +176,7 @@ class _OrionWheelPickerState<T> extends State<OrionWheelPicker<T>>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _haptic = OrionTheme.of(context).tapHaptic;
+    _haptic = OrionTheme.of(context).selectionHaptic;
     final bool reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     final bool becameReduced = reduce && !_reduceMotion;
     _reduceMotion = reduce;

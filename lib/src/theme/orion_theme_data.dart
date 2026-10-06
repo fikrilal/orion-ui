@@ -20,8 +20,8 @@ class OrionThemeData extends ThemeExtension<OrionThemeData> {
     this.pressScale = 0.96,
     this.pressSpring = OrionSpringSpec.snappy,
     this.releaseSpring = OrionSpringSpec.snappy,
-    this.tapHaptic = OrionHapticType.selectionClick,
-    this.longPressHaptic = OrionHapticType.mediumImpact,
+    this.selectionHaptic = OrionHapticType.selectionClick,
+    this.impactHaptic = OrionHapticType.mediumImpact,
     this.controlRadius = OrionRadii.radius12,
     this.surfaceRadius = OrionRadii.radius24,
     this.blurSigma = 12.0,
@@ -50,11 +50,12 @@ class OrionThemeData extends ThemeExtension<OrionThemeData> {
   /// Spring governing release on pointer up or cancel.
   final OrionSpringSpec releaseSpring;
 
-  /// Haptic emitted when a tap completes.
-  final OrionHapticType tapHaptic;
+  /// The tick a selection makes: a switch flipping, a detent crossing, a chip
+  /// choosing, a row revealing its actions.
+  final OrionHapticType selectionHaptic;
 
-  /// Haptic emitted when a long press is recognized.
-  final OrionHapticType longPressHaptic;
+  /// The stronger cue an impact makes: a press landing, an action committing.
+  final OrionHapticType impactHaptic;
 
   /// Corner radius for controls (buttons, tiles).
   final double controlRadius;
@@ -74,8 +75,8 @@ class OrionThemeData extends ThemeExtension<OrionThemeData> {
     double? pressScale,
     OrionSpringSpec? pressSpring,
     OrionSpringSpec? releaseSpring,
-    OrionHapticType? tapHaptic,
-    OrionHapticType? longPressHaptic,
+    OrionHapticType? selectionHaptic,
+    OrionHapticType? impactHaptic,
     double? controlRadius,
     double? surfaceRadius,
     double? blurSigma,
@@ -85,8 +86,8 @@ class OrionThemeData extends ThemeExtension<OrionThemeData> {
       pressScale: pressScale ?? this.pressScale,
       pressSpring: pressSpring ?? this.pressSpring,
       releaseSpring: releaseSpring ?? this.releaseSpring,
-      tapHaptic: tapHaptic ?? this.tapHaptic,
-      longPressHaptic: longPressHaptic ?? this.longPressHaptic,
+      selectionHaptic: selectionHaptic ?? this.selectionHaptic,
+      impactHaptic: impactHaptic ?? this.impactHaptic,
       controlRadius: controlRadius ?? this.controlRadius,
       surfaceRadius: surfaceRadius ?? this.surfaceRadius,
       blurSigma: blurSigma ?? this.blurSigma,
@@ -102,8 +103,8 @@ class OrionThemeData extends ThemeExtension<OrionThemeData> {
       // Springs and haptics are discrete specs; swap at the midpoint.
       pressSpring: t < 0.5 ? pressSpring : other.pressSpring,
       releaseSpring: t < 0.5 ? releaseSpring : other.releaseSpring,
-      tapHaptic: t < 0.5 ? tapHaptic : other.tapHaptic,
-      longPressHaptic: t < 0.5 ? longPressHaptic : other.longPressHaptic,
+      selectionHaptic: t < 0.5 ? selectionHaptic : other.selectionHaptic,
+      impactHaptic: t < 0.5 ? impactHaptic : other.impactHaptic,
       controlRadius: controlRadius + (other.controlRadius - controlRadius) * t,
       surfaceRadius: surfaceRadius + (other.surfaceRadius - surfaceRadius) * t,
       blurSigma: blurSigma + (other.blurSigma - blurSigma) * t,
@@ -118,8 +119,8 @@ class OrionThemeData extends ThemeExtension<OrionThemeData> {
         other.pressScale == pressScale &&
         other.pressSpring == pressSpring &&
         other.releaseSpring == releaseSpring &&
-        other.tapHaptic == tapHaptic &&
-        other.longPressHaptic == longPressHaptic &&
+        other.selectionHaptic == selectionHaptic &&
+        other.impactHaptic == impactHaptic &&
         other.controlRadius == controlRadius &&
         other.surfaceRadius == surfaceRadius &&
         other.blurSigma == blurSigma &&
@@ -131,8 +132,8 @@ class OrionThemeData extends ThemeExtension<OrionThemeData> {
     pressScale,
     pressSpring,
     releaseSpring,
-    tapHaptic,
-    longPressHaptic,
+    selectionHaptic,
+    impactHaptic,
     controlRadius,
     surfaceRadius,
     blurSigma,

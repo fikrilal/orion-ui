@@ -63,6 +63,20 @@ OrionSegmentedControl<String>(
 
 OrionSegmentedProgress(count: 4, value: 2.5);
 
+OrionSlider(
+  value: volume,
+  semanticLabel: 'Volume',
+  onChanged: (value) => setState(() => volume = value),
+);
+
+OrionSlider(
+  value: rating, // reports the nearest half star on release
+  min: 0,
+  max: 5,
+  step: 0.5,
+  onChanged: (value) => setState(() => rating = value),
+);
+
 OrionSwitch(
   value: enabled,
   onChanged: (value) => setState(() => enabled = value),
@@ -101,9 +115,14 @@ OrionTextField(
 - `OrionBadge` applies the ambient `labelSmall` style through `DefaultTextStyle`.
 - `OrionSegmentedControl` is a single-select pill track. The selected pill slides on the press spring, arrow keys follow the text direction, and `onChanged: null` mutes the track.
 - `OrionSegmentedProgress` fills equal segments from the start. `value` may be fractional, and the fill settles on a critically damped spring.
+- `OrionSlider` takes a continuous number. The thumb follows the pointer exactly while the finger is down, and the spring only settles the release: with `step` set the nearest step is reported and the thumb glides onto it, without one there is nothing left to settle, and a tap never moves it. The drag claims horizontal gestures only, so a vertical parent list keeps its scrolls, and the whole track takes the drag, not just the thumb. Arrow keys move by `step` or a twentieth of the range, Home and End jump to the bounds, right and left follow the text direction, and `onChanged: null` disables it.
 - `OrionSwitch` slides a thumb on the gentle spring. Enter and Space flip it, and `onChanged: null` disables it.
 - `OrionCheckbox` is a tap-only box whose fill, border, and mark ride the gentle spring, sized for the full checked/unchecked travel rather than the shorter press release. `value: null` draws the indeterminate bar and reports `true` on the first tap. It owns no label; compose the row around it. Enter and Space flip it without a haptic, and `onChanged: null` disables it.
 - `OrionChip` is a tap-only pill whose fill, hairline, check, and label ride the same gentle travel spring as the checkbox. The parent owns the selection, `onSelected` reports the opposite, and a check marks selection so it is not carried by color alone. Enter and Space flip it without a haptic, and `onSelected: null` disables it.
+- `OrionRadio` is a tap-only circle whose dot rides the same gentle travel spring as the checkbox mark. It never fills its interior and only ever reports `true`, because a radio cannot be switched off by activating it. The parent owns the group; each radio exposes only `selected` and `enabled`. It owns no label, so compose the row around it. Enter and Space select it without a haptic, and `onChanged: null` disables it.
+- `OrionWheelPicker` rolls a column of options under the finger and settles exactly on a detent: a flick carries two or three items, a slow release lands on the nearer one. Crossing a detent emits a single selection click while rolling, and keyboard and tap moves stay silent. Arrow keys move one item and Home and End jump to the bounds. The wheel claims every vertical drag that starts on it, so give it a bounded, non-scrolling surface and a bounded width.
+- `OrionAccordion` is a controlled disclosure row: the parent owns `expanded`, and there is no group widget. One spring holds the 0 to 1 reveal, and the panel extent and the chevron rotation read that same sample, so they cannot disagree. The content is laid out at its natural height and only the clipped extent animates, as the stable child of its builder. Collapsed content leaves the semantics tree and the focus order, and Enter and Space toggle it.
+- `OrionCounter` is a rolling digit odometer for a non-negative integer. It is a readout: no taps, no callback, no hit target. One spring per slot is seeded on its digit and only ever retargeted, and direction belongs to the change rather than the digit, so a `9` becoming `0` on a growing value travels forward instead of unwinding. Ten rows is exactly one period of the column, so the wrap needs no clamp. `animate: false` and reduced motion render the value immediately.
 - `OrionNavigationBar` is a floating surface capsule. The selection pill slides on the press spring. `dragPosition` follows a finger drag, and a jump of more than one destination does not select the tabs in between. `visible: false` fades the bar down by 8 pt.
 - `OrionTextField` is a single-line field. The focus ring rides the press spring, and losing focus settles without a second flash. A non-empty `error` replaces the helper and paints `ColorScheme.error`. `enabled: false` mutes the field.
 

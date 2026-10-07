@@ -109,7 +109,7 @@ void main() {
       );
     });
 
-    testWidgets('focus ring blooms past the resting strength', (tester) async {
+    testWidgets('the focus ring arrives without overshooting', (tester) async {
       await _pumpField(tester, label: 'Name');
 
       await tester.tap(find.byType(EditableText));
@@ -119,10 +119,22 @@ void main() {
       expect(early, greaterThan(0));
       expect(early, lessThan(0.16));
 
-      await tester.pump(const Duration(milliseconds: 180));
-      expect(_ringAlpha(tester), greaterThan(0.18));
-
+      double peak = early;
+      for (int frame = 0; frame < 30; frame++) {
+        await tester.pump(const Duration(milliseconds: 16));
+        final double now = _ringAlpha(tester);
+        if (now > peak) {
+          peak = now;
+        }
+      }
       await tester.pumpAndSettle();
+
+      expect(
+        peak,
+        lessThanOrEqualTo(0.161),
+        reason:
+            'a focus ring arrives; the corpus damps it critically and we clamp it',
+      );
       expect(_ringAlpha(tester), closeTo(0.16, 0.02));
     });
 

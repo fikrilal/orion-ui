@@ -24,8 +24,8 @@ class OrionSegment<T> {
 
 /// Single-select pill track. The parent owns [value].
 ///
-/// Segments share the width equally. The selected pill slides on
-/// [OrionThemeData.pressSpring]. A bounded width is required.
+/// Segments share the width equally. The selected pill slides on the immediate
+/// travel spec, not the press spring. A bounded width is required.
 class OrionSegmentedControl<T> extends StatefulWidget {
   /// Creates a controlled segmented control.
   const OrionSegmentedControl({
@@ -64,7 +64,6 @@ class _OrionSegmentedControlState<T> extends State<OrionSegmentedControl<T>>
   late final OrionSpringDriver _driver;
   FocusNode? _ownedFocusNode;
   bool _focused = false;
-  bool _reduceMotion = false;
 
   FocusNode get _focusNode => widget.focusNode ?? _ownedFocusNode!;
 
@@ -86,12 +85,15 @@ class _OrionSegmentedControlState<T> extends State<OrionSegmentedControl<T>>
   void didChangeDependencies() {
     super.didChangeDependencies();
     final bool reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
-    _driver.springSpec = OrionTheme.of(context).pressSpring;
-    final bool becameReduced = reduce && !_reduceMotion;
-    _reduceMotion = reduce;
+    // The indicator travels between segments; it is not a press. The theme's press
+    // spring is zeta 0.36, and its 30 % overshoot on a lateral move reads as a wobble
+    // past the segment, so the indicator runs on the immediate travel spec instead.
+    _driver.springSpec = OrionSpringSpec.immediate;
+    final bool becameReduced = reduce && !_driver.reducedMotion;
+    _driver.reducedMotion = reduce;
     if (becameReduced) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_reduceMotion) {
+        if (!mounted || !_driver.reducedMotion) {
           return;
         }
         final int index = _indexOf(widget.value);
@@ -153,11 +155,7 @@ class _OrionSegmentedControlState<T> extends State<OrionSegmentedControl<T>>
     if (_driver.target == target) {
       return;
     }
-    if (_reduceMotion) {
-      _driver.jumpTo(target);
-    } else {
-      _driver.retarget(target);
-    }
+    _driver.retarget(target);
   }
 
   void _select(T value) {

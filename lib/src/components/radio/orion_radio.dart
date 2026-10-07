@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'package:orion_ui/src/core/orion_haptics.dart';
+import 'package:orion_ui/src/core/orion_pressable.dart';
 import 'package:orion_ui/src/motion/orion_spring_driver.dart';
 import 'package:orion_ui/src/motion/orion_spring_spec.dart';
 import 'package:orion_ui/src/theme/orion_theme.dart';
@@ -76,7 +76,6 @@ class _OrionRadioState extends State<OrionRadio>
   static const double _dotCeiling = 1.4;
 
   late final OrionSpringDriver _driver;
-  bool _reduceMotion = false;
   bool _focused = false;
 
   @override
@@ -93,11 +92,11 @@ class _OrionRadioState extends State<OrionRadio>
   void didChangeDependencies() {
     super.didChangeDependencies();
     final bool reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
-    final bool becameReduced = reduce && !_reduceMotion;
-    _reduceMotion = reduce;
+    final bool becameReduced = reduce && !_driver.reducedMotion;
+    _driver.reducedMotion = reduce;
     if (becameReduced) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_reduceMotion) {
+        if (!mounted || !_driver.reducedMotion) {
           return;
         }
         _driver.jumpTo(_target);
@@ -122,7 +121,7 @@ class _OrionRadioState extends State<OrionRadio>
   double get _target => widget.value ? 1 : 0;
 
   void _sync() {
-    if (_reduceMotion) {
+    if (_driver.reducedMotion) {
       _driver.jumpTo(_target);
     } else {
       _driver.retarget(_target);
@@ -130,12 +129,9 @@ class _OrionRadioState extends State<OrionRadio>
   }
 
   /// Reports the choice. The value is always `true`; see the class docs.
-  void _select({required bool haptic}) {
+  void _select() {
     if (widget.onChanged == null) {
       return;
-    }
-    if (haptic) {
-      OrionHaptics.trigger(OrionTheme.of(context).selectionHaptic);
     }
     widget.onChanged!(true);
   }
@@ -182,14 +178,17 @@ class _OrionRadioState extends State<OrionRadio>
         actions: <Type, Action<Intent>>{
           ActivateIntent: CallbackAction<ActivateIntent>(
             onInvoke: (ActivateIntent intent) {
-              _select(haptic: false);
+              _select();
               return null;
             },
           ),
         },
-        child: GestureDetector(
+        // Every other control in the kit gets its press feedback and its cue from
+        // [OrionPressable]; these two hand-rolled a bare tap and a direct haptic.
+        child: OrionPressable(
           behavior: HitTestBehavior.opaque,
-          onTap: enabled ? () => _select(haptic: true) : null,
+          hapticType: OrionTheme.of(context).selectionHaptic,
+          onTap: enabled ? _select : null,
           child: SizedBox(
             width: OrionSizing.minHitTarget,
             height: OrionSizing.minHitTarget,

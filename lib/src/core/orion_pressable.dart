@@ -30,7 +30,7 @@ class OrionPressable extends StatefulWidget {
     this.pressedScale = 0.96,
     this.springSpec = OrionSpringSpec.snappy,
     this.releaseSpringSpec,
-    this.hapticType = OrionHapticType.selectionClick,
+    this.hapticType = OrionHapticType.none,
     this.impactHapticType = OrionHapticType.mediumImpact,
     this.behavior = HitTestBehavior.opaque,
     this.cursor,
@@ -62,6 +62,11 @@ class OrionPressable extends StatefulWidget {
   final OrionSpringSpec? releaseSpringSpec;
 
   /// The tactile haptic feedback triggered upon tap completion.
+  ///
+  /// Defaults to [OrionHapticType.none]: an activation that changes no state should not
+  /// tick, which is the platform's own habit - iOS haptics mark a transition, not a tap.
+  /// A component whose tap *is* a transition (a switch flipping, a chip choosing, a
+  /// detent crossing) opts in by passing one.
   final OrionHapticType hapticType;
 
   /// The tactile haptic feedback triggered upon long-press recognition.
@@ -83,7 +88,6 @@ class OrionPressableState extends State<OrionPressable>
   @visibleForTesting
   late final OrionSpringDriver driver;
 
-  bool _reduceMotion = false;
   bool _isPointerDown = false;
   bool _isLongPressing = false;
   Offset? _pointerDownPosition;
@@ -104,7 +108,8 @@ class OrionPressableState extends State<OrionPressable>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    driver.reducedMotion =
+        MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     _gestureSettings = MediaQuery.maybeGestureSettingsOf(context);
   }
 
@@ -115,7 +120,7 @@ class OrionPressableState extends State<OrionPressable>
       driver.springSpec = widget.springSpec;
     }
     if (!_isEnabled && driver.target != 1.0) {
-      _cancelSpring();
+      _releaseToRest();
     }
   }
 
@@ -135,11 +140,6 @@ class OrionPressableState extends State<OrionPressable>
 
     _isPointerDown = true;
     _pointerDownPosition = event.position;
-    if (_reduceMotion) {
-      driver.jumpTo(widget.pressedScale);
-      return;
-    }
-
     driver.springSpec = widget.springSpec;
     driver.retarget(widget.pressedScale);
   }
@@ -156,7 +156,7 @@ class OrionPressableState extends State<OrionPressable>
     if ((event.position - _pointerDownPosition!).distance > slop) {
       _isPointerDown = false;
       _pointerDownPosition = null;
-      _cancelSpring();
+      _releaseToRest();
     }
   }
 
@@ -164,25 +164,20 @@ class OrionPressableState extends State<OrionPressable>
     _pointerDownPosition = null;
     if (!mounted) return;
     _isPointerDown = false;
-    _cancelSpring();
+    _releaseToRest();
   }
 
   void _onPointerCancel(PointerCancelEvent event) {
     _pointerDownPosition = null;
     if (!mounted) return;
     _isPointerDown = false;
-    _cancelSpring();
+    _releaseToRest();
   }
 
   void _onTap() {
     if (widget.onTap == null) return;
 
-    if (_reduceMotion) {
-      driver.jumpTo(1.0);
-    } else {
-      driver.retarget(1.0);
-    }
-
+    _releaseToRest();
     OrionHaptics.trigger(widget.hapticType);
     widget.onTap!();
   }
@@ -193,7 +188,7 @@ class OrionPressableState extends State<OrionPressable>
     if (widget.onLongPress != null && _isPointerDown) {
       return;
     }
-    _cancelSpring();
+    _releaseToRest();
   }
 
   void _onLongPressStart(LongPressStartDetails details) {
@@ -208,24 +203,25 @@ class OrionPressableState extends State<OrionPressable>
     _isPointerDown = false;
     _isLongPressing = false;
     _pointerDownPosition = null;
-    _cancelSpring();
+    _releaseToRest();
   }
 
   void _onLongPressCancel() {
     _isPointerDown = false;
     _isLongPressing = false;
     _pointerDownPosition = null;
-    _cancelSpring();
+    _releaseToRest();
   }
 
-  void _cancelSpring() {
+  /// Releases the compression, on the release spec where one is given. A tap and a
+  /// cancel both land here, so the release cannot differ by how the gesture ended.
+  ///
+  /// No velocity is handed over: a press either releases at rest, or is cancelled after
+  /// the pointer has already left the target, so there is no gesture motion to continue.
+  void _releaseToRest() {
     if (!mounted) return;
-    if (_reduceMotion) {
-      driver.jumpTo(1.0);
-    } else {
-      driver.springSpec = widget.releaseSpringSpec ?? widget.springSpec;
-      driver.retarget(1.0);
-    }
+    driver.springSpec = widget.releaseSpringSpec ?? widget.springSpec;
+    driver.retarget(1.0);
   }
 
   @override

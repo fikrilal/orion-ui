@@ -127,7 +127,6 @@ class _OrionWheelPickerState<T> extends State<OrionWheelPicker<T>>
   late final OrionSpringDriver _driver;
   FocusNode? _ownedFocusNode;
   OrionHapticType _haptic = OrionHapticType.selectionClick;
-  bool _reduceMotion = false;
   bool _dragging = false;
   bool _focused = false;
 
@@ -178,11 +177,11 @@ class _OrionWheelPickerState<T> extends State<OrionWheelPicker<T>>
     super.didChangeDependencies();
     _haptic = OrionTheme.of(context).selectionHaptic;
     final bool reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
-    final bool becameReduced = reduce && !_reduceMotion;
-    _reduceMotion = reduce;
+    final bool becameReduced = reduce && !_driver.reducedMotion;
+    _driver.reducedMotion = reduce;
     if (becameReduced) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_reduceMotion) {
+        if (!mounted || !_driver.reducedMotion) {
           return;
         }
         // A jump settles without a ticker, so its status never reaches
@@ -327,7 +326,17 @@ class _OrionWheelPickerState<T> extends State<OrionWheelPicker<T>>
       return;
     }
     _dragging = false;
-    _settleOn(_landingDetent(details.velocity));
+    final double itemsPerSecond = _itemsPerSecond(details.velocity);
+    final int landing = _landingDetent(itemsPerSecond);
+    // Hand the velocity over only when it points along the travel to the landing
+    // detent. A release already past a clamped end would otherwise be carried further
+    // past it - the reference shapes its handover by the remaining travel for exactly
+    // this reason - and the window would sit empty while the wheel swung back.
+    final double travel = landing - _driver.value;
+    _settleOn(
+      landing,
+      velocity: travel * itemsPerSecond > 0 ? itemsPerSecond : 0,
+    );
   }
 
   void _onDragCancel() {
@@ -343,8 +352,11 @@ class _OrionWheelPickerState<T> extends State<OrionWheelPicker<T>>
   /// A slow release has almost no velocity, so this is the nearest detent; a
   /// flick projects two or three items further on. This is where the drag
   /// velocity reaches the spring: it chooses how far the settle has to travel.
-  int _landingDetent(Velocity velocity) {
-    final double itemsPerSecond = -velocity.pixelsPerSecond.dy / _itemExtent;
+  /// The finger's vertical velocity in item units per second.
+  double _itemsPerSecond(Velocity velocity) =>
+      -velocity.pixelsPerSecond.dy / _itemExtent;
+
+  int _landingDetent(double itemsPerSecond) {
     final double projected =
         _driver.value + itemsPerSecond * _projectionSeconds;
     return projected.round().clamp(0, _lastIndex);
@@ -354,15 +366,19 @@ class _OrionWheelPickerState<T> extends State<OrionWheelPicker<T>>
   ///
   /// A discrete command (keyboard or tap) passes `silent: true` so its crossings
   /// do not tick; the glide that follows a drag keeps ticking.
-  void _settleOn(int detent, {bool silent = false}) {
+  void _settleOn(int detent, {bool silent = false, double velocity = 0}) {
     _silent = silent;
-    if (_reduceMotion) {
+    if (_driver.reducedMotion) {
       _driver.jumpTo(detent.toDouble());
       _commit();
       return;
     }
     _driver.springSpec = _settleSpec;
-    _driver.retarget(detent.toDouble());
+    // The release velocity is handed to the spring, as the reference does: it decides
+    // which detent the wheel lands on *and* how it sets off, so a flick arrives fast
+    // instead of starting from rest. The drag projection and the settle therefore read
+    // the same number.
+    _driver.retarget(detent.toDouble(), velocity: velocity);
   }
 
   /// Moves one detent from the last commanded one, for keys and screen readers.

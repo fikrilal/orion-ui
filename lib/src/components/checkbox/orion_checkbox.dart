@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'package:orion_ui/src/core/orion_haptics.dart';
+import 'package:orion_ui/src/core/orion_pressable.dart';
 import 'package:orion_ui/src/motion/orion_spring_driver.dart';
 import 'package:orion_ui/src/motion/orion_spring_spec.dart';
 import 'package:orion_ui/src/theme/orion_theme.dart';
@@ -71,7 +71,6 @@ class _OrionCheckboxState extends State<OrionCheckbox>
   static const double _markCeiling = 1.4;
 
   late final OrionSpringDriver _driver;
-  bool _reduceMotion = false;
   bool _focused = false;
 
   @override
@@ -88,11 +87,11 @@ class _OrionCheckboxState extends State<OrionCheckbox>
   void didChangeDependencies() {
     super.didChangeDependencies();
     final bool reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
-    final bool becameReduced = reduce && !_reduceMotion;
-    _reduceMotion = reduce;
+    final bool becameReduced = reduce && !_driver.reducedMotion;
+    _driver.reducedMotion = reduce;
     if (becameReduced) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_reduceMotion) {
+        if (!mounted || !_driver.reducedMotion) {
           return;
         }
         _driver.jumpTo(_target);
@@ -118,19 +117,16 @@ class _OrionCheckboxState extends State<OrionCheckbox>
   double get _target => widget.value == false ? 0 : 1;
 
   void _sync() {
-    if (_reduceMotion) {
+    if (_driver.reducedMotion) {
       _driver.jumpTo(_target);
     } else {
       _driver.retarget(_target);
     }
   }
 
-  void _flip({required bool haptic}) {
+  void _flip() {
     if (widget.onChanged == null) {
       return;
-    }
-    if (haptic) {
-      OrionHaptics.trigger(OrionTheme.of(context).selectionHaptic);
     }
     widget.onChanged!(!(widget.value ?? false));
   }
@@ -185,14 +181,17 @@ class _OrionCheckboxState extends State<OrionCheckbox>
         actions: <Type, Action<Intent>>{
           ActivateIntent: CallbackAction<ActivateIntent>(
             onInvoke: (ActivateIntent intent) {
-              _flip(haptic: false);
+              _flip();
               return null;
             },
           ),
         },
-        child: GestureDetector(
+        // Every other control in the kit gets its press feedback and its cue from
+        // [OrionPressable]; these two hand-rolled a bare tap and a direct haptic.
+        child: OrionPressable(
           behavior: HitTestBehavior.opaque,
-          onTap: enabled ? () => _flip(haptic: true) : null,
+          hapticType: OrionTheme.of(context).selectionHaptic,
+          onTap: enabled ? _flip : null,
           child: SizedBox(
             width: OrionSizing.minHitTarget,
             height: OrionSizing.minHitTarget,

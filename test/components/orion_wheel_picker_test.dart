@@ -146,6 +146,47 @@ List<String> _captureHaptics(WidgetTester tester) {
 
 void main() {
   group('OrionWheelPicker', () {
+    testWidgets('a hard flick to the last item does not swing past the end', (
+      tester,
+    ) async {
+      await _pumpWheel(tester, value: 11, onChanged: (int _) {});
+      await tester.pumpAndSettle();
+
+      // Measured from one item's painted position, not by discovering visible rows: past
+      // the end those rows fall outside the falloff and the window is simply empty, so a
+      // row-finding probe reports nothing while the wheel is a hundred pixels too far.
+      final double settled = tester.getTopLeft(find.text('Item 11')).dy;
+      final double extent =
+          (tester.getTopLeft(find.text('Item 10')).dy - settled).abs();
+
+      await _flick(tester, steps: 6, dy: -60);
+
+      double excursion() =>
+          (tester.getTopLeft(find.text('Item 11')).dy - settled).abs() / extent;
+
+      // The pull itself may drag the wheel past the end - the end resistance allows about
+      // two items - but from the moment it is released the wheel may only come back.
+      // Handing the raw velocity over let it keep travelling, which emptied the window.
+      final double atRelease = excursion();
+      double farthest = atRelease;
+      for (int frame = 0; frame < 30; frame++) {
+        await tester.pump(const Duration(milliseconds: 16));
+        final double now = excursion();
+        if (now > farthest) {
+          farthest = now;
+        }
+      }
+      await tester.pumpAndSettle();
+
+      expect(
+        farthest,
+        lessThanOrEqualTo(atRelease + 0.05),
+        reason:
+            'a released wheel settles back toward its detent, it does not carry on',
+      );
+      expect(excursion(), lessThan(0.5));
+    });
+
     testWidgets('centres the value and fades its neighbours', (tester) async {
       await _pumpWheel(tester, value: 2, onChanged: (_) {});
 

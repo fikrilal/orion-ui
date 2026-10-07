@@ -5,6 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:orion_ui/src/motion/orion_spring_driver.dart';
 import 'package:orion_ui/src/motion/orion_spring_spec.dart';
 
+/// How much a rolling digit widens and squashes at the midpoint of its travel.
+/// The reference blurs a rolling digit as well; this kit keeps blur out of the
+/// per-frame path on purpose, so only the deformation is taken.
+const double _rollStretchX = 0.06;
+const double _rollSquashY = 0.10;
+
 /// One period of a slot's column, in rows.
 const int _period = 10;
 
@@ -90,6 +96,9 @@ class _OrionCounterState extends State<OrionCounter>
   /// Slots indexed by their distance from the right, so index 0 is the ones.
   final List<_DigitSlot> _slots = <_DigitSlot>[];
 
+  /// Mirrors the platform's reduced-motion setting for every slot's driver. The counter
+  /// owns one driver per digit rather than one for the whole readout, so there is no
+  /// single driver to hand this to.
   bool _reduceMotion = false;
 
   @override
@@ -329,8 +338,22 @@ class _DigitWindow extends StatelessWidget {
             builder: (BuildContext context, Widget? child) {
               // Dart's `%` is already non-negative for a positive divisor.
               final double row = driver.value % _period;
-              return Transform.translate(
-                offset: Offset(0, -row * lineHeight),
+              // How far this digit is from resting on a row: zero at rest, at most a
+              // half mid-roll. A rolling digit squashes and recovers, the way the
+              // reference counter does it, so travel reads as weight rather than a slide.
+              final double motion =
+                  (driver.value - driver.value.roundToDouble()).abs();
+              final double squash = (motion * 2).clamp(0.0, 1.0);
+              return Transform(
+                // Pivot on the row the window is showing. Aligning to the column's centre
+                // would pivot ten rows below a twenty row column, which drags the visible
+                // digit out of its window as it squashes.
+                origin: Offset(slotWidth / 2, (row + 0.5) * lineHeight),
+                transform: Matrix4.diagonal3Values(
+                  1 + _rollStretchX * squash,
+                  1 - _rollSquashY * squash,
+                  1,
+                )..setTranslationRaw(0, -row * lineHeight, 0),
                 child: child,
               );
             },

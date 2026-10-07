@@ -59,7 +59,9 @@ double _markScale(WidgetTester tester) {
           matching: find.byType(Transform),
         ),
       )
-      .first;
+      // The pressable wraps the whole control, so its scale comes first; the mark's is
+      // the innermost.
+      .last;
   return transform.transform.entry(0, 0);
 }
 

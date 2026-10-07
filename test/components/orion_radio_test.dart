@@ -105,7 +105,8 @@ double _dotScale(WidgetTester tester) {
           matching: find.byType(Transform),
         ),
       )
-      .first;
+      // ...and the dot is the innermost transform, after the ring.
+      .last;
   return transform.transform.entry(0, 0);
 }
 
@@ -311,7 +312,9 @@ void main() {
           )
           .map((Transform t) => t.transform.entry(0, 0))
           .toList();
-      expect(scales.first, closeTo(0, 0.001));
+      // The first scale belongs to the pressable wrapping the control; after it come
+      // the ring and then the dot, whatever else the surrounding group adds.
+      expect(scales.skip(1).first, closeTo(0, 0.001));
       expect(scales.last, closeTo(1, 0.001));
       handle.dispose();
     });

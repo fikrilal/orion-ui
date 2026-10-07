@@ -158,20 +158,24 @@ void main() {
       );
     });
 
-    testWidgets('slides past the slot, then settles', (tester) async {
+    testWidgets('travels to the slot and settles on it', (tester) async {
       await _pumpBar(tester, selectedIndex: 0, onChanged: (_) {});
       await _pumpBar(tester, selectedIndex: 1, onChanged: (_) {});
 
-      var sawOvershoot = false;
+      double peak = 0;
       for (var step = 0; step < 30; step++) {
         await tester.pump(const Duration(milliseconds: 16));
-        if (_pillX(tester) > _slotWidth() + 1) {
-          sawOvershoot = true;
-          break;
+        final double x = _pillX(tester);
+        if (x > peak) {
+          peak = x;
         }
       }
 
-      expect(sawOvershoot, isTrue);
+      // It still moves with life, but a travel spring keeps that to a pixel or two. This
+      // used to run on the press spring, whose overshoot is nearly a third of the travel -
+      // a wobble past the destination rather than a settle on it.
+      expect(peak, greaterThan(0.5 * _slotWidth()));
+      expect(peak, lessThanOrEqualTo(_slotWidth() + 2));
       await tester.pumpAndSettle();
       expect(_pillX(tester), closeTo(_slotWidth(), 0.1));
     });

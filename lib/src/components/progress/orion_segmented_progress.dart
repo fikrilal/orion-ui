@@ -44,7 +44,6 @@ class _OrionSegmentedProgressState extends State<OrionSegmentedProgress>
   );
 
   late final OrionSpringDriver _driver;
-  bool _reduceMotion = false;
   late double _paintMin;
   late double _paintMax;
 
@@ -65,11 +64,11 @@ class _OrionSegmentedProgressState extends State<OrionSegmentedProgress>
   void didChangeDependencies() {
     super.didChangeDependencies();
     final bool reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
-    final bool becameReduced = reduce && !_reduceMotion;
-    _reduceMotion = reduce;
+    final bool becameReduced = reduce && !_driver.reducedMotion;
+    _driver.reducedMotion = reduce;
     if (becameReduced) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_reduceMotion) {
+        if (!mounted || !_driver.reducedMotion) {
           return;
         }
         _driver.jumpTo(widget.value);
@@ -105,7 +104,7 @@ class _OrionSegmentedProgressState extends State<OrionSegmentedProgress>
     }
     _paintMin = math.min(_driver.value, target);
     _paintMax = math.max(_driver.value, target);
-    if (_reduceMotion) {
+    if (_driver.reducedMotion) {
       _driver.jumpTo(target);
     } else {
       _driver.retarget(target);

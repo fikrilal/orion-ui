@@ -25,8 +25,9 @@ class OrionNavigationDestination {
 
 /// A floating capsule of destinations.
 ///
-/// The parent owns [selectedIndex]. The selection pill slides on the press
-/// spring, and overshoots the way [OrionSegmentedControl] does. While a pager
+/// The parent owns [selectedIndex]. The selection travels on the immediate travel
+/// spec rather than the press spring, whose overshoot is a third of the travel.
+/// While a pager
 /// is moving, [dragPosition] is the fractional page and the pill follows it.
 /// A jump of more than one destination does not select the tabs in between.
 /// The bar does not own routes or the safe area. Place it over the screen,
@@ -89,7 +90,6 @@ class _OrionNavigationBarState extends State<OrionNavigationBar>
   late final OrionSpringDriver _selection;
   late final OrionSpringDriver _visibility;
   late double _origin;
-  bool _reduceMotion = false;
   bool _focused = false;
 
   @override
@@ -108,12 +108,16 @@ class _OrionNavigationBarState extends State<OrionNavigationBar>
   void didChangeDependencies() {
     super.didChangeDependencies();
     final bool reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
-    _selection.springSpec = OrionTheme.of(context).pressSpring;
-    final bool becameReduced = reduce && !_reduceMotion;
-    _reduceMotion = reduce;
+    // The selection indicator travels between destinations. The theme's press spring is
+    // zeta 0.36, which overshoots a lateral move by nearly a third and reads as a wobble
+    // past the destination, so travel runs on the immediate spec instead.
+    _selection.springSpec = OrionSpringSpec.immediate;
+    final bool becameReduced = reduce && !_selection.reducedMotion;
+    _selection.reducedMotion = reduce;
+    _visibility.reducedMotion = reduce;
     if (becameReduced) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_reduceMotion) {
+        if (!mounted || !_selection.reducedMotion) {
           return;
         }
         _origin = _selectionTarget;
@@ -161,7 +165,7 @@ class _OrionNavigationBarState extends State<OrionNavigationBar>
 
   void _syncSelection() {
     final double target = _selectionTarget;
-    if (widget.dragPosition != null || _reduceMotion) {
+    if (widget.dragPosition != null || _selection.reducedMotion) {
       _origin = target;
       _selection.jumpTo(target);
       return;
@@ -175,7 +179,7 @@ class _OrionNavigationBarState extends State<OrionNavigationBar>
 
   void _syncVisibility() {
     final double target = widget.visible ? 1 : 0;
-    if (_reduceMotion) {
+    if (_visibility.reducedMotion) {
       _visibility.jumpTo(target);
       return;
     }

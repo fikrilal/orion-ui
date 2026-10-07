@@ -432,7 +432,7 @@ void main() {
         await g2.up();
         await tester.pumpAndSettle();
 
-        // Test 3: Normal tap emits selectionClick
+        // Test 3: A plain activation changes no state, so the default is silent
         log.clear();
         await tester.pumpWidget(
           MaterialApp(
@@ -452,6 +452,30 @@ void main() {
         );
         await tester.pump();
         await g3.up();
+        await tester.pumpAndSettle();
+        expect(log, isEmpty);
+
+        // Test 4: A component whose tap is a transition opts in and ticks
+        log.clear();
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Center(
+                child: OrionPressable(
+                  onTap: () {},
+                  hapticType: OrionHapticType.selectionClick,
+                  child: const SizedBox(width: 100, height: 100),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final g4 = await tester.startGesture(
+          tester.getCenter(find.byType(OrionPressable)),
+        );
+        await tester.pump();
+        await g4.up();
         await tester.pumpAndSettle();
         expect(log, ['HapticFeedbackType.selectionClick']);
       },

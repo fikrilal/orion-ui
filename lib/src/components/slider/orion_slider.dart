@@ -75,7 +75,7 @@ class OrionSlider extends StatefulWidget {
 }
 
 class _OrionSliderState extends State<OrionSlider>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   /// Visual thumb diameter. The track is inset by half of it, so the thumb
   /// center reaches both ends of the track.
   static const double _thumbSize = 20;
@@ -99,8 +99,14 @@ class _OrionSliderState extends State<OrionSlider>
   /// Keyboard travel without a step: twenty presses cross the range.
   static const double _keyboardDivisions = 20;
 
+  /// How much the thumb grows while it is held, from the reference slider: a
+  /// continuous control should look picked up, not merely displaced.
+  static const double _liftScale = 1.2;
+
   late final OrionSpringDriver _driver;
-  bool _reduceMotion = false;
+
+  /// Drives the thumb's lift while a drag is in progress.
+  late final OrionSpringDriver _lift;
   bool _focused = false;
   bool _dragging = false;
 
@@ -126,17 +132,24 @@ class _OrionSliderState extends State<OrionSlider>
       initialValue: _normalized(_value),
       springSpec: _settle,
     );
+    _lift = OrionSpringDriver(
+      vsync: this,
+      springSpec: OrionSpringSpec.snappy,
+      initialValue: 0,
+    );
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final bool reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
-    final bool becameReduced = reduce && !_reduceMotion;
-    _reduceMotion = reduce;
+    final bool becameReduced = reduce && !_driver.reducedMotion;
+    _driver.reducedMotion = reduce;
+    _lift.reducedMotion = reduce;
     if (becameReduced) {
+      // Motion was just turned off mid-flight: land where the value already is.
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_reduceMotion) {
+        if (!mounted || !_driver.reducedMotion) {
           return;
         }
         _driver.jumpTo(_normalized(_value));
@@ -148,9 +161,11 @@ class _OrionSliderState extends State<OrionSlider>
   void didUpdateWidget(OrionSlider oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!_enabled && _dragging) {
-      // The drag can no longer report, so stop treating the pointer as the
-      // authority instead of leaving a stale flag behind.
+      // The drag can no longer report, so stop treating the pointer as the authority
+      // instead of leaving a stale flag behind - and drop the lift, because a disabled
+      // slider's recognizer delivers no end or cancel to drop it later.
       _dragging = false;
+      _liftTo(0);
     }
     _sync();
   }
@@ -158,6 +173,7 @@ class _OrionSliderState extends State<OrionSlider>
   @override
   void dispose() {
     _driver.dispose();
+    _lift.dispose();
     super.dispose();
   }
 
@@ -211,6 +227,7 @@ class _OrionSliderState extends State<OrionSlider>
       return;
     }
     _dragging = true;
+    _liftTo(1);
     _lastReported = _value;
     _applyPointer(localX, width, direction);
   }
@@ -233,6 +250,8 @@ class _OrionSliderState extends State<OrionSlider>
       return;
     }
     _dragging = false;
+    // Also the cancel path, so a cancelled drag drops the lift too.
+    _liftTo(0);
     final double reported = _lastReported;
     final double target = _snapped(reported);
     if (target != reported) {
@@ -243,16 +262,21 @@ class _OrionSliderState extends State<OrionSlider>
   }
 
   /// Retargets the driver toward [value], or jumps when motion is reduced.
+  /// Grows or drops the thumb. Reduced motion lands it in the same frame.
+  void _liftTo(double value) {
+    if (_lift.reducedMotion) {
+      _lift.jumpTo(value);
+    } else {
+      _lift.retarget(value);
+    }
+  }
+
   void _settleOn(double value) {
     final double target = _normalized(value);
     if (_driver.target == target) {
       return;
     }
-    if (_reduceMotion) {
-      _driver.jumpTo(target);
-    } else {
-      _driver.retarget(target);
-    }
+    _driver.retarget(target);
   }
 
   void _sync() {
@@ -490,14 +514,23 @@ class _OrionSliderState extends State<OrionSlider>
                         width: _thumbSize,
                         height: _thumbSize,
                         child: AnimatedBuilder(
-                          animation: _driver,
+                          animation: Listenable.merge(<Listenable>[
+                            _driver,
+                            _lift,
+                          ]),
                           child: thumb,
                           builder: (BuildContext context, Widget? child) {
-                            return Transform.translate(
-                              offset: Offset(
-                                direction * _driver.value * travel,
-                                0,
-                              ),
+                            final double scale =
+                                1 + (_liftScale - 1) * _lift.value;
+                            return Transform(
+                              alignment: Alignment.center,
+                              transform:
+                                  Matrix4.diagonal3Values(scale, scale, 1)
+                                    ..setTranslationRaw(
+                                      direction * _driver.value * travel,
+                                      0,
+                                      0,
+                                    ),
                               child: child,
                             );
                           },

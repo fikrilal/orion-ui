@@ -40,7 +40,7 @@ class OrionSwitch extends StatefulWidget {
 }
 
 class _OrionSwitchState extends State<OrionSwitch>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   static const double _trackWidth = 52;
   static const double _trackHeight = OrionSizing.controlHeightSmall;
   static const double _inset = OrionSpacing.space4;
@@ -48,6 +48,15 @@ class _OrionSwitchState extends State<OrionSwitch>
   static const double _travel = _trackWidth - _thumbSize - _inset * 2;
 
   late final OrionSpringDriver _driver;
+
+  /// Compression of a held thumb. The values come from the reference switches: the
+  /// thumb widens and squashes under a finger, which is what the platform does and
+  /// what ours did not do at all.
+  static const double _pressStretch = 0.18;
+  static const double _pressSquish = 0.12;
+
+  /// Drives the thumb's deformation while it is held, on the press spring.
+  late final OrionSpringDriver _press;
   bool _reduceMotion = false;
   bool _focused = false;
 
@@ -59,6 +68,11 @@ class _OrionSwitchState extends State<OrionSwitch>
       initialValue: _target,
       springSpec: OrionSpringSpec.gentle,
     );
+    _press = OrionSpringDriver(
+      vsync: this,
+      springSpec: OrionSpringSpec.snappy,
+      initialValue: 0,
+    );
   }
 
   @override
@@ -67,6 +81,9 @@ class _OrionSwitchState extends State<OrionSwitch>
     final bool reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     final bool becameReduced = reduce && !_reduceMotion;
     _reduceMotion = reduce;
+    // The deformation is motion too. Without this the thumb animates up to 1.18 on a
+    // device that asked for no animation at all.
+    _press.reducedMotion = reduce;
     if (becameReduced) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !_reduceMotion) {
@@ -88,10 +105,20 @@ class _OrionSwitchState extends State<OrionSwitch>
   @override
   void dispose() {
     _driver.dispose();
+    _press.dispose();
     super.dispose();
   }
 
   double get _target => widget.value ? 1 : 0;
+
+  /// Compresses or releases the thumb. Reduced motion lands it in the same frame.
+  void _pressTo(double value) {
+    if (_press.reducedMotion) {
+      _press.jumpTo(value);
+    } else {
+      _press.retarget(value);
+    }
+  }
 
   void _sync() {
     if (_reduceMotion) {
@@ -106,6 +133,11 @@ class _OrionSwitchState extends State<OrionSwitch>
       return;
     }
     if (haptic) {
+      // A deliberate divergence: the three reference switches fire no haptic at all,
+      // and iOS's own switch is silent. We tick because this kit treats the flip as the
+      // canonical selection cue - the theme documents selectionHaptic as "a switch
+      // flipping" - and a silent toggle in a tactile kit reads as an oversight. The
+      // keyboard path stays silent, since a key press is already felt.
       OrionHaptics.trigger(OrionTheme.of(context).selectionHaptic);
     }
     widget.onChanged!(!widget.value);
@@ -158,6 +190,9 @@ class _OrionSwitchState extends State<OrionSwitch>
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: enabled ? () => _flip(haptic: true) : null,
+          onTapDown: enabled ? (TapDownDetails _) => _pressTo(1) : null,
+          onTapUp: enabled ? (TapUpDetails _) => _pressTo(0) : null,
+          onTapCancel: enabled ? () => _pressTo(0) : null,
           child: SizedBox(
             width: _trackWidth,
             height: OrionSizing.minHitTarget,
@@ -198,20 +233,37 @@ class _OrionSwitchState extends State<OrionSwitch>
                       width: _thumbSize,
                       height: _thumbSize,
                       child: AnimatedBuilder(
-                        animation: _driver,
+                        animation: Listenable.merge(<Listenable>[
+                          _driver,
+                          _press,
+                        ]),
                         builder: (BuildContext context, Widget? child) {
-                          return Transform.translate(
-                            offset: Offset(
-                              direction * _driver.value * _travel,
-                              0,
-                            ),
+                          final double progress = _driver.value.clamp(0.0, 1.0);
+                          final double press = _press.value.clamp(0.0, 1.0);
+                          final double scaleX = 1 + _pressStretch * press;
+                          final double scaleY = 1 - _pressSquish * press;
+                          // A thumb that only scaled would look like it drifted toward
+                          // the middle: widen it and shift it back by half the growth,
+                          // towards whichever edge it is resting on.
+                          final double overflow =
+                              (_thumbSize * (scaleX - 1)) / 2;
+                          final double anchor = 1 - 2 * progress;
+                          // One matrix, composed around the thumb's centre: translate
+                          // to the travel position, then deform in place.
+                          final Matrix4 matrix =
+                              Matrix4.diagonal3Values(scaleX, scaleY, 1)
+                                ..setTranslationRaw(
+                                  direction *
+                                      (progress * _travel + anchor * overflow),
+                                  0,
+                                  0,
+                                );
+                          return Transform(
+                            transform: matrix,
+                            alignment: Alignment.center,
                             child: DecoratedBox(
                               decoration: BoxDecoration(
-                                color: Color.lerp(
-                                  thumbOff,
-                                  thumbOn,
-                                  _driver.value.clamp(0.0, 1.0),
-                                ),
+                                color: Color.lerp(thumbOff, thumbOn, progress),
                                 shape: BoxShape.circle,
                               ),
                             ),

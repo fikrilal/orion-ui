@@ -73,7 +73,6 @@ class _OrionChipState extends State<OrionChip>
   static const double _checkCeiling = 1.4;
 
   late final OrionSpringDriver _driver;
-  bool _reduceMotion = false;
   bool _focused = false;
 
   @override
@@ -90,11 +89,11 @@ class _OrionChipState extends State<OrionChip>
   void didChangeDependencies() {
     super.didChangeDependencies();
     final bool reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
-    final bool becameReduced = reduce && !_reduceMotion;
-    _reduceMotion = reduce;
+    final bool becameReduced = reduce && !_driver.reducedMotion;
+    _driver.reducedMotion = reduce;
     if (becameReduced) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_reduceMotion) {
+        if (!mounted || !_driver.reducedMotion) {
           return;
         }
         _driver.jumpTo(_target);
@@ -119,7 +118,7 @@ class _OrionChipState extends State<OrionChip>
   double get _target => widget.selected ? 1 : 0;
 
   void _sync() {
-    if (_reduceMotion) {
+    if (_driver.reducedMotion) {
       _driver.jumpTo(_target);
     } else {
       _driver.retarget(_target);

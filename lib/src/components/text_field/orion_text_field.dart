@@ -2,13 +2,12 @@ import 'package:flutter/material.dart';
 
 import 'package:orion_ui/src/motion/orion_spring_driver.dart';
 import 'package:orion_ui/src/motion/orion_spring_spec.dart';
-import 'package:orion_ui/src/theme/orion_theme.dart';
 import 'package:orion_ui/src/theme/orion_tokens.dart';
 
 /// A single-line field. The parent owns the string.
 ///
-/// Focus paints a hairline ring on [OrionThemeData.pressSpring]. Losing focus
-/// settles on a critically damped spring so the ring does not flash back on.
+/// Focus paints a hairline ring on a critically damped, clamped spring, and losing
+/// focus retreats the same way rather than flashing back on.
 /// The caret stays the platform caret. A non-empty [error] replaces [helper]
 /// and paints the border with [ColorScheme.error].
 class OrionTextField extends StatefulWidget {
@@ -77,9 +76,15 @@ class _OrionTextFieldState extends State<OrionTextField>
     with SingleTickerProviderStateMixin {
   static const double _restingStrength = 0.16;
   static const double _strengthCap = 0.24;
-  static const OrionSpringSpec _releaseSpec = OrionSpringSpec(
+
+  /// Focus is not a press: a ring should arrive, not bounce. The reference corpus's
+  /// FOCUS_SPRING is critically damped and applied to both focus and blur
+  /// (`.reference/rit3zh/expo-composer-hold-menu/src/components/composer.tsx:37,145`),
+  /// and clamping stops the hairline from overshooting past its resting strength.
+  static const OrionSpringSpec _focus = OrionSpringSpec(
     stiffness: 380,
     dampingRatio: 1,
+    clampOvershoot: true,
   );
 
   late final OrionSpringDriver _driver;
@@ -88,7 +93,6 @@ class _OrionTextFieldState extends State<OrionTextField>
   bool _ownsController = false;
   bool _ownsFocus = false;
   bool _focusBound = false;
-  bool _reduceMotion = false;
 
   @override
   void initState() {
@@ -98,20 +102,19 @@ class _OrionTextFieldState extends State<OrionTextField>
     _driver = OrionSpringDriver(
       vsync: this,
       initialValue: _target,
-      springSpec: OrionSpringSpec.snappy,
+      springSpec: _focus,
     );
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _driver.springSpec = _specFor(_target);
     final bool reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
-    final bool becameReduced = reduce && !_reduceMotion;
-    _reduceMotion = reduce;
+    final bool becameReduced = reduce && !_driver.reducedMotion;
+    _driver.reducedMotion = reduce;
     if (becameReduced) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_reduceMotion) {
+        if (!mounted || !_driver.reducedMotion) {
           return;
         }
         _driver.jumpTo(_target);
@@ -153,13 +156,6 @@ class _OrionTextFieldState extends State<OrionTextField>
 
   double get _target => widget.enabled && _focusNode.hasFocus ? 1 : 0;
 
-  OrionSpringSpec _specFor(double target) {
-    if (target == 0) {
-      return _releaseSpec;
-    }
-    return OrionTheme.of(context).pressSpring;
-  }
-
   void _bindController(TextEditingController? incoming) {
     if (_ownsController) {
       _controller.dispose();
@@ -186,11 +182,10 @@ class _OrionTextFieldState extends State<OrionTextField>
   }
 
   void _sync() {
-    if (_reduceMotion) {
+    if (_driver.reducedMotion) {
       _driver.jumpTo(_target);
       return;
     }
-    _driver.springSpec = _specFor(_target);
     _driver.retarget(_target);
   }
 

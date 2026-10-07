@@ -103,11 +103,20 @@ class _OrionAccordionState extends State<OrionAccordion>
   /// the same spec for the same reason.
   static const OrionSpringSpec _travel = OrionSpringSpec.gentle;
 
+  /// Closing is a collapse, not a reveal run backwards. The reference pair uses a
+  /// different spring to close than to open; critical damping keeps a shut panel from
+  /// bouncing, and clamping the overshoot keeps the clip from ever growing past the
+  /// content it is revealing.
+  static const OrionSpringSpec _collapse = OrionSpringSpec(
+    stiffness: 260,
+    dampingRatio: 1,
+    clampOvershoot: true,
+  );
+
   /// How far a disabled row's header is dimmed.
   static const double _disabledOpacity = 0.38;
 
   late final OrionSpringDriver _driver;
-  bool _reduceMotion = false;
   bool _focused = false;
 
   @override
@@ -124,11 +133,11 @@ class _OrionAccordionState extends State<OrionAccordion>
   void didChangeDependencies() {
     super.didChangeDependencies();
     final bool reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
-    final bool becameReduced = reduce && !_reduceMotion;
-    _reduceMotion = reduce;
+    final bool becameReduced = reduce && !_driver.reducedMotion;
+    _driver.reducedMotion = reduce;
     if (becameReduced) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_reduceMotion) {
+        if (!mounted || !_driver.reducedMotion) {
           return;
         }
         _driver.jumpTo(_target);
@@ -153,11 +162,8 @@ class _OrionAccordionState extends State<OrionAccordion>
   double get _target => widget.expanded ? 1 : 0;
 
   void _sync() {
-    if (_reduceMotion) {
-      _driver.jumpTo(_target);
-    } else {
-      _driver.retarget(_target);
-    }
+    _driver.springSpec = _target >= 1 ? _travel : _collapse;
+    _driver.retarget(_target);
   }
 
   /// Reports the next value. The haptic belongs to [OrionPressable], so the

@@ -337,6 +337,71 @@ void main() {
       expect(state.driver.value, closeTo(1.0, 0.001));
     });
 
+    testWidgets('reports the press lifecycle through onPressedChanged', (
+      tester,
+    ) async {
+      final reported = <bool>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: OrionPressable(
+                onTap: () {},
+                onPressedChanged: reported.add,
+                child: const SizedBox(width: 100, height: 100),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byType(OrionPressable)),
+      );
+      await tester.pump();
+      expect(reported, <bool>[true]);
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(reported, <bool>[true, false]);
+    });
+
+    testWidgets('a slop escape reports engagement and then release', (
+      tester,
+    ) async {
+      final reported = <bool>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: OrionPressable(
+                onTap: () {},
+                onPressedChanged: reported.add,
+                child: const SizedBox(width: 100, height: 100),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byType(OrionPressable)),
+      );
+      await tester.pump();
+      expect(reported, <bool>[true]);
+
+      await gesture.moveBy(const Offset(0, 50));
+      await tester.pump();
+      expect(reported, <bool>[true, false]);
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(reported, <bool>[
+        true,
+        false,
+      ], reason: 'the lift after a cancellation adds no duplicate signal');
+    });
+
     testWidgets('release produces a real peak overshoot before settling', (
       tester,
     ) async {

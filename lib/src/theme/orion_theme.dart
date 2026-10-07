@@ -21,15 +21,28 @@ abstract final class OrionTheme {
   /// Registers [data] on [base], preserving every other theme extension.
   ///
   /// When [data] is null an already registered [OrionThemeData] is kept;
-  /// [OrionThemeData.fallback] is installed only when none exists.
-  static ThemeData apply(ThemeData base, {OrionThemeData? data}) {
+  /// [OrionThemeData.fallback] is installed only when none exists. Additional
+  /// [extensions] - component themes such as `OrionButtonTheme` - are appended,
+  /// each replacing any already registered extension of the same type.
+  static ThemeData apply(
+    ThemeData base, {
+    OrionThemeData? data,
+    List<ThemeExtension<dynamic>> extensions =
+        const <ThemeExtension<dynamic>>[],
+  }) {
     final existing = base.extension<OrionThemeData>();
     return base.copyWith(
       extensions: [
         ...base.extensions.values.where(
-          (themeExtension) => themeExtension is! OrionThemeData,
+          (themeExtension) =>
+              themeExtension is! OrionThemeData &&
+              !extensions.any(
+                (addition) =>
+                    addition.runtimeType == themeExtension.runtimeType,
+              ),
         ),
         data ?? existing ?? OrionThemeData.fallback,
+        ...extensions,
       ],
     );
   }

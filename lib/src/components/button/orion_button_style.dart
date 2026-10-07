@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import 'package:orion_ui/src/theme/orion_theme_data.dart';
-import 'package:orion_ui/src/theme/orion_tokens.dart';
+import 'package:orion_ui/src/core/orion_haptics.dart';
+import 'package:orion_ui/src/motion/orion_spring_spec.dart';
 
-/// Visual treatment of an [OrionButton], orthogonal to size and color roles.
+/// Visual treatment of a button, orthogonal to size and color roles.
 enum OrionButtonVariant {
   /// Filled with [ColorScheme.primary].
   solid,
@@ -18,34 +18,57 @@ enum OrionButtonVariant {
   flat,
 }
 
-/// Control height of an [OrionButton].
+/// Control height of a button.
 enum OrionButtonSize { small, medium, large }
 
-/// Resolved visual tokens for an [OrionButton].
+/// The overridable contract for how a button looks and feels.
+///
+/// Three layers produce the effective style, each overriding the last: the
+/// built-in preset (`OrionButtonPresets`), the theme's `OrionButtonTheme`, and
+/// the instance style passed to the widget. Every field is nullable; a null
+/// field falls through to the layer beneath it, so an override changes exactly
+/// what it names and nothing else.
+///
+/// The four visual fields resolve through the widget's live [WidgetState]s
+/// (`disabled`, `focused`, `hovered`, `pressed`), which is where state-specific
+/// colors belong. [OrionButtonStyle.from] is the flat sugar for the common
+/// case: one value per field, applied to every state.
 @immutable
 class OrionButtonStyle {
   const OrionButtonStyle({
-    required this.foreground,
     this.background,
+    this.foreground,
     this.border,
     this.shadow,
+    this.borderRadius,
     this.height,
     this.padding,
-    this.radius,
+    this.minWidth,
     this.textStyle,
+    this.iconSize,
+    this.gap,
+    this.pressedScale,
+    this.pressSpring,
+    this.releaseSpring,
+    this.hapticType,
+    this.impactHapticType,
   });
 
-  /// Label, icon, and progress color.
-  final Color foreground;
+  /// Surface color, resolved through the live [WidgetState]s.
+  final WidgetStateProperty<Color?>? background;
 
-  /// Surface color; null keeps the button transparent.
-  final Color? background;
+  /// Label, icon and progress color, resolved through the live [WidgetState]s.
+  final WidgetStateProperty<Color?>? foreground;
 
-  /// Surface border, including the focus ring when focused.
-  final BorderSide? border;
+  /// Surface border, including the focus ring, resolved through the live
+  /// [WidgetState]s.
+  final WidgetStateProperty<BorderSide?>? border;
 
-  /// Outer shadow, used by the glow variant.
-  final List<BoxShadow>? shadow;
+  /// Outer shadow, resolved through the live [WidgetState]s.
+  final WidgetStateProperty<List<BoxShadow>?>? shadow;
+
+  /// Surface corner radius.
+  final BorderRadius? borderRadius;
 
   /// Visual control height before hit-target padding.
   final double? height;
@@ -53,93 +76,198 @@ class OrionButtonStyle {
   /// Content padding.
   final EdgeInsetsGeometry? padding;
 
-  /// Surface corner radius.
-  final BorderRadius? radius;
+  /// Smallest painted width; the 44 pt hit-target floor still applies on top.
+  final double? minWidth;
 
   /// Label text style, taken from the host [TextTheme].
   final TextStyle? textStyle;
 
-  /// Resolves the style for [variant] and [size] from ambient tokens.
-  static OrionButtonStyle resolve({
-    required OrionButtonVariant variant,
-    required OrionButtonSize size,
-    required ColorScheme scheme,
-    required OrionThemeData theme,
-    required TextTheme textTheme,
-    required bool enabled,
-    required bool focused,
+  /// Icon size passed to the leading and trailing slots through [IconTheme].
+  final double? iconSize;
+
+  /// Space between the leading slot, the label and the trailing slot.
+  final double? gap;
+
+  /// Target scale while the button is held. Falls back to the theme's
+  /// `OrionThemeData.pressScale` when null.
+  final double? pressedScale;
+
+  /// Spring governing compression on pointer down. Falls back to the theme's
+  /// `OrionThemeData.pressSpring` when null.
+  final OrionSpringSpec? pressSpring;
+
+  /// Spring governing release on pointer up or cancel. Falls back to the
+  /// theme's `OrionThemeData.releaseSpring` when null.
+  final OrionSpringSpec? releaseSpring;
+
+  /// Tactile tick on an accepted tap. Falls back to the theme's
+  /// `OrionThemeData.selectionHaptic` when null.
+  final OrionHapticType? hapticType;
+
+  /// Tactile cue on long-press recognition. Falls back to the theme's
+  /// `OrionThemeData.impactHaptic` when null.
+  final OrionHapticType? impactHapticType;
+
+  /// Returns a copy with the provided fields replaced.
+  OrionButtonStyle copyWith({
+    WidgetStateProperty<Color?>? background,
+    WidgetStateProperty<Color?>? foreground,
+    WidgetStateProperty<BorderSide?>? border,
+    WidgetStateProperty<List<BoxShadow>?>? shadow,
+    BorderRadius? borderRadius,
+    double? height,
+    EdgeInsetsGeometry? padding,
+    double? minWidth,
+    TextStyle? textStyle,
+    double? iconSize,
+    double? gap,
+    double? pressedScale,
+    OrionSpringSpec? pressSpring,
+    OrionSpringSpec? releaseSpring,
+    OrionHapticType? hapticType,
+    OrionHapticType? impactHapticType,
   }) {
-    final (
-      double height,
-      EdgeInsetsGeometry padding,
-      TextStyle? textStyle,
-    ) = switch (size) {
-      OrionButtonSize.small => (
-        OrionSizing.controlHeightSmall,
-        const EdgeInsets.symmetric(horizontal: OrionSpacing.space12),
-        textTheme.labelMedium,
-      ),
-      OrionButtonSize.medium => (
-        OrionSizing.controlHeightMedium,
-        const EdgeInsets.symmetric(horizontal: OrionSpacing.space16),
-        textTheme.labelLarge,
-      ),
-      OrionButtonSize.large => (
-        OrionSizing.controlHeightLarge,
-        const EdgeInsets.symmetric(horizontal: OrionSpacing.space20),
-        textTheme.titleMedium,
-      ),
-    };
-
-    final Color disabledContainer = scheme.onSurface.withValues(alpha: 0.12);
-    final Color disabledForeground = scheme.onSurface.withValues(alpha: 0.38);
-
-    Color? background;
-    Color? foreground;
-    BorderSide? border;
-    List<BoxShadow>? shadow;
-
-    switch (variant) {
-      case OrionButtonVariant.solid:
-        background = enabled ? scheme.primary : disabledContainer;
-        foreground = enabled ? scheme.onPrimary : disabledForeground;
-      case OrionButtonVariant.bordered:
-        foreground = enabled ? scheme.primary : disabledForeground;
-        border = BorderSide(
-          color: enabled ? scheme.outline : disabledContainer,
-        );
-      case OrionButtonVariant.glow:
-        background = enabled ? scheme.primary : disabledContainer;
-        foreground = enabled ? scheme.onPrimary : disabledForeground;
-        shadow = [
-          BoxShadow(
-            color: scheme.primary.withValues(alpha: enabled ? 0.35 : 0.12),
-            blurRadius: 16.0,
-            spreadRadius: -2.0,
-          ),
-        ];
-      case OrionButtonVariant.flat:
-        foreground = enabled ? scheme.primary : disabledForeground;
-    }
-
-    if (focused && enabled) {
-      final Color ring = switch (variant) {
-        OrionButtonVariant.solid || OrionButtonVariant.glow => scheme.onSurface,
-        OrionButtonVariant.bordered ||
-        OrionButtonVariant.flat => scheme.primary,
-      };
-      border = BorderSide(color: ring, width: 2.0);
-    }
-
     return OrionButtonStyle(
-      foreground: foreground,
-      background: background,
-      border: border,
-      shadow: shadow,
-      height: height,
-      padding: padding,
-      radius: BorderRadius.circular(theme.controlRadius),
-      textStyle: textStyle,
+      background: background ?? this.background,
+      foreground: foreground ?? this.foreground,
+      border: border ?? this.border,
+      shadow: shadow ?? this.shadow,
+      borderRadius: borderRadius ?? this.borderRadius,
+      height: height ?? this.height,
+      padding: padding ?? this.padding,
+      minWidth: minWidth ?? this.minWidth,
+      textStyle: textStyle ?? this.textStyle,
+      iconSize: iconSize ?? this.iconSize,
+      gap: gap ?? this.gap,
+      pressedScale: pressedScale ?? this.pressedScale,
+      pressSpring: pressSpring ?? this.pressSpring,
+      releaseSpring: releaseSpring ?? this.releaseSpring,
+      hapticType: hapticType ?? this.hapticType,
+      impactHapticType: impactHapticType ?? this.impactHapticType,
     );
   }
+
+  /// Returns this style with every non-null field of [other] applied on top.
+  ///
+  /// This is the layer merge: preset, then theme, then instance. A null field
+  /// in [other] never erases a value resolved beneath it.
+  OrionButtonStyle merge(OrionButtonStyle? other) {
+    if (other == null) {
+      return this;
+    }
+    return OrionButtonStyle(
+      background: other.background ?? background,
+      foreground: other.foreground ?? foreground,
+      border: other.border ?? border,
+      shadow: other.shadow ?? shadow,
+      borderRadius: other.borderRadius ?? borderRadius,
+      height: other.height ?? height,
+      padding: other.padding ?? padding,
+      minWidth: other.minWidth ?? minWidth,
+      textStyle: other.textStyle ?? textStyle,
+      iconSize: other.iconSize ?? iconSize,
+      gap: other.gap ?? gap,
+      pressedScale: other.pressedScale ?? pressedScale,
+      pressSpring: other.pressSpring ?? pressSpring,
+      releaseSpring: other.releaseSpring ?? releaseSpring,
+      hapticType: other.hapticType ?? hapticType,
+      impactHapticType: other.impactHapticType ?? impactHapticType,
+    );
+  }
+
+  /// Builds a style from plain values, each applied to every state.
+  ///
+  /// The flat sugar for the common case: one value per field, wrapped in
+  /// [WidgetStatePropertyAll]. Use the main constructor when a value must
+  /// differ by state - a plain value here, including for a disabled button,
+  /// is exactly what the caller asked for.
+  static OrionButtonStyle from({
+    Color? backgroundColor,
+    Color? foregroundColor,
+    Color? borderColor,
+    List<BoxShadow>? shadow,
+    BorderRadius? borderRadius,
+    double? height,
+    EdgeInsetsGeometry? padding,
+    double? minWidth,
+    TextStyle? textStyle,
+    double? iconSize,
+    double? gap,
+    double? pressedScale,
+    OrionSpringSpec? pressSpring,
+    OrionSpringSpec? releaseSpring,
+    OrionHapticType? hapticType,
+    OrionHapticType? impactHapticType,
+  }) {
+    return OrionButtonStyle(
+      background: backgroundColor == null
+          ? null
+          : WidgetStatePropertyAll<Color?>(backgroundColor),
+      foreground: foregroundColor == null
+          ? null
+          : WidgetStatePropertyAll<Color?>(foregroundColor),
+      border: borderColor == null
+          ? null
+          : WidgetStatePropertyAll<BorderSide?>(BorderSide(color: borderColor)),
+      shadow: shadow == null
+          ? null
+          : WidgetStatePropertyAll<List<BoxShadow>?>(shadow),
+      borderRadius: borderRadius,
+      height: height,
+      padding: padding,
+      minWidth: minWidth,
+      textStyle: textStyle,
+      iconSize: iconSize,
+      gap: gap,
+      pressedScale: pressedScale,
+      pressSpring: pressSpring,
+      releaseSpring: releaseSpring,
+      hapticType: hapticType,
+      impactHapticType: impactHapticType,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) {
+      return true;
+    }
+    return other is OrionButtonStyle &&
+        other.background == background &&
+        other.foreground == foreground &&
+        other.border == border &&
+        other.shadow == shadow &&
+        other.borderRadius == borderRadius &&
+        other.height == height &&
+        other.padding == padding &&
+        other.minWidth == minWidth &&
+        other.textStyle == textStyle &&
+        other.iconSize == iconSize &&
+        other.gap == gap &&
+        other.pressedScale == pressedScale &&
+        other.pressSpring == pressSpring &&
+        other.releaseSpring == releaseSpring &&
+        other.hapticType == hapticType &&
+        other.impactHapticType == impactHapticType;
+  }
+
+  @override
+  int get hashCode => Object.hashAll(<Object?>[
+    background,
+    foreground,
+    border,
+    shadow,
+    borderRadius,
+    height,
+    padding,
+    minWidth,
+    textStyle,
+    iconSize,
+    gap,
+    pressedScale,
+    pressSpring,
+    releaseSpring,
+    hapticType,
+    impactHapticType,
+  ]);
 }

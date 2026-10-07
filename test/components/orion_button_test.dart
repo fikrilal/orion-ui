@@ -104,15 +104,14 @@ void main() {
         ),
       );
 
-      final Color foreground = OrionButtonStyle.resolve(
+      final BuildContext context = tester.element(find.byType(OrionButton));
+      final Color foreground = OrionButtonPresets.resolve(
         variant: OrionButtonVariant.solid,
         size: OrionButtonSize.medium,
-        scheme: Theme.of(tester.element(find.byType(OrionButton))).colorScheme,
-        theme: OrionTheme.of(tester.element(find.byType(OrionButton))),
-        textTheme: Theme.of(tester.element(find.byType(OrionButton))).textTheme,
-        enabled: true,
-        focused: false,
-      ).foreground;
+        scheme: Theme.of(context).colorScheme,
+        theme: OrionTheme.of(context),
+        textTheme: Theme.of(context).textTheme,
+      ).foreground!.resolve(const <WidgetState>{})!;
 
       for (final icon in [Icons.download, Icons.arrow_forward]) {
         expect(
@@ -326,95 +325,143 @@ void main() {
     final TextTheme textTheme = ThemeData().textTheme;
     const OrionThemeData orion = OrionThemeData.fallback;
 
-    OrionButtonStyle resolve(
+    OrionButtonStyle preset(
       OrionButtonVariant variant, {
-      bool enabled = true,
-      bool focused = false,
       OrionButtonSize size = OrionButtonSize.medium,
     }) {
-      return OrionButtonStyle.resolve(
+      return OrionButtonPresets.resolve(
         variant: variant,
         size: size,
         scheme: scheme,
         theme: orion,
         textTheme: textTheme,
-        enabled: enabled,
-        focused: focused,
       );
     }
 
+    Color? background(OrionButtonStyle style, Set<WidgetState> states) =>
+        style.background?.resolve(states);
+
+    Color? foreground(OrionButtonStyle style, Set<WidgetState> states) =>
+        style.foreground?.resolve(states);
+
+    BorderSide? border(OrionButtonStyle style, Set<WidgetState> states) =>
+        style.border?.resolve(states);
+
+    List<BoxShadow>? shadow(OrionButtonStyle style, Set<WidgetState> states) =>
+        style.shadow?.resolve(states);
+
     test('solid fills with primary and onPrimary', () {
-      final OrionButtonStyle style = resolve(OrionButtonVariant.solid);
-      expect(style.background, scheme.primary);
-      expect(style.foreground, scheme.onPrimary);
-      expect(style.border, isNull);
+      final OrionButtonStyle style = preset(OrionButtonVariant.solid);
+      expect(background(style, const <WidgetState>{}), scheme.primary);
+      expect(foreground(style, const <WidgetState>{}), scheme.onPrimary);
+      expect(border(style, const <WidgetState>{}), isNull);
     });
 
     test('bordered stays transparent with an outline border', () {
-      final OrionButtonStyle style = resolve(OrionButtonVariant.bordered);
-      expect(style.background, isNull);
-      expect(style.border?.color, scheme.outline);
+      final OrionButtonStyle style = preset(OrionButtonVariant.bordered);
+      expect(background(style, const <WidgetState>{}), isNull);
+      expect(border(style, const <WidgetState>{})?.color, scheme.outline);
     });
 
     test('glow adds a primary-tinted shadow', () {
-      final OrionButtonStyle style = resolve(OrionButtonVariant.glow);
-      expect(style.background, scheme.primary);
-      expect(style.shadow, isNotEmpty);
+      final OrionButtonStyle style = preset(OrionButtonVariant.glow);
+      expect(background(style, const <WidgetState>{}), scheme.primary);
+      expect(shadow(style, const <WidgetState>{}), isNotEmpty);
     });
 
     test('flat has no background or border', () {
-      final OrionButtonStyle style = resolve(OrionButtonVariant.flat);
-      expect(style.background, isNull);
-      expect(style.border, isNull);
+      final OrionButtonStyle style = preset(OrionButtonVariant.flat);
+      expect(background(style, const <WidgetState>{}), isNull);
+      expect(border(style, const <WidgetState>{}), isNull);
     });
 
     test('sizes map to control heights and text styles', () {
       expect(
-        resolve(OrionButtonVariant.solid, size: OrionButtonSize.small).height,
+        preset(OrionButtonVariant.solid, size: OrionButtonSize.small).height,
         OrionSizing.controlHeightSmall,
       );
       expect(
-        resolve(OrionButtonVariant.solid, size: OrionButtonSize.medium).height,
+        preset(OrionButtonVariant.solid, size: OrionButtonSize.medium).height,
         OrionSizing.controlHeightMedium,
       );
       expect(
-        resolve(OrionButtonVariant.solid, size: OrionButtonSize.large).height,
+        preset(OrionButtonVariant.solid, size: OrionButtonSize.large).height,
         OrionSizing.controlHeightLarge,
       );
       expect(
-        resolve(OrionButtonVariant.flat, size: OrionButtonSize.small).textStyle,
+        preset(OrionButtonVariant.flat, size: OrionButtonSize.small).textStyle,
         textTheme.labelMedium,
       );
       expect(
-        resolve(OrionButtonVariant.flat, size: OrionButtonSize.large).textStyle,
+        preset(OrionButtonVariant.flat, size: OrionButtonSize.large).textStyle,
         textTheme.titleMedium,
       );
     });
 
     test('disabled uses Material disabled opacities', () {
-      final OrionButtonStyle style = resolve(
-        OrionButtonVariant.solid,
-        enabled: false,
+      final OrionButtonStyle style = preset(OrionButtonVariant.solid);
+      expect(
+        background(style, const <WidgetState>{WidgetState.disabled}),
+        scheme.onSurface.withValues(alpha: 0.12),
       );
-      expect(style.background, scheme.onSurface.withValues(alpha: 0.12));
-      expect(style.foreground, scheme.onSurface.withValues(alpha: 0.38));
+      expect(
+        foreground(style, const <WidgetState>{WidgetState.disabled}),
+        scheme.onSurface.withValues(alpha: 0.38),
+      );
     });
 
     test('focus adds a 2 pt ring for every variant', () {
       for (final OrionButtonVariant variant in OrionButtonVariant.values) {
-        final OrionButtonStyle style = resolve(variant, focused: true);
-        expect(style.border?.width, 2.0, reason: variant.name);
+        final OrionButtonStyle style = preset(variant);
+        expect(
+          border(style, const <WidgetState>{WidgetState.focused})?.width,
+          2.0,
+          reason: variant.name,
+        );
       }
     });
 
     test('focus is ignored while disabled', () {
-      final OrionButtonStyle enabled = resolve(OrionButtonVariant.bordered);
-      final OrionButtonStyle disabled = resolve(
-        OrionButtonVariant.bordered,
-        enabled: false,
-        focused: true,
+      final OrionButtonStyle style = preset(OrionButtonVariant.bordered);
+      final BorderSide? resting = border(style, const <WidgetState>{});
+      final BorderSide? disabledFocused = border(style, const <WidgetState>{
+        WidgetState.disabled,
+        WidgetState.focused,
+      });
+      expect(disabledFocused?.width, resting?.width);
+    });
+
+    test('a merge only changes the fields it names', () {
+      final OrionButtonStyle style = preset(OrionButtonVariant.solid);
+      final OrionButtonStyle merged = style.merge(
+        OrionButtonStyle.from(backgroundColor: const Color(0xFF00FF00)),
       );
-      expect(disabled.border?.width, enabled.border?.width);
+      expect(
+        background(merged, const <WidgetState>{}),
+        const Color(0xFF00FF00),
+      );
+      expect(merged.height, style.height);
+      expect(merged.padding, style.padding);
+      expect(
+        foreground(merged, const <WidgetState>{}),
+        scheme.onPrimary,
+        reason: 'unnamed fields fall through to the preset',
+      );
+    });
+
+    test('physics fields fall through the merge until set', () {
+      final OrionButtonStyle style = preset(OrionButtonVariant.solid);
+      expect(style.pressedScale, isNull);
+
+      final OrionButtonStyle merged = style.merge(
+        OrionButtonStyle.from(
+          pressedScale: 0.9,
+          pressSpring: OrionSpringSpec.gentle,
+        ),
+      );
+      expect(merged.pressedScale, 0.9);
+      expect(merged.pressSpring, OrionSpringSpec.gentle);
+      expect(merged.releaseSpring, isNull);
     });
   });
 }

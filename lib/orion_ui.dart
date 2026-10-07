@@ -1,7 +1,9 @@
 export 'src/components/accordion/orion_accordion.dart';
 export 'src/components/badge/orion_badge.dart';
 export 'src/components/button/orion_button.dart';
+export 'src/components/button/orion_button_presets.dart';
 export 'src/components/button/orion_button_style.dart';
+export 'src/components/button/orion_button_theme.dart';
 export 'src/components/card/orion_card.dart';
 export 'src/components/card/orion_card_style.dart';
 export 'src/components/checkbox/orion_checkbox.dart';

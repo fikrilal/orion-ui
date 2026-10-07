@@ -110,7 +110,34 @@ OrionTextField(
 );
 ```
 
-- `OrionButton` owns async in-flight locking, opt-in debounce, loading/disabled states, a 44 pt hit-target floor, and Enter/Space activation.
+Restyle in one place, or tune a single call site - only the fields an override names change:
+
+```dart
+// One place: register an OrionButtonTheme when the app is themed.
+OrionTheme.apply(
+  OrionTheme.light(),
+  extensions: [
+    OrionButtonTheme(
+      variantStyles: {
+        OrionButtonVariant.solid: OrionButtonStyle.from(backgroundColor: brand),
+      },
+    ),
+  ],
+);
+
+// One call site: instance overrides merge over the preset and the theme.
+OrionButton(
+  onPressed: save,
+  style: OrionButtonStyle.from(
+    borderRadius: BorderRadius.circular(20),
+    pressedScale: 0.97,
+    pressSpring: OrionSpringSpec.snappy,
+  ),
+  child: const Text('Save'),
+);
+```
+
+- `OrionButton` owns async in-flight locking, opt-in debounce, loading/disabled states, a 44 pt hit-target floor, and Enter/Space activation. Look and feel resolve in three layers - the variant preset, an ambient `OrionButtonTheme`, and the per-instance `OrionButtonStyle` - so an override can retune state colors (`WidgetStateProperty` for pressed, hovered, focused, disabled), metrics, or the press physics (`pressedScale`, springs, both haptics) without restating the rest.
 - `OrionCard` keeps frosted glass in a clipped static layer; interactive cards compress only the foreground content.
 - `OrionBadge` applies the ambient `labelSmall` style through `DefaultTextStyle`.
 - `OrionSegmentedControl` is a single-select pill track. The selected pill slides on the press spring, arrow keys follow the text direction, and `onChanged: null` mutes the track.

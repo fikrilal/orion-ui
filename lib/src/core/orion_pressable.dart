@@ -18,6 +18,8 @@ import 'package:orion_ui/src/motion/orion_spring_spec.dart';
 ///   to `1.0` silently with zero haptic feedback.
 /// - **Rebuild Isolation:** Ticker frame updates only modify the render-level [Transform.scale]
 ///   around the pre-built [child], never triggering widget rebuilds per frame.
+/// - **Pressed-State Reporting:** [onPressedChanged] mirrors the compression lifecycle, so a
+///   parent can resolve `WidgetState.pressed` without owning a second recognizer.
 ///
 /// Tracking is single-pointer: a concurrent second pointer replaces the tracked
 /// origin, and either pointer's lift or cancel ends the compression.
@@ -34,6 +36,7 @@ class OrionPressable extends StatefulWidget {
     this.impactHapticType = OrionHapticType.mediumImpact,
     this.behavior = HitTestBehavior.opaque,
     this.cursor,
+    this.onPressedChanged,
   }) : assert(
          pressedScale > 0.0 && pressedScale <= 1.0,
          'pressedScale must be between 0.0 and 1.0',
@@ -78,6 +81,13 @@ class OrionPressable extends StatefulWidget {
   /// Mouse cursor shown when hovering over this pressable on desktop/web.
   final MouseCursor? cursor;
 
+  /// Called with true when the press engages and false when it disengages.
+  ///
+  /// Engagement starts with a primary pointer down and ends with any release,
+  /// cancel, slop escape, long-press end, or disable - the same lifecycle that
+  /// drives the compression, so the signal never disagrees with the visual.
+  final ValueChanged<bool>? onPressedChanged;
+
   @override
   State<OrionPressable> createState() => OrionPressableState();
 }
@@ -90,6 +100,7 @@ class OrionPressableState extends State<OrionPressable>
 
   bool _isPointerDown = false;
   bool _isLongPressing = false;
+  bool _pressed = false;
   Offset? _pointerDownPosition;
   DeviceGestureSettings? _gestureSettings;
 
@@ -140,6 +151,7 @@ class OrionPressableState extends State<OrionPressable>
 
     _isPointerDown = true;
     _pointerDownPosition = event.position;
+    _setPressed(true);
     driver.springSpec = widget.springSpec;
     driver.retarget(widget.pressedScale);
   }
@@ -222,6 +234,15 @@ class OrionPressableState extends State<OrionPressable>
     if (!mounted) return;
     driver.springSpec = widget.releaseSpringSpec ?? widget.springSpec;
     driver.retarget(1.0);
+    _setPressed(false);
+  }
+
+  void _setPressed(bool pressed) {
+    if (_pressed == pressed) {
+      return;
+    }
+    _pressed = pressed;
+    widget.onPressedChanged?.call(pressed);
   }
 
   @override

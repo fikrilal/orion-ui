@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:orion_ui/src/components/segmented/orion_segmented_control_style.dart';
+import 'package:orion_ui/src/components/segmented/orion_segmented_control_theme.dart';
 import 'package:orion_ui/src/core/orion_haptics.dart';
 import 'package:orion_ui/src/core/orion_pressable.dart';
 import 'package:orion_ui/src/motion/orion_spring_driver.dart';
@@ -13,19 +15,30 @@ import 'package:orion_ui/src/theme/orion_tokens.dart';
 @immutable
 class OrionSegment<T> {
   /// Creates a segment whose [label] is shown in the track.
-  const OrionSegment({required this.value, required this.label});
+  const OrionSegment({required this.value, required this.label, this.badge});
 
   /// Value reported when this segment becomes selected.
   final T value;
 
   /// Visible content. Text uses `labelMedium`; icons inherit the label color.
   final Widget label;
+
+  /// Optional short content - a count, typically - shown in a counter chip
+  /// after the label. The chip is themed by the control, muted when the
+  /// control is disabled, and collapses in place when it disappears; the
+  /// segment's slot keeps its width.
+  final Widget? badge;
 }
 
 /// Single-select pill track. The parent owns [value].
 ///
 /// Segments share the width equally. The selected pill slides on the immediate
 /// travel spec, not the press spring. A bounded width is required.
+///
+/// Look and feel resolve in three layers, each overriding the last: the
+/// built-in [OrionSegmentedControlStyle.defaults], the ambient
+/// [OrionSegmentedControlTheme], and the [style] passed here. Anything an
+/// override does not name falls through.
 class OrionSegmentedControl<T> extends StatefulWidget {
   /// Creates a controlled segmented control.
   const OrionSegmentedControl({
@@ -33,6 +46,7 @@ class OrionSegmentedControl<T> extends StatefulWidget {
     required this.segments,
     required this.value,
     required this.onChanged,
+    this.style,
     this.focusNode,
     this.autofocus = false,
   });
@@ -47,6 +61,10 @@ class OrionSegmentedControl<T> extends StatefulWidget {
   ///
   /// Tapping the already selected segment does not call this.
   final ValueChanged<T>? onChanged;
+
+  /// Instance-level overrides, merged over the built-in defaults and the
+  /// ambient [OrionSegmentedControlTheme]. Only the fields set here change.
+  final OrionSegmentedControlStyle? style;
 
   /// Optional focus node for arrow-key selection.
   final FocusNode? focusNode;
@@ -187,43 +205,108 @@ class _OrionSegmentedControlState<T> extends State<OrionSegmentedControl<T>>
     return KeyEventResult.handled;
   }
 
+  Widget _buildSegment(
+    OrionSegment<T> segment, {
+    required OrionSegmentedControlStyle style,
+    required bool enabled,
+    required TextStyle labelStyle,
+    required TextStyle badgeTextStyle,
+    required double iconSize,
+    required double pressedScale,
+    required OrionSpringSpec pressSpring,
+    required OrionSpringSpec releaseSpring,
+    required OrionHapticType haptic,
+  }) {
+    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final bool selected = segment.value == widget.value;
+    final Set<WidgetState> states = <WidgetState>{
+      if (!enabled) WidgetState.disabled,
+      if (selected) WidgetState.selected,
+    };
+    return _SegmentButton(
+      label: segment.label,
+      badge: segment.badge,
+      badgeStyle: style.badge,
+      badgeTextStyle: badgeTextStyle,
+      badgeFill: style.badge?.fill?.resolve(states) ?? scheme.primary,
+      badgeInk: style.badge?.ink?.resolve(states) ?? scheme.onPrimary,
+      selected: selected,
+      enabled: enabled,
+      textStyle: labelStyle,
+      color: style.labelColor?.resolve(states) ?? scheme.onSurface,
+      iconSize: iconSize,
+      pressedScale: pressedScale,
+      pressSpring: pressSpring,
+      releaseSpring: releaseSpring,
+      haptic: haptic,
+      onTap: enabled ? () => _select(segment.value) : null,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     _debugValidate();
     final ThemeData theme = Theme.of(context);
     final ColorScheme scheme = theme.colorScheme;
     final OrionThemeData orion = OrionTheme.of(context);
-    final TextStyle textStyle =
+    final TextStyle baseLabelStyle =
         theme.textTheme.labelMedium ?? const TextStyle();
+    final OrionSegmentedControlTheme controlTheme =
+        theme.extension<OrionSegmentedControlTheme>() ??
+        OrionSegmentedControlTheme.fallback;
+
+    final OrionSegmentedControlStyle style =
+        OrionSegmentedControlStyle.defaults(
+          scheme: scheme,
+          labelStyle: baseLabelStyle,
+        ).merge(controlTheme.defaultStyle).merge(widget.style);
+
     final bool enabled = widget.onChanged != null;
     final int selectedIndex = _indexOf(widget.value);
-    final BorderRadius radius = BorderRadius.circular(OrionRadii.radiusPill);
-    final Color disabledForeground = scheme.onSurface.withValues(alpha: 0.38);
-    final Color trackColor = enabled
-        ? scheme.secondary
-        : scheme.onSurface.withValues(alpha: 0.12);
+    final double height = style.height ?? OrionSizing.minHitTarget;
+    final double inset = style.inset ?? OrionSpacing.space4;
+    final BorderRadius radius =
+        style.radius ?? BorderRadius.circular(OrionRadii.radiusPill);
+    final TextStyle labelStyle = style.labelStyle ?? baseLabelStyle;
+    final TextStyle badgeTextStyle =
+        style.badge?.textStyle ?? theme.textTheme.labelSmall ?? labelStyle;
+    final double iconSize = style.iconSize ?? OrionSizing.iconSmall;
+    final Color focusRingColor = style.focusRingColor ?? scheme.onSurface;
+    final double pressedScale = style.pressedScale ?? orion.pressScale;
+    final OrionSpringSpec pressSpring = style.pressSpring ?? orion.pressSpring;
+    final OrionSpringSpec releaseSpring =
+        style.releaseSpring ?? orion.releaseSpring;
+    final OrionHapticType haptic = style.hapticType ?? orion.selectionHaptic;
+    final Color trackColor =
+        style.trackColor?.resolve(<WidgetState>{
+          if (!enabled) WidgetState.disabled,
+        }) ??
+        scheme.secondary;
+    final Color pillColor =
+        style.pillColor?.resolve(<WidgetState>{
+          WidgetState.selected,
+          if (!enabled) WidgetState.disabled,
+        }) ??
+        scheme.surface;
 
     final Widget segments = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: OrionSpacing.space4),
+      padding: EdgeInsets.symmetric(horizontal: inset),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           for (final OrionSegment<T> segment in widget.segments)
             Expanded(
-              child: _SegmentButton(
-                label: segment.label,
-                selected: segment.value == widget.value,
+              child: _buildSegment(
+                segment,
+                style: style,
                 enabled: enabled,
-                textStyle: textStyle,
-                selectedColor: enabled ? scheme.onSurface : disabledForeground,
-                idleColor: enabled
-                    ? scheme.onSurfaceVariant
-                    : disabledForeground,
-                pressedScale: orion.pressScale,
-                pressSpring: orion.pressSpring,
-                releaseSpring: orion.releaseSpring,
-                haptic: orion.selectionHaptic,
-                onTap: enabled ? () => _select(segment.value) : null,
+                labelStyle: labelStyle,
+                badgeTextStyle: badgeTextStyle,
+                iconSize: iconSize,
+                pressedScale: pressedScale,
+                pressSpring: pressSpring,
+                releaseSpring: releaseSpring,
+                haptic: haptic,
               ),
             ),
         ],
@@ -247,11 +330,10 @@ class _OrionSegmentedControlState<T> extends State<OrionSegmentedControl<T>>
             'OrionSegmentedControl requires a bounded width.',
           );
           final double slotWidth =
-              (constraints.maxWidth - OrionSpacing.space4 * 2) /
-              widget.segments.length;
+              (constraints.maxWidth - inset * 2) / widget.segments.length;
           return SizedBox(
             width: constraints.maxWidth,
-            height: OrionSizing.minHitTarget,
+            height: height,
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: trackColor,
@@ -262,7 +344,7 @@ class _OrionSegmentedControlState<T> extends State<OrionSegmentedControl<T>>
                 decoration: BoxDecoration(
                   borderRadius: radius,
                   border: _focused && enabled
-                      ? Border.all(color: scheme.onSurface, width: 2)
+                      ? Border.all(color: focusRingColor, width: 2)
                       : null,
                 ),
                 child: ClipRRect(
@@ -271,9 +353,9 @@ class _OrionSegmentedControlState<T> extends State<OrionSegmentedControl<T>>
                     children: <Widget>[
                       if (selectedIndex >= 0)
                         PositionedDirectional(
-                          start: OrionSpacing.space4,
-                          top: OrionSpacing.space4,
-                          bottom: OrionSpacing.space4,
+                          start: inset,
+                          top: inset,
+                          bottom: inset,
                           width: slotWidth,
                           child: AnimatedBuilder(
                             animation: _driver,
@@ -293,7 +375,7 @@ class _OrionSegmentedControlState<T> extends State<OrionSegmentedControl<T>>
                             },
                             child: DecoratedBox(
                               decoration: BoxDecoration(
-                                color: scheme.surface,
+                                color: pillColor,
                                 borderRadius: radius,
                               ),
                             ),
@@ -315,11 +397,16 @@ class _OrionSegmentedControlState<T> extends State<OrionSegmentedControl<T>>
 class _SegmentButton extends StatelessWidget {
   const _SegmentButton({
     required this.label,
+    required this.badge,
+    required this.badgeStyle,
+    required this.badgeTextStyle,
+    required this.badgeFill,
+    required this.badgeInk,
     required this.selected,
     required this.enabled,
     required this.textStyle,
-    required this.selectedColor,
-    required this.idleColor,
+    required this.color,
+    required this.iconSize,
     required this.pressedScale,
     required this.pressSpring,
     required this.releaseSpring,
@@ -328,11 +415,21 @@ class _SegmentButton extends StatelessWidget {
   });
 
   final Widget label;
+
+  /// Optional short content - a count, typically - shown in a counter chip.
+  final Widget? badge;
+
+  /// The chip's metrics; colours arrive pre-resolved for this segment.
+  final OrionSegmentBadgeStyle? badgeStyle;
+  final TextStyle badgeTextStyle;
+  final Color badgeFill;
+  final Color badgeInk;
+
   final bool selected;
   final bool enabled;
   final TextStyle textStyle;
-  final Color selectedColor;
-  final Color idleColor;
+  final Color color;
+  final double iconSize;
   final double pressedScale;
   final OrionSpringSpec pressSpring;
   final OrionSpringSpec releaseSpring;
@@ -341,7 +438,40 @@ class _SegmentButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color color = selected ? selectedColor : idleColor;
+    // The badge's presence is content, not travel: it collapses in place while
+    // the pill keeps the springs. Reduced motion lands it in the same frame.
+    final bool reduced = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    final double badgeHeight = badgeStyle?.height ?? 18;
+    final double badgeMinWidth = badgeStyle?.minWidth ?? 18;
+    final EdgeInsetsGeometry badgePadding =
+        badgeStyle?.padding ??
+        const EdgeInsets.symmetric(horizontal: OrionSpacing.space4);
+    final double badgeGap = badgeStyle?.gap ?? OrionSpacing.space4;
+    final Widget badgeChild = badge == null
+        ? const SizedBox.shrink()
+        : Padding(
+            padding: EdgeInsets.only(left: badgeGap),
+            child: Container(
+              constraints: BoxConstraints(
+                minWidth: badgeMinWidth,
+                minHeight: badgeHeight,
+              ),
+              padding: badgePadding,
+              decoration: BoxDecoration(
+                color: badgeFill,
+                borderRadius: BorderRadius.circular(OrionRadii.radiusPill),
+              ),
+              child: Center(
+                widthFactor: 1,
+                heightFactor: 1,
+                child: DefaultTextStyle(
+                  style: badgeTextStyle.copyWith(color: badgeInk),
+                  child: badge!,
+                ),
+              ),
+            ),
+          );
+
     return Semantics(
       container: true,
       button: true,
@@ -356,12 +486,29 @@ class _SegmentButton extends StatelessWidget {
         hapticType: haptic,
         child: Center(
           child: IconTheme.merge(
-            data: IconThemeData(color: color, size: OrionSizing.iconSmall),
+            data: IconThemeData(color: color, size: iconSize),
             child: DefaultTextStyle(
               style: textStyle.copyWith(color: color),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              child: label,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Flexible(child: label),
+                  // An animated size cannot run at zero duration (it would
+                  // re-dirty itself mid-layout), so reduced motion swaps the
+                  // wrapper out entirely and the change lands in one frame.
+                  if (reduced)
+                    badgeChild
+                  else
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOutCubic,
+                      alignment: Alignment.center,
+                      child: badgeChild,
+                    ),
+                ],
+              ),
             ),
           ),
         ),

@@ -339,5 +339,324 @@ void main() {
       FlutterError.onError = previous;
       expect(errors.whereType<AssertionError>(), isNotEmpty);
     });
+
+    testWidgets('renders a badge in a themed chip and keeps slots equal', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 300,
+                child: OrionSegmentedControl<String>(
+                  value: 'live',
+                  onChanged: (_) {},
+                  segments: const <OrionSegment<String>>[
+                    OrionSegment(value: 'overview', label: Text('Overview')),
+                    OrionSegment(
+                      value: 'live',
+                      label: Text('Live'),
+                      badge: Text('12'),
+                    ),
+                    OrionSegment(value: 'tickets', label: Text('Tickets')),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('12'), findsOneWidget);
+      expect(
+        find.byWidgetPredicate((Widget widget) {
+          if (widget is! DecoratedBox) {
+            return false;
+          }
+          final Decoration decoration = widget.decoration;
+          return decoration is BoxDecoration &&
+              decoration.color == OrionColors.lightScheme.primary;
+        }),
+        findsOneWidget,
+      );
+
+      final Finder slots = find.descendant(
+        of: find.byType(OrionSegmentedControl<String>),
+        matching: find.byType(OrionPressable),
+      );
+      expect(slots, findsNWidgets(3));
+      final double first = tester.getSize(slots.at(0)).width;
+      expect(tester.getSize(slots.at(1)).width, closeTo(first, 0.1));
+      expect(tester.getSize(slots.at(2)).width, closeTo(first, 0.1));
+    });
+
+    testWidgets('mutes the badge when the control is disabled', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 300,
+                child: OrionSegmentedControl<String>(
+                  value: 'live',
+                  onChanged: null,
+                  segments: const <OrionSegment<String>>[
+                    OrionSegment(value: 'overview', label: Text('Overview')),
+                    OrionSegment(
+                      value: 'live',
+                      label: Text('Live'),
+                      badge: Text('12'),
+                    ),
+                    OrionSegment(value: 'tickets', label: Text('Tickets')),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final ColorScheme scheme = OrionColors.lightScheme;
+      expect(
+        find.byWidgetPredicate((Widget widget) {
+          if (widget is! DecoratedBox) {
+            return false;
+          }
+          final Decoration decoration = widget.decoration;
+          return decoration is BoxDecoration &&
+              decoration.color == scheme.onSurface.withValues(alpha: 0.38);
+        }),
+        findsOneWidget,
+      );
+      expect(
+        DefaultTextStyle.of(tester.element(find.text('12'))).style.color,
+        scheme.surface,
+      );
+    });
+
+    Widget badgedControl({required Widget? badge, required bool reduced}) {
+      return MaterialApp(
+        theme: OrionTheme.light(),
+        home: Scaffold(
+          body: Center(
+            child: MediaQuery(
+              data: MediaQueryData(disableAnimations: reduced),
+              child: SizedBox(
+                width: 300,
+                child: OrionSegmentedControl<String>(
+                  value: 'live',
+                  onChanged: (_) {},
+                  segments: <OrionSegment<String>>[
+                    const OrionSegment(
+                      value: 'overview',
+                      label: Text('Overview'),
+                    ),
+                    OrionSegment(
+                      value: 'live',
+                      label: const Text('Live'),
+                      badge: badge,
+                    ),
+                    const OrionSegment(
+                      value: 'tickets',
+                      label: Text('Tickets'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    testWidgets('lands a badge change in the same frame under reduced motion', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        badgedControl(badge: const Text('12'), reduced: true),
+      );
+      await tester.pump();
+      final double withBadge = tester.getCenter(find.text('Live')).dx;
+
+      await tester.pumpWidget(badgedControl(badge: null, reduced: true));
+      await tester.pump();
+
+      expect(find.text('12'), findsNothing);
+      expect(
+        tester.getCenter(find.text('Live')).dx,
+        greaterThan(withBadge + 1),
+        reason: 'reduced motion re-centres in the same frame',
+      );
+    });
+
+    testWidgets('animates a badge change instead of snapping', (tester) async {
+      await tester.pumpWidget(badgedControl(badge: null, reduced: false));
+      await tester.pumpAndSettle();
+      final double centred = tester.getCenter(find.text('Live')).dx;
+
+      await tester.pumpWidget(
+        badgedControl(badge: const Text('12'), reduced: false),
+      );
+      await tester.pump(const Duration(milliseconds: 16));
+      final double midway = tester.getCenter(find.text('Live')).dx;
+
+      await tester.pumpAndSettle();
+      final double settled = tester.getCenter(find.text('Live')).dx;
+
+      expect(
+        settled,
+        lessThan(centred - 5),
+        reason: 'the chip keeps its space once arrived',
+      );
+      expect(
+        midway,
+        lessThan(centred - 0.5),
+        reason: 'the label has started moving',
+      );
+      expect(
+        midway,
+        greaterThan(settled + 0.5),
+        reason: 'and has not snapped to the end',
+      );
+    });
+  });
+
+  group('OrionSegmentedControlStyle', () {
+    final ColorScheme scheme = OrionColors.lightScheme;
+
+    OrionSegmentedControlStyle defaults() =>
+        OrionSegmentedControlStyle.defaults(scheme: scheme);
+
+    test('defaults reproduce the shipped look', () {
+      final OrionSegmentedControlStyle style = defaults();
+      expect(
+        style.trackColor?.resolve(const <WidgetState>{}),
+        scheme.secondary,
+      );
+      expect(
+        style.trackColor?.resolve(const <WidgetState>{WidgetState.disabled}),
+        scheme.onSurface.withValues(alpha: 0.12),
+      );
+      expect(style.pillColor?.resolve(const <WidgetState>{}), scheme.surface);
+      expect(
+        style.labelColor?.resolve(const <WidgetState>{WidgetState.selected}),
+        scheme.onSurface,
+      );
+      expect(
+        style.labelColor?.resolve(const <WidgetState>{}),
+        scheme.onSurfaceVariant,
+      );
+      expect(
+        style.labelColor?.resolve(const <WidgetState>{WidgetState.disabled}),
+        scheme.onSurface.withValues(alpha: 0.38),
+      );
+      expect(style.badge?.fill?.resolve(const <WidgetState>{}), scheme.primary);
+      expect(
+        style.badge?.ink?.resolve(const <WidgetState>{}),
+        scheme.onPrimary,
+      );
+      expect(
+        style.badge?.fill?.resolve(const <WidgetState>{WidgetState.disabled}),
+        scheme.onSurface.withValues(alpha: 0.38),
+      );
+      expect(style.height, OrionSizing.minHitTarget);
+      expect(style.iconSize, OrionSizing.iconSmall);
+      expect(style.badge?.height, 18);
+    });
+
+    test('a merge only changes the fields it names, deeply for the badge', () {
+      final OrionSegmentedControlStyle base = defaults();
+      final OrionSegmentedControlStyle merged = base.merge(
+        OrionSegmentedControlStyle.from(
+          pillColor: const Color(0xFF00FF00),
+          badge: OrionSegmentBadgeStyle.from(fill: const Color(0xFFFF0000)),
+        ),
+      );
+
+      expect(
+        merged.pillColor?.resolve(const <WidgetState>{}),
+        const Color(0xFF00FF00),
+      );
+      expect(merged.height, base.height);
+      expect(
+        merged.badge?.fill?.resolve(const <WidgetState>{}),
+        const Color(0xFFFF0000),
+      );
+      expect(
+        merged.badge?.ink?.resolve(const <WidgetState>{}),
+        base.badge?.ink?.resolve(const <WidgetState>{}),
+        reason: 'unnamed badge fields fall through the deep merge',
+      );
+    });
+
+    test('from wraps plain values for every state', () {
+      final OrionSegmentedControlStyle style = OrionSegmentedControlStyle.from(
+        trackColor: const Color(0xFF123456),
+      );
+      expect(
+        style.trackColor?.resolve(const <WidgetState>{WidgetState.disabled}),
+        const Color(0xFF123456),
+      );
+      expect(style.pillColor, isNull);
+    });
+
+    testWidgets('an instance style repaints the pill, beating the theme', (
+      tester,
+    ) async {
+      final ThemeData themed = OrionTheme.apply(
+        OrionTheme.light(),
+        extensions: <ThemeExtension<dynamic>>[
+          OrionSegmentedControlTheme(
+            defaultStyle: OrionSegmentedControlStyle.from(
+              pillColor: const Color(0xFF00AA00),
+            ),
+          ),
+        ],
+      );
+
+      Widget build(ThemeData theme, {OrionSegmentedControlStyle? style}) {
+        return MaterialApp(
+          theme: theme,
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 300,
+                child: OrionSegmentedControl<String>(
+                  value: 'overview',
+                  onChanged: (_) {},
+                  style: style,
+                  segments: _trips,
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+
+      Finder pillWith(Color color) => find.byWidgetPredicate((Widget widget) {
+        if (widget is! DecoratedBox) {
+          return false;
+        }
+        final Decoration decoration = widget.decoration;
+        return decoration is BoxDecoration && decoration.color == color;
+      });
+
+      await tester.pumpWidget(build(themed));
+      expect(pillWith(const Color(0xFF00AA00)), findsOneWidget);
+
+      await tester.pumpWidget(
+        build(
+          themed,
+          style: OrionSegmentedControlStyle.from(
+            pillColor: const Color(0xFFAA0000),
+          ),
+        ),
+      );
+      expect(pillWith(const Color(0xFFAA0000)), findsOneWidget);
+      expect(pillWith(const Color(0xFF00AA00)), findsNothing);
+    });
   });
 }

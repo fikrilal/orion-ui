@@ -1,5 +1,8 @@
 export 'src/components/accordion/orion_accordion.dart';
 export 'src/components/badge/orion_badge.dart';
+export 'src/components/badge/orion_badge_presets.dart';
+export 'src/components/badge/orion_badge_style.dart';
+export 'src/components/badge/orion_badge_theme.dart';
 export 'src/components/button/orion_button.dart';
 export 'src/components/button/orion_button_presets.dart';
 export 'src/components/button/orion_button_style.dart';

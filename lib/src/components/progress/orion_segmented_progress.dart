@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'package:orion_ui/src/components/progress/orion_progress_style.dart';
+import 'package:orion_ui/src/components/progress/orion_progress_theme.dart';
 import 'package:orion_ui/src/motion/orion_spring_driver.dart';
 import 'package:orion_ui/src/motion/orion_spring_spec.dart';
 import 'package:orion_ui/src/theme/orion_tokens.dart';
@@ -10,6 +12,11 @@ import 'package:orion_ui/src/theme/orion_tokens.dart';
 ///
 /// The parent owns [value]. The bar does not take taps. A bounded width is
 /// required.
+///
+/// Look and feel resolve in three layers, each overriding the last: the
+/// built-in [OrionProgressStyle.defaults], the ambient [OrionProgressTheme],
+/// and the [style] passed here. Anything an override does not name falls
+/// through.
 class OrionSegmentedProgress extends StatefulWidget {
   /// Creates a segmented progress bar.
   const OrionSegmentedProgress({
@@ -17,6 +24,7 @@ class OrionSegmentedProgress extends StatefulWidget {
     required this.count,
     required this.value,
     this.semanticLabel,
+    this.style,
   });
 
   /// Number of equal segments. Must be at least 1.
@@ -29,16 +37,21 @@ class OrionSegmentedProgress extends StatefulWidget {
   /// Spoken name. Defaults to "Progress".
   final String? semanticLabel;
 
+  /// Instance-level overrides, merged over the defaults and the ambient
+  /// [OrionProgressTheme]. Only the fields set here change.
+  final OrionProgressStyle? style;
+
   @override
   State<OrionSegmentedProgress> createState() => _OrionSegmentedProgressState();
 }
 
 class _OrionSegmentedProgressState extends State<OrionSegmentedProgress>
     with SingleTickerProviderStateMixin {
-  static const double _trackHeight = 8;
+  /// The segmented bar's shipped height.
+  static const double _defaultHeight = 8;
 
   /// Critically damped. A progress fill must reach its target and stay there.
-  static const OrionSpringSpec _motion = OrionSpringSpec(
+  static const OrionSpringSpec _settle = OrionSpringSpec(
     stiffness: 380,
     dampingRatio: 1,
   );
@@ -54,7 +67,7 @@ class _OrionSegmentedProgressState extends State<OrionSegmentedProgress>
     _driver = OrionSpringDriver(
       vsync: this,
       initialValue: widget.value,
-      springSpec: _motion,
+      springSpec: _settle,
     );
     _paintMin = widget.value;
     _paintMax = widget.value;
@@ -63,6 +76,7 @@ class _OrionSegmentedProgressState extends State<OrionSegmentedProgress>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _syncMotion();
     final bool reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     final bool becameReduced = reduce && !_driver.reducedMotion;
     _driver.reducedMotion = reduce;
@@ -80,6 +94,7 @@ class _OrionSegmentedProgressState extends State<OrionSegmentedProgress>
   void didUpdateWidget(OrionSegmentedProgress oldWidget) {
     super.didUpdateWidget(oldWidget);
     _debugValidate();
+    _syncMotion();
     _sync();
   }
 
@@ -95,6 +110,11 @@ class _OrionSegmentedProgressState extends State<OrionSegmentedProgress>
       widget.value >= 0 && widget.value <= widget.count,
       'value must be from 0 through count',
     );
+  }
+
+  void _syncMotion() {
+    final OrionProgressStyle style = _resolve(Theme.of(context));
+    _driver.springSpec = style.spring ?? _settle;
   }
 
   void _sync() {
@@ -121,10 +141,23 @@ class _OrionSegmentedProgressState extends State<OrionSegmentedProgress>
     return '$shown of ${widget.count}';
   }
 
+  OrionProgressStyle _resolve(ThemeData theme) {
+    final OrionProgressTheme progressTheme =
+        theme.extension<OrionProgressTheme>() ?? OrionProgressTheme.fallback;
+    return OrionProgressStyle.defaults(
+      scheme: theme.colorScheme,
+      height: _defaultHeight,
+    ).merge(progressTheme.defaultStyle).merge(widget.style);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
-    final BorderRadius radius = BorderRadius.circular(OrionRadii.radiusPill);
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme scheme = theme.colorScheme;
+    final OrionProgressStyle style = _resolve(theme);
+    final BorderRadius radius =
+        style.radius ?? BorderRadius.circular(OrionRadii.radiusPill);
+    final double gap = style.gap ?? OrionSpacing.space4;
     return Semantics(
       container: true,
       label: widget.semanticLabel ?? 'Progress',
@@ -137,18 +170,18 @@ class _OrionSegmentedProgressState extends State<OrionSegmentedProgress>
           );
           return SizedBox(
             width: constraints.maxWidth,
-            height: _trackHeight,
+            height: style.height ?? _defaultHeight,
             child: Row(
               children: <Widget>[
                 for (int index = 0; index < widget.count; index++) ...<Widget>[
-                  if (index > 0) const SizedBox(width: OrionSpacing.space4),
+                  if (index > 0) SizedBox(width: gap),
                   Expanded(
                     child: _ProgressSegment(
                       driver: _driver,
                       index: index,
                       painted: _painted,
-                      trackColor: scheme.secondary,
-                      fillColor: scheme.primary,
+                      trackColor: style.trackColor ?? scheme.secondary,
+                      fillColor: style.fillColor ?? scheme.primary,
                       radius: radius,
                     ),
                   ),

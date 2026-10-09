@@ -8,14 +8,16 @@ Future<void> _pumpBar(
   required double value,
   bool disableAnimations = false,
   double width = 300,
+  OrionProgressStyle? style,
+  ThemeData? theme,
 }) {
   final Widget bar = SizedBox(
     width: width,
-    child: OrionSegmentedProgress(count: count, value: value),
+    child: OrionSegmentedProgress(count: count, value: value, style: style),
   );
   return tester.pumpWidget(
     MaterialApp(
-      theme: OrionTheme.light(),
+      theme: theme ?? OrionTheme.light(),
       home: Scaffold(
         body: Center(
           child: disableAnimations
@@ -39,6 +41,22 @@ List<double> _scales(WidgetTester tester) {
         ),
       )
       .map((Transform transform) => transform.transform.entry(0, 0))
+      .toList();
+}
+
+List<Color> _fillColors(WidgetTester tester) {
+  return tester
+      .widgetList<Transform>(
+        find.descendant(
+          of: find.byType(OrionSegmentedProgress),
+          matching: find.byType(Transform),
+        ),
+      )
+      .map(
+        (Transform transform) =>
+            ((transform.child! as DecoratedBox).decoration as BoxDecoration)
+                .color!,
+      )
       .toList();
 }
 
@@ -177,6 +195,93 @@ void main() {
       );
       FlutterError.onError = previous;
       expect(errors.whereType<AssertionError>(), isNotEmpty);
+    });
+
+    testWidgets('resolves through the theme and the instance style', (
+      tester,
+    ) async {
+      final ThemeData themed = OrionTheme.apply(
+        OrionTheme.light(),
+        extensions: <ThemeExtension<dynamic>>[
+          OrionProgressTheme(
+            defaultStyle: OrionProgressStyle.from(
+              fillColor: const Color(0xFF00AA00),
+            ),
+          ),
+        ],
+      );
+
+      await _pumpBar(tester, count: 2, value: 1, theme: themed);
+      expect(_fillColors(tester), <Color>[
+        const Color(0xFF00AA00),
+        const Color(0xFF00AA00),
+      ]);
+
+      await _pumpBar(
+        tester,
+        count: 2,
+        value: 1,
+        theme: themed,
+        style: OrionProgressStyle.from(fillColor: const Color(0xFFAA0000)),
+      );
+      expect(_fillColors(tester), <Color>[
+        const Color(0xFFAA0000),
+        const Color(0xFFAA0000),
+      ]);
+    });
+
+    testWidgets('a style retunes the height and the gap', (tester) async {
+      await _pumpBar(
+        tester,
+        count: 3,
+        value: 1,
+        style: OrionProgressStyle.from(height: 16, gap: 12),
+      );
+
+      expect(tester.getSize(find.byType(OrionSegmentedProgress)).height, 16);
+
+      final Finder clips = find.descendant(
+        of: find.byType(OrionSegmentedProgress),
+        matching: find.byType(ClipRRect),
+      );
+      expect(clips, findsNWidgets(3));
+      expect(
+        tester.getRect(clips.at(1)).left - tester.getRect(clips.at(0)).right,
+        12,
+      );
+    });
+  });
+
+  group('OrionProgressStyle', () {
+    test('a merge only changes the fields it names', () {
+      const OrionProgressStyle base = OrionProgressStyle(
+        trackColor: Color(0xFF111111),
+        fillColor: Color(0xFF222222),
+        height: 8,
+      );
+      final OrionProgressStyle merged = base.merge(
+        OrionProgressStyle.from(fillColor: const Color(0xFF333333)),
+      );
+
+      expect(merged.fillColor, const Color(0xFF333333));
+      expect(merged.trackColor, const Color(0xFF111111));
+      expect(merged.height, 8);
+    });
+
+    test('defaults reproduce the shipped geometry', () {
+      final OrionProgressStyle style = OrionProgressStyle.defaults(
+        scheme: OrionColors.lightScheme,
+        height: 8,
+      );
+
+      expect(style.trackColor, OrionColors.lightScheme.secondary);
+      expect(style.fillColor, OrionColors.lightScheme.primary);
+      expect(style.gap, OrionSpacing.space4);
+      expect(style.height, 8);
+      expect(
+        style.spring,
+        const OrionSpringSpec(stiffness: 380, dampingRatio: 1),
+      );
     });
   });
 }

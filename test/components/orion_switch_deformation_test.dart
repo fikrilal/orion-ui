@@ -134,4 +134,35 @@ void main() {
     await gesture.up();
     await tester.pumpAndSettle();
   });
+
+  testWidgets('a style retunes the deformation', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: OrionTheme.light(),
+        home: Scaffold(
+          body: Center(
+            child: OrionSwitch(
+              value: false,
+              onChanged: (bool _) {},
+              style: OrionSwitchStyle.from(
+                pressStretch: 0.5,
+                pressSquish: 0.25,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final TestGesture gesture = await tester.startGesture(
+      tester.getCenter(find.byType(OrionSwitch)),
+    );
+    await tester.pumpAndSettle();
+    expect(_matrix(tester).entry(0, 0), closeTo(1.5, 0.01));
+    expect(_matrix(tester).entry(1, 1), closeTo(0.75, 0.01));
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(_matrix(tester).entry(0, 0), closeTo(1, 0.001));
+  });
 }

@@ -14,10 +14,12 @@ Future<void> _pumpSwitch(
   bool autofocus = false,
   TextDirection textDirection = TextDirection.ltr,
   String? semanticLabel,
+  OrionSwitchStyle? style,
+  ThemeData? theme,
 }) {
   return tester.pumpWidget(
     MaterialApp(
-      theme: OrionTheme.light(),
+      theme: theme ?? OrionTheme.light(),
       home: Scaffold(
         body: Directionality(
           textDirection: textDirection,
@@ -29,6 +31,7 @@ Future<void> _pumpSwitch(
                 onChanged: onChanged,
                 autofocus: autofocus,
                 semanticLabel: semanticLabel,
+                style: style,
               ),
             ),
           ),
@@ -203,6 +206,90 @@ void main() {
       await tester.pump();
 
       expect(_thumbX(tester), -20);
+    });
+
+    testWidgets('resolves through the theme and the instance style', (
+      tester,
+    ) async {
+      final ThemeData themed = OrionTheme.apply(
+        OrionTheme.light(),
+        extensions: <ThemeExtension<dynamic>>[
+          OrionSwitchTheme(
+            defaultStyle: OrionSwitchStyle.from(
+              trackColor: const Color(0xFF00AA00),
+            ),
+          ),
+        ],
+      );
+
+      await _pumpSwitch(tester, value: false, onChanged: (_) {}, theme: themed);
+      expect(_trackPaint(tester), const Color(0xFF00AA00));
+
+      await _pumpSwitch(
+        tester,
+        value: false,
+        onChanged: (_) {},
+        theme: themed,
+        style: OrionSwitchStyle.from(trackColor: const Color(0xFFAA0000)),
+      );
+      expect(_trackPaint(tester), const Color(0xFFAA0000));
+    });
+
+    testWidgets('a style retunes the geometry', (tester) async {
+      await _pumpSwitch(
+        tester,
+        value: true,
+        onChanged: (_) {},
+        disableAnimations: true,
+        style: OrionSwitchStyle.from(trackWidth: 64, trackHeight: 40, inset: 4),
+      );
+      await tester.pump();
+
+      expect(tester.getSize(find.byType(OrionSwitch)), const Size(64, 44));
+
+      final DecoratedBox track = tester
+          .widgetList<DecoratedBox>(
+            find.descendant(
+              of: find.byType(OrionSwitch),
+              matching: find.byType(DecoratedBox),
+            ),
+          )
+          .firstWhere((DecoratedBox box) {
+            return (box.decoration as BoxDecoration).shape != BoxShape.circle;
+          });
+      expect(tester.getSize(find.byWidget(track)), const Size(64, 40));
+
+      // Thumb 32, insets 4: the travel is 64 - 32 - 8.
+      expect(_thumbX(tester), 24);
+    });
+  });
+
+  group('OrionSwitchStyle', () {
+    test('a merge only changes the fields it names', () {
+      const OrionSwitchStyle base = OrionSwitchStyle(
+        trackWidth: 52,
+        pressStretch: 0.18,
+      );
+      final OrionSwitchStyle merged = base.merge(
+        OrionSwitchStyle.from(trackWidth: 64),
+      );
+
+      expect(merged.trackWidth, 64);
+      expect(merged.pressStretch, 0.18);
+    });
+
+    test('defaults reproduce the shipped geometry', () {
+      final OrionSwitchStyle style = OrionSwitchStyle.defaults(
+        scheme: OrionColors.lightScheme,
+      );
+
+      expect(style.trackWidth, 52);
+      expect(style.trackHeight, OrionSizing.controlHeightSmall);
+      expect(style.inset, OrionSpacing.space4);
+      expect(style.pressStretch, 0.18);
+      expect(style.pressSquish, 0.12);
+      expect(style.slideSpring, OrionSpringSpec.gentle);
+      expect(style.pressSpring, OrionSpringSpec.snappy);
     });
   });
 }

@@ -25,6 +25,8 @@ export 'src/components/slider/orion_slider.dart';
 export 'src/components/swipe/orion_swipe_action_row.dart';
 export 'src/components/swipe/orion_swipe_scope.dart';
 export 'src/components/switch/orion_switch.dart';
+export 'src/components/switch/orion_switch_style.dart';
+export 'src/components/switch/orion_switch_theme.dart';
 export 'src/components/text_field/orion_text_field.dart';
 export 'src/components/wheel/orion_wheel_picker.dart';
 export 'src/core/orion_haptics.dart';

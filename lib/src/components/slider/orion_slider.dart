@@ -3,9 +3,15 @@ import 'package:flutter/gestures.dart'
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:orion_ui/src/components/slider/orion_slider_presets.dart';
+import 'package:orion_ui/src/components/slider/orion_slider_style.dart';
+import 'package:orion_ui/src/components/slider/orion_slider_theme.dart';
 import 'package:orion_ui/src/motion/orion_spring_driver.dart';
 import 'package:orion_ui/src/motion/orion_spring_spec.dart';
 import 'package:orion_ui/src/theme/orion_tokens.dart';
+
+/// The slider's size step.
+enum OrionSliderSize { small, medium, large }
 
 /// A single thumb that slides along a horizontal track.
 ///
@@ -28,6 +34,12 @@ import 'package:orion_ui/src/theme/orion_tokens.dart';
 /// by a twentieth of the range when [step] is null, and Home and End jump to
 /// the bounds; right and left follow [Directionality], so they reverse in
 /// right-to-left layouts.
+///
+/// Look and feel resolve in three layers, each overriding the last: the
+/// built-in [OrionSliderPresets] for the [size], the ambient
+/// [OrionSliderTheme], and the [style] passed here. Anything an override does
+/// not name falls through; [semanticFormatter] phrases the spoken value, and
+/// focus paints a translucent state layer under the thumb rather than a ring.
 class OrionSlider extends StatefulWidget {
   /// Creates a controlled slider.
   const OrionSlider({
@@ -38,8 +50,11 @@ class OrionSlider extends StatefulWidget {
     this.max = 1.0,
     this.step,
     this.semanticLabel,
+    this.semanticFormatter,
+    this.size = OrionSliderSize.medium,
     this.focusNode,
     this.autofocus = false,
+    this.style,
   }) : assert(min <= max, 'min must not exceed max'),
        assert(step == null || step > 0, 'step must be positive');
 
@@ -64,11 +79,24 @@ class OrionSlider extends StatefulWidget {
   /// Spoken name. The value and the bounds are announced separately.
   final String? semanticLabel;
 
+  /// Phrases the spoken value - the value, the increased and decreased values,
+  /// and the bounds in the hint. Null trims the number instead, so `0.30` is
+  /// spoken as `0.3` rather than `0.30000000000000004`. Use this to say `42%`
+  /// or `$12`.
+  final String Function(double value)? semanticFormatter;
+
+  /// The size step. Defaults to [OrionSliderSize.medium], the shipped pair.
+  final OrionSliderSize size;
+
   /// Optional focus node for keyboard movement.
   final FocusNode? focusNode;
 
   /// Whether the slider requests focus on first build.
   final bool autofocus;
+
+  /// Instance-level overrides, merged over the presets and the ambient
+  /// [OrionSliderTheme]. Only the fields set here change.
+  final OrionSliderStyle? style;
 
   @override
   State<OrionSlider> createState() => _OrionSliderState();
@@ -76,13 +104,7 @@ class OrionSlider extends StatefulWidget {
 
 class _OrionSliderState extends State<OrionSlider>
     with TickerProviderStateMixin {
-  /// Visual thumb diameter. The track is inset by half of it, so the thumb
-  /// center reaches both ends of the track.
-  static const double _thumbSize = 20;
-
-  static const double _trackHeight = OrionSpacing.space4;
-
-  /// Settle spring for the release snap and for driven value changes.
+  /// Fallback settle spring, used before the style resolves.
   ///
   /// Critically damped, like the segmented progress fill and the navigation
   /// bar's hide motion. The kit's underdamped presets are sized for short
@@ -98,10 +120,6 @@ class _OrionSliderState extends State<OrionSlider>
 
   /// Keyboard travel without a step: twenty presses cross the range.
   static const double _keyboardDivisions = 20;
-
-  /// How much the thumb grows while it is held, from the reference slider: a
-  /// continuous control should look picked up, not merely displaced.
-  static const double _liftScale = 1.2;
 
   late final OrionSpringDriver _driver;
 
@@ -142,6 +160,7 @@ class _OrionSliderState extends State<OrionSlider>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _syncMotion();
     final bool reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     final bool becameReduced = reduce && !_driver.reducedMotion;
     _driver.reducedMotion = reduce;
@@ -160,6 +179,7 @@ class _OrionSliderState extends State<OrionSlider>
   @override
   void didUpdateWidget(OrionSlider oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _syncMotion();
     if (!_enabled && _dragging) {
       // The drag can no longer report, so stop treating the pointer as the authority
       // instead of leaving a stale flag behind - and drop the lift, because a disabled
@@ -177,6 +197,21 @@ class _OrionSliderState extends State<OrionSlider>
     super.dispose();
   }
 
+  OrionSliderStyle _resolve(ThemeData theme) {
+    final OrionSliderTheme sliderTheme =
+        theme.extension<OrionSliderTheme>() ?? OrionSliderTheme.fallback;
+    return OrionSliderPresets.resolve(
+      size: widget.size,
+      scheme: theme.colorScheme,
+    ).merge(sliderTheme.defaultStyle).merge(widget.style);
+  }
+
+  void _syncMotion() {
+    final OrionSliderStyle style = _resolve(Theme.of(context));
+    _driver.springSpec = style.settleSpring ?? _settle;
+    _lift.springSpec = style.liftSpring ?? OrionSpringSpec.snappy;
+  }
+
   double _normalized(double value) {
     final double span = _span;
     if (span <= 0) {
@@ -190,13 +225,13 @@ class _OrionSliderState extends State<OrionSlider>
   /// The thumb center travels from half a thumb in from the leading edge to
   /// half a thumb in from the trailing edge, and [direction] mirrors the
   /// mapping for right-to-left layouts.
-  double _valueAt(double localX, double width, double direction) {
+  double _valueAt(double localX, double width, double direction, double thumb) {
     final double span = _span;
-    final double travel = width - _thumbSize;
+    final double travel = width - thumb;
     if (span <= 0 || travel <= 0) {
       return widget.min;
     }
-    final double fromStart = ((localX - _thumbSize / 2) / travel)
+    final double fromStart = ((localX - thumb / 2) / travel)
         .clamp(0.0, 1.0)
         .toDouble();
     final double fromValue = direction < 0 ? 1 - fromStart : fromStart;
@@ -206,6 +241,11 @@ class _OrionSliderState extends State<OrionSlider>
   }
 
   /// The nearest step when [OrionSlider.step] is set, clamped to the range.
+  ///
+  /// The grid is snapped on a fixed decimal grid so float dust cannot keep a
+  /// value off it, and the maximum is a candidate of its own: when the step
+  /// does not divide the range the last whole step sits below the top, so a
+  /// release at the far right must still be able to report [OrionSlider.max].
   double _snapped(double value) {
     final double clamped = value.clamp(widget.min, widget.max).toDouble();
     final double? step = widget.step;
@@ -213,7 +253,14 @@ class _OrionSliderState extends State<OrionSlider>
       return clamped;
     }
     final double steps = ((clamped - widget.min) / step).roundToDouble();
-    return (widget.min + steps * step).clamp(widget.min, widget.max).toDouble();
+    final double toGrid = double.parse(
+      (widget.min + steps * step).toStringAsFixed(6),
+    ).clamp(widget.min, widget.max).toDouble();
+    final double toMax = widget.max;
+    if (toGrid < toMax && (clamped - toMax).abs() <= (clamped - toGrid).abs()) {
+      return toMax;
+    }
+    return toGrid;
   }
 
   /// Element of the keyboard and accessibility movement.
@@ -222,21 +269,26 @@ class _OrionSliderState extends State<OrionSlider>
     return target.clamp(widget.min, widget.max).toDouble();
   }
 
-  void _startDrag(double localX, double width, double direction) {
+  void _startDrag(double localX, double width, double direction, double thumb) {
     if (!mounted) {
       return;
     }
     _dragging = true;
     _liftTo(1);
     _lastReported = _value;
-    _applyPointer(localX, width, direction);
+    _applyPointer(localX, width, direction, thumb);
   }
 
-  void _applyPointer(double localX, double width, double direction) {
+  void _applyPointer(
+    double localX,
+    double width,
+    double direction,
+    double thumb,
+  ) {
     if (!mounted || !_dragging) {
       return;
     }
-    final double target = _valueAt(localX, width, direction);
+    final double target = _valueAt(localX, width, direction, thumb);
     // Exact: the thumb is under the pointer, never chasing it on a spring.
     _driver.jumpTo(_normalized(target));
     if (target != _lastReported) {
@@ -352,25 +404,38 @@ class _OrionSliderState extends State<OrionSlider>
     return text.endsWith('.') ? text.substring(0, text.length - 1) : text;
   }
 
+  /// The spoken form: the host's phrasing when given, the trimmed number
+  /// otherwise.
+  String _spoken(double value) =>
+      widget.semanticFormatter?.call(value) ?? _format(value);
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final ColorScheme scheme = theme.colorScheme;
+    final OrionSliderStyle style = _resolve(theme);
     final bool enabled = _enabled;
     final double direction = Directionality.of(context) == TextDirection.rtl
         ? -1
         : 1;
-    final BorderRadius radius = BorderRadius.circular(OrionRadii.radiusPill);
 
-    final Color trackColor = enabled
-        ? scheme.outline
-        : scheme.onSurface.withValues(alpha: 0.12);
-    final Color fillColor = enabled
-        ? scheme.primary
-        : scheme.onSurface.withValues(alpha: 0.12);
-    final Color thumbColor = enabled
-        ? scheme.primary
-        : scheme.onSurface.withValues(alpha: 0.38);
+    final Set<WidgetState> states = <WidgetState>{
+      if (!enabled) WidgetState.disabled,
+    };
+    final Color trackColor =
+        style.trackColor?.resolve(states) ?? theme.colorScheme.outline;
+    final Color fillColor =
+        style.fillColor?.resolve(states) ?? theme.colorScheme.primary;
+    final Color thumbColor =
+        style.thumbColor?.resolve(states) ?? theme.colorScheme.primary;
+    final Color overlayColor =
+        style.focusOverlayColor ??
+        theme.colorScheme.onSurface.withValues(alpha: 0.12);
+    final double thumbSize = style.thumbSize ?? 20;
+    final double trackHeight = style.trackHeight ?? OrionSpacing.space4;
+    final BorderRadius radius =
+        style.radius ?? BorderRadius.circular(OrionRadii.radiusPill);
+    final double liftScale = style.liftScale ?? 1.2;
+    final double overlaySize = thumbSize + OrionSpacing.space16;
 
     // Built once per widget build. The ticker reuses both instances, so a frame
     // only moves a transform.
@@ -381,15 +446,7 @@ class _OrionSliderState extends State<OrionSlider>
       decoration: BoxDecoration(color: fillColor),
     );
     final Widget thumb = DecoratedBox(
-      decoration: BoxDecoration(
-        color: thumbColor,
-        shape: BoxShape.circle,
-        // The halo sits outside the thumb: a ring drawn inside a primary fill
-        // would disappear into it, the reason the checkbox and the chip record.
-        boxShadow: _focused && enabled
-            ? <BoxShadow>[BoxShadow(color: scheme.onSurface, spreadRadius: 2)]
-            : null,
-      ),
+      decoration: BoxDecoration(color: thumbColor, shape: BoxShape.circle),
     );
 
     return Semantics(
@@ -397,10 +454,10 @@ class _OrionSliderState extends State<OrionSlider>
       slider: true,
       enabled: enabled,
       label: widget.semanticLabel,
-      value: _format(_value),
-      increasedValue: _format(_stepped(_value, 1)),
-      decreasedValue: _format(_stepped(_value, -1)),
-      hint: 'Between ${_format(widget.min)} and ${_format(widget.max)}',
+      value: _spoken(_value),
+      increasedValue: _spoken(_stepped(_value, 1)),
+      decreasedValue: _spoken(_stepped(_value, -1)),
+      hint: 'Between ${_spoken(widget.min)} and ${_spoken(widget.max)}',
       onIncrease: enabled ? () => _nudge(1) : null,
       onDecrease: enabled ? () => _nudge(-1) : null,
       // The slider node wraps the focus machinery, so assistive technology
@@ -425,7 +482,7 @@ class _OrionSliderState extends State<OrionSlider>
                 'OrionSlider requires a bounded width.',
               );
               final double width = constraints.maxWidth;
-              final double travel = width - _thumbSize;
+              final double travel = width - thumbSize;
               return RawGestureDetector(
                 behavior: HitTestBehavior.opaque,
                 // The slider node above carries the value, the bounds, and the
@@ -455,6 +512,7 @@ class _OrionSliderState extends State<OrionSlider>
                                     details.localPosition.dx,
                                     width,
                                     direction,
+                                    thumbSize,
                                   )
                                 : null
                             ..onUpdate = enabled
@@ -462,6 +520,7 @@ class _OrionSliderState extends State<OrionSlider>
                                     details.localPosition.dx,
                                     width,
                                     direction,
+                                    thumbSize,
                                   )
                                 : null
                             ..onEnd = enabled
@@ -475,12 +534,16 @@ class _OrionSliderState extends State<OrionSlider>
                   width: width,
                   height: OrionSizing.minHitTarget,
                   child: Stack(
+                    // The focus state layer is wider than the thumb and hangs
+                    // half its slack off each end of the box, so it must be
+                    // free to paint there.
+                    clipBehavior: Clip.none,
                     children: <Widget>[
                       PositionedDirectional(
-                        start: _thumbSize / 2,
-                        end: _thumbSize / 2,
-                        top: (OrionSizing.minHitTarget - _trackHeight) / 2,
-                        height: _trackHeight,
+                        start: thumbSize / 2,
+                        end: thumbSize / 2,
+                        top: (OrionSizing.minHitTarget - trackHeight) / 2,
+                        height: trackHeight,
                         // The pill is a static clip, so the fill can be a plain
                         // scaled rectangle: scaling a rounded rect would squash
                         // its cap, and clipping avoids a custom painter and its
@@ -508,11 +571,35 @@ class _OrionSliderState extends State<OrionSlider>
                           ),
                         ),
                       ),
+                      // The focus state layer sits under the thumb, so the
+                      // thumb stays legible and focus never draws a ring.
+                      if (_focused && enabled)
+                        PositionedDirectional(
+                          start: -OrionSpacing.space8,
+                          top: (OrionSizing.minHitTarget - overlaySize) / 2,
+                          width: overlaySize,
+                          height: overlaySize,
+                          child: AnimatedBuilder(
+                            animation: _driver,
+                            child: ClipOval(
+                              child: ColoredBox(color: overlayColor),
+                            ),
+                            builder: (BuildContext context, Widget? child) {
+                              return Transform.translate(
+                                offset: Offset(
+                                  direction * _driver.value * travel,
+                                  0,
+                                ),
+                                child: child,
+                              );
+                            },
+                          ),
+                        ),
                       PositionedDirectional(
                         start: 0,
-                        top: (OrionSizing.minHitTarget - _thumbSize) / 2,
-                        width: _thumbSize,
-                        height: _thumbSize,
+                        top: (OrionSizing.minHitTarget - thumbSize) / 2,
+                        width: thumbSize,
+                        height: thumbSize,
                         child: AnimatedBuilder(
                           animation: Listenable.merge(<Listenable>[
                             _driver,
@@ -521,7 +608,7 @@ class _OrionSliderState extends State<OrionSlider>
                           child: thumb,
                           builder: (BuildContext context, Widget? child) {
                             final double scale =
-                                1 + (_liftScale - 1) * _lift.value;
+                                1 + (liftScale - 1) * _lift.value;
                             return Transform(
                               alignment: Alignment.center,
                               transform:

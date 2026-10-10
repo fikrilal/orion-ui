@@ -20,11 +20,15 @@ Future<void> _pumpSlider(
   bool disableAnimations = false,
   bool autofocus = false,
   String? semanticLabel,
+  String Function(double value)? semanticFormatter,
+  OrionSliderSize size = OrionSliderSize.medium,
+  OrionSliderStyle? style,
+  ThemeData? theme,
   TextDirection textDirection = TextDirection.ltr,
 }) {
   return tester.pumpWidget(
     MaterialApp(
-      theme: OrionTheme.light(),
+      theme: theme ?? OrionTheme.light(),
       home: Scaffold(
         body: Center(
           child: MediaQuery(
@@ -40,7 +44,10 @@ Future<void> _pumpSlider(
                   max: max,
                   step: step,
                   semanticLabel: semanticLabel,
+                  semanticFormatter: semanticFormatter,
+                  size: size,
                   autofocus: autofocus,
+                  style: style,
                 ),
               ),
             ),
@@ -619,9 +626,48 @@ void main() {
         _trackDecoration(tester).color,
         scheme.onSurface.withValues(alpha: 0.12),
       );
+      expect(_thumbDecoration(tester).color, scheme.onSurfaceVariant);
+    });
+
+    testWidgets('keeps the value readable when disabled', (tester) async {
+      await _pumpSlider(tester, value: 0.5, onChanged: null);
+      final ColorScheme scheme = OrionColors.lightScheme;
+
+      // The track and the fill sit in the same clip; the fill is the second.
+      final BoxDecoration fill =
+          tester
+                  .widget<DecoratedBox>(
+                    find
+                        .descendant(
+                          of: find.descendant(
+                            of: find.byType(OrionSlider),
+                            matching: find.byType(ClipRRect),
+                          ),
+                          matching: find.byType(DecoratedBox),
+                        )
+                        .last,
+                  )
+                  .decoration
+              as BoxDecoration;
+
+      expect(fill.color, scheme.onSurface.withValues(alpha: 0.38));
       expect(
-        _thumbDecoration(tester).color,
-        scheme.onSurface.withValues(alpha: 0.38),
+        _trackDecoration(tester).color,
+        scheme.onSurface.withValues(alpha: 0.12),
+        reason: 'the track stays lighter than the fill',
+      );
+
+      final Color thumb = _thumbDecoration(tester).color!;
+      expect(thumb, scheme.onSurfaceVariant);
+      expect(
+        thumb.a,
+        1,
+        reason: 'an opaque thumb cannot double-darken over the fill',
+      );
+      expect(
+        thumb,
+        isNot(fill.color),
+        reason: 'the thumb reads as its own object',
       );
     });
 
@@ -786,6 +832,174 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(reported, isEmpty);
+    });
+
+    testWidgets('reaches the maximum when the step does not divide the range', (
+      tester,
+    ) async {
+      await _pumpHost(tester, initial: 0.5, step: 0.3);
+
+      final TestGesture gesture = await _dragTo(tester, 1);
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(
+        _value(tester),
+        1.0,
+        reason: 'the top of the range must stay reachable',
+      );
+    });
+
+    testWidgets('steps the thumb and the track with the size', (tester) async {
+      await _pumpSlider(
+        tester,
+        value: 0.5,
+        onChanged: (_) {},
+        size: OrionSliderSize.large,
+      );
+
+      expect(tester.getSize(_thumbFinder()), const Size(24, 24));
+      expect(tester.getSize(_trackFinder()).height, 6);
+
+      await _pumpSlider(
+        tester,
+        value: 0.5,
+        onChanged: (_) {},
+        size: OrionSliderSize.small,
+      );
+
+      expect(tester.getSize(_thumbFinder()), const Size(16, 16));
+      expect(tester.getSize(_trackFinder()).height, 3);
+      expect(
+        tester.getSize(find.byType(OrionSlider)),
+        const Size(_sliderWidth, OrionSizing.minHitTarget),
+        reason: 'the hit target does not change with the size',
+      );
+    });
+
+    testWidgets('paints the focus state layer under the thumb when focused', (
+      tester,
+    ) async {
+      FocusManager.instance.highlightStrategy =
+          FocusHighlightStrategy.alwaysTraditional;
+      addTearDown(() {
+        FocusManager.instance.highlightStrategy =
+            FocusHighlightStrategy.automatic;
+      });
+
+      await _pumpSlider(tester, value: 0.5, onChanged: (_) {}, autofocus: true);
+      await tester.pumpAndSettle();
+
+      final ColoredBox layer = tester.widget<ColoredBox>(
+        find.descendant(
+          of: find.byType(OrionSlider),
+          matching: find.byType(ColoredBox),
+        ),
+      );
+      expect(
+        layer.color,
+        OrionColors.lightScheme.onSurface.withValues(alpha: 0.12),
+      );
+      expect(
+        _thumbDecoration(tester).boxShadow,
+        isNull,
+        reason: 'focus is a state layer, not a ring',
+      );
+    });
+
+    testWidgets('phrases the spoken value with the formatter', (tester) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      await _pumpSlider(
+        tester,
+        value: 0.5,
+        onChanged: (_) {},
+        semanticLabel: 'Volume',
+        semanticFormatter: (double value) => '${(value * 100).round()}%',
+      );
+
+      final SemanticsNode node = tester.getSemantics(find.byType(OrionSlider));
+      expect(node.value, '50%');
+      handle.dispose();
+    });
+
+    testWidgets('resolves through the theme and the instance style', (
+      tester,
+    ) async {
+      final ThemeData themed = OrionTheme.apply(
+        OrionTheme.light(),
+        extensions: <ThemeExtension<dynamic>>[
+          OrionSliderTheme(
+            defaultStyle: OrionSliderStyle.from(
+              thumbSize: 18,
+              thumbColor: const Color(0xFF00AA00),
+            ),
+          ),
+        ],
+      );
+
+      await _pumpSlider(tester, value: 0.5, onChanged: (_) {}, theme: themed);
+      expect(_thumbDecoration(tester).color, const Color(0xFF00AA00));
+      expect(tester.getSize(_thumbFinder()), const Size(18, 18));
+
+      await _pumpSlider(
+        tester,
+        value: 0.5,
+        onChanged: (_) {},
+        theme: themed,
+        style: OrionSliderStyle.from(thumbColor: const Color(0xFFAA0000)),
+      );
+      expect(_thumbDecoration(tester).color, const Color(0xFFAA0000));
+      expect(
+        tester.getSize(_thumbFinder()),
+        const Size(18, 18),
+        reason: 'the instance style only overrides what it names',
+      );
+    });
+  });
+
+  group('OrionSliderStyle', () {
+    test('a merge only changes the fields it names', () {
+      final OrionSliderStyle base = OrionSliderStyle.from(
+        thumbSize: 18,
+        thumbColor: const Color(0xFF111111),
+      );
+      final OrionSliderStyle merged = base.merge(
+        OrionSliderStyle.from(thumbColor: const Color(0xFF333333)),
+      );
+
+      expect(
+        merged.thumbColor?.resolve(const <WidgetState>{}),
+        const Color(0xFF333333),
+      );
+      expect(merged.thumbSize, base.thumbSize);
+    });
+
+    test('presets reproduce the shipped pair', () {
+      final OrionSliderStyle style = OrionSliderPresets.resolve(
+        size: OrionSliderSize.medium,
+        scheme: OrionColors.lightScheme,
+      );
+
+      expect(style.thumbSize, 20);
+      expect(style.trackHeight, OrionSpacing.space4);
+      expect(style.radius, BorderRadius.circular(OrionRadii.radiusPill));
+      expect(style.liftScale, 1.2);
+      expect(
+        style.settleSpring,
+        const OrionSpringSpec(stiffness: 380, dampingRatio: 1),
+      );
+      expect(
+        style.trackColor?.resolve(const <WidgetState>{}),
+        OrionColors.lightScheme.outline,
+      );
+      expect(
+        style.trackColor?.resolve(const <WidgetState>{WidgetState.disabled}),
+        OrionColors.lightScheme.onSurface.withValues(alpha: 0.12),
+      );
+      expect(
+        style.thumbColor?.resolve(const <WidgetState>{WidgetState.disabled}),
+        OrionColors.lightScheme.onSurfaceVariant,
+      );
     });
   });
 }

@@ -13,7 +13,7 @@ const int _period = 10;
 Future<void> _pumpCounter(
   WidgetTester tester, {
   required int value,
-  TextStyle? style,
+  OrionCounterStyle? style,
   String? semanticLabel,
   bool animate = true,
   bool disableAnimations = false,
@@ -649,7 +649,9 @@ void main() {
       await _pumpCounter(
         tester,
         value: 7,
-        style: const TextStyle(fontSize: 32, letterSpacing: 2),
+        style: OrionCounterStyle.from(
+          textStyle: const TextStyle(fontSize: 32, letterSpacing: 2),
+        ),
       );
       await tester.pumpAndSettle();
 
@@ -658,6 +660,101 @@ void main() {
       expect(style.letterSpacing, 2);
       // The ambient style still supplies what the override left unset.
       expect(style.color, isNotNull);
+    });
+
+    testWidgets('resolves through the theme and the instance style', (
+      tester,
+    ) async {
+      final ThemeData themed = OrionTheme.apply(
+        OrionTheme.light(),
+        extensions: <ThemeExtension<dynamic>>[
+          OrionCounterTheme(
+            defaultStyle: OrionCounterStyle.from(
+              textStyle: const TextStyle(fontSize: 28),
+            ),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: themed,
+          home: const Scaffold(body: Center(child: OrionCounter(value: 7))),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(_digitStyle(tester).fontSize, 28);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: themed,
+          home: const Scaffold(
+            body: Center(
+              child: OrionCounter(
+                value: 7,
+                style: OrionCounterStyle(textStyle: TextStyle(fontSize: 12)),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(_digitStyle(tester).fontSize, 12);
+    });
+
+    testWidgets('a retuned deformation reaches the roll', (tester) async {
+      await _pumpCounter(
+        tester,
+        value: 7,
+        style: OrionCounterStyle.from(rollStretchX: 0.4, rollSquashY: 0.5),
+      );
+      await tester.pumpAndSettle();
+
+      await _pumpCounter(
+        tester,
+        value: 8,
+        style: OrionCounterStyle.from(rollStretchX: 0.4, rollSquashY: 0.5),
+      );
+      await tester.pump(const Duration(milliseconds: 16));
+
+      // Mid-roll the digit is stretched well past the shipped 6 %.
+      double maxScale = 0;
+      for (var frame = 0; frame < 40; frame++) {
+        final Transform transform = tester.widget<Transform>(
+          find
+              .descendant(
+                of: find.byType(OrionCounter),
+                matching: find.byType(Transform),
+              )
+              .last,
+        );
+        maxScale = math.max(maxScale, transform.transform.entry(0, 0));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(maxScale, greaterThan(1.2));
+      await tester.pumpAndSettle();
+    });
+
+    test('a merge only changes the fields it names', () {
+      final OrionCounterStyle base = OrionCounterStyle.from(
+        rollStretchX: 0.2,
+        textStyle: const TextStyle(fontSize: 20),
+      );
+      final OrionCounterStyle merged = base.merge(
+        OrionCounterStyle.from(textStyle: const TextStyle(fontSize: 24)),
+      );
+
+      expect(merged.textStyle, const TextStyle(fontSize: 24));
+      expect(merged.rollStretchX, 0.2);
+    });
+
+    test('presets reproduce the shipped roll', () {
+      final OrionCounterStyle style = OrionCounterPresets.resolve();
+
+      expect(style.textStyle, isNull);
+      expect(style.rollStretchX, 0.06);
+      expect(style.rollSquashY, 0.10);
+      expect(style.spring, OrionSpringSpec.gentle);
     });
 
     testWidgets('exposes one node with the formatted value', (tester) async {

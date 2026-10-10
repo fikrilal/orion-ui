@@ -2,14 +2,11 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'package:orion_ui/src/components/counter/orion_counter_presets.dart';
+import 'package:orion_ui/src/components/counter/orion_counter_style.dart';
+import 'package:orion_ui/src/components/counter/orion_counter_theme.dart';
 import 'package:orion_ui/src/motion/orion_spring_driver.dart';
 import 'package:orion_ui/src/motion/orion_spring_spec.dart';
-
-/// How much a rolling digit widens and squashes at the midpoint of its travel.
-/// The reference blurs a rolling digit as well; this kit keeps blur out of the
-/// per-frame path on purpose, so only the deformation is taken.
-const double _rollStretchX = 0.06;
-const double _rollSquashY = 0.10;
 
 /// One period of a slot's column, in rows.
 const int _period = 10;
@@ -45,11 +42,17 @@ const int _columnRows = _period * 2;
 ///
 /// ### Typography
 ///
-/// The resolved style is the ambient `DefaultTextStyle` merged with [style]. Every
-/// slot is pinned to the widest digit of that style and
-/// [FontFeature.tabularFigures] is requested on top. Pinning is the guarantee: a
-/// proportional font cannot make the row twitch as digits change. The feature is
-/// the polish, and degrades to a no-op where the font has no `tnum`.
+/// The resolved style is the ambient `DefaultTextStyle` merged with the
+/// effective `textStyle`. Every slot is pinned to the widest digit of that
+/// style and [FontFeature.tabularFigures] is requested on top. Pinning is the
+/// guarantee: a proportional font cannot make the row twitch as digits change.
+/// The feature is the polish, and degrades to a no-op where the font has no
+/// `tnum`.
+///
+/// Look and feel resolve in three layers, each overriding the last: the
+/// built-in [OrionCounterPresets], the ambient [OrionCounterTheme], and the
+/// [style] passed here. The resolved style is cached in a field refreshed on
+/// dependency and widget changes, and reapplied to the live slots.
 ///
 /// ### Accessibility
 ///
@@ -69,8 +72,9 @@ class OrionCounter extends StatefulWidget {
   /// The number to render. Negative values are out of scope for v1.
   final int value;
 
-  /// Overrides for the ambient text style. Unset attributes are inherited.
-  final TextStyle? style;
+  /// Instance-level overrides, merged over the presets and the ambient
+  /// [OrionCounterTheme]. Only the fields set here change.
+  final OrionCounterStyle? style;
 
   /// Spoken name, for example `Unread`. The value is exposed separately.
   final String? semanticLabel;
@@ -96,6 +100,9 @@ class _OrionCounterState extends State<OrionCounter>
   /// Slots indexed by their distance from the right, so index 0 is the ones.
   final List<_DigitSlot> _slots = <_DigitSlot>[];
 
+  /// The resolved style, refreshed on dependency and widget changes.
+  late OrionCounterStyle _style;
+
   /// Mirrors the platform's reduced-motion setting for every slot's driver. The counter
   /// owns one driver per digit rather than one for the whole readout, so there is no
   /// single driver to hand this to.
@@ -104,6 +111,7 @@ class _OrionCounterState extends State<OrionCounter>
   @override
   void initState() {
     super.initState();
+    _style = OrionCounterPresets.resolve();
     final List<int> digits = _digitsOf(widget.value);
     for (var index = 0; index < digits.length; index++) {
       _slots.add(_createSlot(index, digits[index]));
@@ -113,6 +121,7 @@ class _OrionCounterState extends State<OrionCounter>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _syncStyle();
     final bool reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     final bool becameReduced = reduce && !_reduceMotion;
     _reduceMotion = reduce;
@@ -129,6 +138,7 @@ class _OrionCounterState extends State<OrionCounter>
   @override
   void didUpdateWidget(OrionCounter oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _syncStyle();
     _reconcile(oldWidget.value);
     if (oldWidget.animate && !widget.animate) {
       _settle();
@@ -154,6 +164,18 @@ class _OrionCounterState extends State<OrionCounter>
     return digits;
   }
 
+  void _syncStyle() {
+    final ThemeData theme = Theme.of(context);
+    final OrionCounterTheme counterTheme =
+        theme.extension<OrionCounterTheme>() ?? OrionCounterTheme.fallback;
+    _style = OrionCounterPresets.resolve()
+        .merge(counterTheme.defaultStyle)
+        .merge(widget.style);
+    for (final _DigitSlot slot in _slots) {
+      slot.driver.springSpec = _style.spring ?? _travel;
+    }
+  }
+
   /// The digit this slot is resting on or travelling toward.
   static int _digitOf(double position) => position.round() % _period;
 
@@ -165,7 +187,7 @@ class _OrionCounterState extends State<OrionCounter>
       driver: OrionSpringDriver(
         vsync: this,
         initialValue: digit.toDouble(),
-        springSpec: _travel,
+        springSpec: _style.spring ?? _travel,
       ),
     );
   }
@@ -229,7 +251,7 @@ class _OrionCounterState extends State<OrionCounter>
   Widget build(BuildContext context) {
     final TextStyle merged = DefaultTextStyle.of(
       context,
-    ).style.merge(widget.style);
+    ).style.merge(_style.textStyle);
     final TextStyle effective = merged.copyWith(
       fontFeatures: <FontFeature>[
         ...?merged.fontFeatures,
@@ -269,6 +291,8 @@ class _OrionCounterState extends State<OrionCounter>
               driver: slot.driver,
               lineHeight: lineHeight,
               slotWidth: slotWidth,
+              stretchX: _style.rollStretchX ?? 0.06,
+              squashY: _style.rollSquashY ?? 0.10,
               column: column,
             ),
         ],
@@ -314,12 +338,16 @@ class _DigitWindow extends StatelessWidget {
     required this.driver,
     required this.lineHeight,
     required this.slotWidth,
+    required this.stretchX,
+    required this.squashY,
     required this.column,
   });
 
   final OrionSpringDriver driver;
   final double lineHeight;
   final double slotWidth;
+  final double stretchX;
+  final double squashY;
   final Widget column;
 
   @override
@@ -350,8 +378,8 @@ class _DigitWindow extends StatelessWidget {
                 // digit out of its window as it squashes.
                 origin: Offset(slotWidth / 2, (row + 0.5) * lineHeight),
                 transform: Matrix4.diagonal3Values(
-                  1 + _rollStretchX * squash,
-                  1 - _rollSquashY * squash,
+                  1 + stretchX * squash,
+                  1 - squashY * squash,
                   1,
                 )..setTranslationRaw(0, -row * lineHeight, 0),
                 child: child,

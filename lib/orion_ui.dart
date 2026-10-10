@@ -1,4 +1,7 @@
 export 'src/components/accordion/orion_accordion.dart';
+export 'src/components/accordion/orion_accordion_presets.dart';
+export 'src/components/accordion/orion_accordion_style.dart';
+export 'src/components/accordion/orion_accordion_theme.dart';
 export 'src/components/badge/orion_badge.dart';
 export 'src/components/badge/orion_badge_presets.dart';
 export 'src/components/badge/orion_badge_style.dart';
@@ -47,7 +50,6 @@ export 'src/components/text_field/orion_text_field.dart';
 export 'src/components/text_field/orion_text_field_presets.dart';
 export 'src/components/text_field/orion_text_field_style.dart';
 export 'src/components/text_field/orion_text_field_theme.dart';
-export 'src/components/wheel/orion_wheel_picker.dart';
 export 'src/core/orion_haptics.dart';
 export 'src/core/orion_pressable.dart';
 export 'src/motion/orion_spring_driver.dart';

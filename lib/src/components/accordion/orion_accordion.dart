@@ -2,6 +2,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'package:orion_ui/src/components/accordion/orion_accordion_presets.dart';
+import 'package:orion_ui/src/components/accordion/orion_accordion_style.dart';
+import 'package:orion_ui/src/components/accordion/orion_accordion_theme.dart';
 import 'package:orion_ui/src/core/orion_pressable.dart';
 import 'package:orion_ui/src/motion/orion_spring_driver.dart';
 import 'package:orion_ui/src/motion/orion_spring_spec.dart';
@@ -43,6 +46,10 @@ double _reveal(double sample) => sample < 0 ? 0.0 : sample;
 /// at that moment. Nested panels are not supported in v1; an inner row is clipped
 /// and revealed with the outer one, and the outer header cannot reflect inner
 /// state.
+///
+/// Look and feel resolve in three layers, each overriding the last: the
+/// built-in [OrionAccordionPresets], the ambient [OrionAccordionTheme], and
+/// the [style] passed here. Anything an override does not name falls through.
 class OrionAccordion extends StatefulWidget {
   /// Creates a controlled accordion.
   const OrionAccordion({
@@ -55,6 +62,7 @@ class OrionAccordion extends StatefulWidget {
     this.semanticLabel,
     this.focusNode,
     this.autofocus = false,
+    this.style,
   });
 
   /// Header content. The whole header is the tap target and typography is
@@ -87,6 +95,10 @@ class OrionAccordion extends StatefulWidget {
   /// Whether the row requests focus on first build.
   final bool autofocus;
 
+  /// Instance-level overrides, merged over the presets and the ambient
+  /// [OrionAccordionTheme]. Only the fields set here change.
+  final OrionAccordionStyle? style;
+
   @override
   State<OrionAccordion> createState() => _OrionAccordionState();
 }
@@ -113,9 +125,6 @@ class _OrionAccordionState extends State<OrionAccordion>
     clampOvershoot: true,
   );
 
-  /// How far a disabled row's header is dimmed.
-  static const double _disabledOpacity = 0.38;
-
   late final OrionSpringDriver _driver;
   bool _focused = false;
 
@@ -132,6 +141,7 @@ class _OrionAccordionState extends State<OrionAccordion>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _syncMotion();
     final bool reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     final bool becameReduced = reduce && !_driver.reducedMotion;
     _driver.reducedMotion = reduce;
@@ -148,6 +158,7 @@ class _OrionAccordionState extends State<OrionAccordion>
   @override
   void didUpdateWidget(OrionAccordion oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _syncMotion();
     if (widget.expanded != oldWidget.expanded) {
       _sync();
     }
@@ -161,9 +172,26 @@ class _OrionAccordionState extends State<OrionAccordion>
 
   double get _target => widget.expanded ? 1 : 0;
 
+  /// Sets the driver's spec from the resolved style, chosen by direction: the
+  /// open and the close can be retuned independently.
+  void _syncMotion() {
+    final OrionAccordionStyle style = _resolve(Theme.of(context));
+    _driver.springSpec = _target >= 1
+        ? (style.expandSpring ?? _travel)
+        : (style.collapseSpring ?? _collapse);
+  }
+
   void _sync() {
-    _driver.springSpec = _target >= 1 ? _travel : _collapse;
+    _syncMotion();
     _driver.retarget(_target);
+  }
+
+  OrionAccordionStyle _resolve(ThemeData theme) {
+    final OrionAccordionTheme accordionTheme =
+        theme.extension<OrionAccordionTheme>() ?? OrionAccordionTheme.fallback;
+    return OrionAccordionPresets.resolve(
+      scheme: theme.colorScheme,
+    ).merge(accordionTheme.defaultStyle).merge(widget.style);
   }
 
   /// Reports the next value. The haptic belongs to [OrionPressable], so the
@@ -177,9 +205,19 @@ class _OrionAccordionState extends State<OrionAccordion>
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme scheme = theme.colorScheme;
     final OrionThemeData orion = OrionTheme.of(context);
+    final OrionAccordionStyle style = _resolve(theme);
     final bool enabled = widget.onExpandedChanged != null;
+    final double ringWidth = style.focusRingWidth ?? 2;
+    final double disabledOpacity = style.disabledOpacity ?? 0.38;
+    final EdgeInsetsGeometry headerPadding =
+        style.headerPadding ??
+        const EdgeInsets.symmetric(
+          horizontal: OrionSpacing.space16,
+          vertical: OrionSpacing.space8,
+        );
 
     final Widget headerFace = DecoratedBox(
       position: DecorationPosition.foreground,
@@ -187,14 +225,14 @@ class _OrionAccordionState extends State<OrionAccordion>
         // The ring is drawn over the header, so showing focus never moves the
         // content the caller put there.
         border: _focused && enabled
-            ? Border.all(color: scheme.onSurface, width: 2)
+            ? Border.all(
+                color: style.focusRingColor ?? scheme.onSurface,
+                width: ringWidth,
+              )
             : null,
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: OrionSpacing.space16,
-          vertical: OrionSpacing.space8,
-        ),
+        padding: headerPadding,
         child: Row(
           children: <Widget>[
             Expanded(
@@ -212,7 +250,7 @@ class _OrionAccordionState extends State<OrionAccordion>
                 child: AnimatedBuilder(
                   animation: _driver,
                   // Built once per widget build, so a tick only rotates it.
-                  child: const Icon(Icons.expand_more),
+                  child: Icon(Icons.expand_more, color: style.iconColor),
                   builder: (BuildContext context, Widget? child) {
                     return Transform.rotate(
                       angle: _reveal(_driver.value) * math.pi,
@@ -268,7 +306,7 @@ class _OrionAccordionState extends State<OrionAccordion>
                 // the thing that is disabled, and the header slot takes
                 // arbitrary content that must not be recoloured.
                 child: Opacity(
-                  opacity: enabled ? 1 : _disabledOpacity,
+                  opacity: enabled ? 1 : disabledOpacity,
                   child: headerFace,
                 ),
               ),

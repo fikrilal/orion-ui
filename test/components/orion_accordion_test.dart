@@ -20,10 +20,12 @@ Future<void> _pumpAccordion(
   Widget? trailing,
   Widget? header,
   Widget? content,
+  OrionAccordionStyle? style,
+  ThemeData? theme,
 }) {
   return tester.pumpWidget(
     MaterialApp(
-      theme: OrionTheme.light(),
+      theme: theme ?? OrionTheme.light(),
       home: Scaffold(
         body: Align(
           alignment: Alignment.topLeft,
@@ -36,6 +38,7 @@ Future<void> _pumpAccordion(
               trailing: trailing,
               semanticLabel: semanticLabel,
               autofocus: autofocus,
+              style: style,
               child: content ?? const Text(_panelText),
             ),
           ),
@@ -826,6 +829,165 @@ void main() {
           matching: find.byType(Transform),
         ),
         findsOneWidget,
+      );
+    });
+
+    testWidgets('resolves through the theme and the instance style', (
+      tester,
+    ) async {
+      final ThemeData themed = OrionTheme.apply(
+        OrionTheme.light(),
+        extensions: <ThemeExtension<dynamic>>[
+          OrionAccordionTheme(
+            defaultStyle: OrionAccordionStyle.from(
+              headerPadding: const EdgeInsets.all(24),
+              iconColor: const Color(0xFF00AA00),
+            ),
+          ),
+        ],
+      );
+
+      await _pumpAccordion(
+        tester,
+        expanded: false,
+        onExpandedChanged: (_) {},
+        theme: themed,
+      );
+      expect(
+        tester.widget<Icon>(find.byIcon(Icons.expand_more)).color,
+        const Color(0xFF00AA00),
+      );
+      final Rect row = tester.getRect(find.byType(OrionAccordion));
+      final Rect label = tester.getRect(find.text(_headerText));
+      expect(label.left - row.left, 24);
+
+      await _pumpAccordion(
+        tester,
+        expanded: false,
+        onExpandedChanged: (_) {},
+        theme: themed,
+        style: OrionAccordionStyle.from(iconColor: const Color(0xFFAA0000)),
+      );
+      expect(
+        tester.widget<Icon>(find.byIcon(Icons.expand_more)).color,
+        const Color(0xFFAA0000),
+      );
+      final Rect overridden = tester.getRect(find.text(_headerText));
+      expect(
+        overridden.left - row.left,
+        24,
+        reason: 'the instance style only overrides what it names',
+      );
+    });
+
+    testWidgets('a custom ring colour and width repaint the focus ring', (
+      tester,
+    ) async {
+      FocusManager.instance.highlightStrategy =
+          FocusHighlightStrategy.alwaysTraditional;
+      addTearDown(() {
+        FocusManager.instance.highlightStrategy =
+            FocusHighlightStrategy.automatic;
+      });
+
+      await _pumpAccordion(
+        tester,
+        expanded: false,
+        autofocus: true,
+        onExpandedChanged: (_) {},
+        style: OrionAccordionStyle.from(
+          focusRingColor: const Color(0xFF00AA00),
+          focusRingWidth: 4,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final DecoratedBox face = tester.widget<DecoratedBox>(
+        find
+            .descendant(
+              of: find.byType(OrionAccordion),
+              matching: find.byType(DecoratedBox),
+            )
+            .first,
+      );
+      final Border border =
+          (face.decoration as BoxDecoration).border! as Border;
+      expect(border.top.color, const Color(0xFF00AA00));
+      expect(border.top.width, 4);
+    });
+
+    testWidgets('a retuned expand spring reaches the reveal', (tester) async {
+      await _pumpAccordion(
+        tester,
+        expanded: false,
+        onExpandedChanged: (_) {},
+        style: OrionAccordionStyle.from(expandSpring: OrionSpringSpec.snappy),
+      );
+      await _pumpAccordion(
+        tester,
+        expanded: true,
+        onExpandedChanged: (_) {},
+        style: OrionAccordionStyle.from(expandSpring: OrionSpringSpec.snappy),
+      );
+      await tester.pump(const Duration(milliseconds: 16));
+
+      // The snappy spec overshoots a full travel hard, so the panel's clip
+      // grows past the content for at least one frame.
+      double peak = 0;
+      for (var frame = 0; frame < 60; frame++) {
+        final double factor =
+            tester.widget<Align>(find.byType(Align).last).heightFactor ?? 0;
+        peak = math.max(peak, factor);
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(
+        peak,
+        greaterThan(1.1),
+        reason: 'the retuned spring is the one the reveal rides',
+      );
+
+      await tester.pumpAndSettle();
+    });
+  });
+
+  group('OrionAccordionStyle', () {
+    test('a merge only changes the fields it names', () {
+      final OrionAccordionStyle base = OrionAccordionStyle.from(
+        focusRingWidth: 4,
+        iconColor: const Color(0xFF111111),
+      );
+      final OrionAccordionStyle merged = base.merge(
+        OrionAccordionStyle.from(iconColor: const Color(0xFF333333)),
+      );
+
+      expect(merged.iconColor, const Color(0xFF333333));
+      expect(merged.focusRingWidth, 4);
+    });
+
+    test('presets reproduce the shipped row', () {
+      final OrionAccordionStyle style = OrionAccordionPresets.resolve(
+        scheme: OrionColors.lightScheme,
+      );
+
+      expect(style.focusRingColor, OrionColors.lightScheme.onSurface);
+      expect(style.focusRingWidth, 2);
+      expect(style.disabledOpacity, 0.38);
+      expect(style.iconColor, isNull);
+      expect(style.expandSpring, OrionSpringSpec.gentle);
+      expect(
+        style.collapseSpring,
+        const OrionSpringSpec(
+          stiffness: 260,
+          dampingRatio: 1,
+          clampOvershoot: true,
+        ),
+      );
+      expect(
+        style.headerPadding,
+        const EdgeInsets.symmetric(
+          horizontal: OrionSpacing.space16,
+          vertical: OrionSpacing.space8,
+        ),
       );
     });
   });

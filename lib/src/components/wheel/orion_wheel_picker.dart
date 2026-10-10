@@ -3,6 +3,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:orion_ui/src/components/wheel/orion_wheel_picker_presets.dart';
+import 'package:orion_ui/src/components/wheel/orion_wheel_picker_style.dart';
+import 'package:orion_ui/src/components/wheel/orion_wheel_picker_theme.dart';
 import 'package:orion_ui/src/core/orion_haptics.dart';
 import 'package:orion_ui/src/motion/orion_spring_driver.dart';
 import 'package:orion_ui/src/motion/orion_spring_spec.dart';
@@ -56,6 +59,12 @@ class OrionWheelItem<T> {
 ///
 /// See also [OrionSegmentedControl], which is the same one-of-many choice at a fixed
 /// size rather than a rolling column.
+///
+/// Look and feel resolve in three layers, each overriding the last: the
+/// built-in [OrionWheelPickerPresets], the ambient [OrionWheelPickerTheme],
+/// and the [style] passed here. The resolved style is cached in a field
+/// refreshed on dependency and widget changes, because the drag maths reads
+/// the row extent on every pointer event.
 class OrionWheelPicker<T> extends StatefulWidget {
   /// Creates a controlled wheel picker.
   const OrionWheelPicker({
@@ -67,6 +76,7 @@ class OrionWheelPicker<T> extends StatefulWidget {
     this.semanticLabel,
     this.focusNode,
     this.autofocus = false,
+    this.style,
   });
 
   /// Options, in wheel order. Must be non-empty, with unique values.
@@ -92,6 +102,10 @@ class OrionWheelPicker<T> extends StatefulWidget {
 
   /// Whether the wheel requests focus on first build.
   final bool autofocus;
+
+  /// Instance-level overrides, merged over the presets and the ambient
+  /// [OrionWheelPickerTheme]. Only the fields set here change.
+  final OrionWheelPickerStyle? style;
 
   @override
   State<OrionWheelPicker<T>> createState() => _OrionWheelPickerState<T>();
@@ -129,6 +143,17 @@ class _OrionWheelPickerState<T> extends State<OrionWheelPicker<T>>
   OrionHapticType _haptic = OrionHapticType.selectionClick;
   bool _dragging = false;
   bool _focused = false;
+
+  /// The resolved style, refreshed on dependency and widget changes.
+  late OrionWheelPickerStyle _style;
+
+  double get _extent => _style.itemExtent ?? _itemExtent;
+
+  double get _edgeScaleFor => _style.edgeScale ?? _edgeScale;
+
+  double get _projection => _style.projectionSeconds ?? _projectionSeconds;
+
+  double get _resistance => _style.endResistance ?? _endResistance;
 
   /// True while the movement comes from a discrete command (arrow, Home/End,
   /// tap) rather than from the wheel rolling under the finger. Discrete moves
@@ -175,6 +200,7 @@ class _OrionWheelPickerState<T> extends State<OrionWheelPicker<T>>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _syncStyle();
     _haptic = OrionTheme.of(context).selectionHaptic;
     final bool reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     final bool becameReduced = reduce && !_driver.reducedMotion;
@@ -195,6 +221,7 @@ class _OrionWheelPickerState<T> extends State<OrionWheelPicker<T>>
   @override
   void didUpdateWidget(OrionWheelPicker<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _syncStyle();
     _debugValidate();
     if (widget.focusNode != oldWidget.focusNode) {
       if (widget.focusNode == null) {
@@ -234,6 +261,17 @@ class _OrionWheelPickerState<T> extends State<OrionWheelPicker<T>>
 
   int _indexOf(T value) =>
       widget.items.indexWhere((OrionWheelItem<T> item) => item.value == value);
+
+  void _syncStyle() {
+    final ThemeData theme = Theme.of(context);
+    final OrionWheelPickerTheme wheelTheme =
+        theme.extension<OrionWheelPickerTheme>() ??
+        OrionWheelPickerTheme.fallback;
+    _style = OrionWheelPickerPresets.resolve(
+      scheme: theme.colorScheme,
+      textTheme: theme.textTheme,
+    ).merge(wheelTheme.defaultStyle).merge(widget.style);
+  }
 
   void _debugValidate() {
     assert(widget.items.isNotEmpty, 'items must not be empty');
@@ -294,10 +332,10 @@ class _OrionWheelPickerState<T> extends State<OrionWheelPicker<T>>
   /// Drags the wheel toward [raw], with resistance past either end.
   double _resisted(double raw) {
     if (raw < 0) {
-      return raw * _endResistance;
+      return raw * _resistance;
     }
     if (raw > _lastIndex) {
-      return _lastIndex + (raw - _lastIndex) * _endResistance;
+      return _lastIndex + (raw - _lastIndex) * _resistance;
     }
     return raw;
   }
@@ -317,7 +355,7 @@ class _OrionWheelPickerState<T> extends State<OrionWheelPicker<T>>
     }
     // Dragging up rolls toward later items, like dragging a list. The offset
     // follows the finger; nothing is reported until the wheel settles.
-    _rawOffset += -details.delta.dy / _itemExtent;
+    _rawOffset += -details.delta.dy / _extent;
     _driver.jumpTo(_resisted(_rawOffset));
   }
 
@@ -354,11 +392,10 @@ class _OrionWheelPickerState<T> extends State<OrionWheelPicker<T>>
   /// velocity reaches the spring: it chooses how far the settle has to travel.
   /// The finger's vertical velocity in item units per second.
   double _itemsPerSecond(Velocity velocity) =>
-      -velocity.pixelsPerSecond.dy / _itemExtent;
+      -velocity.pixelsPerSecond.dy / _extent;
 
   int _landingDetent(double itemsPerSecond) {
-    final double projected =
-        _driver.value + itemsPerSecond * _projectionSeconds;
+    final double projected = _driver.value + itemsPerSecond * _projection;
     return projected.round().clamp(0, _lastIndex);
   }
 
@@ -373,7 +410,7 @@ class _OrionWheelPickerState<T> extends State<OrionWheelPicker<T>>
       _commit();
       return;
     }
-    _driver.springSpec = _settleSpec;
+    _driver.springSpec = _style.settleSpring ?? _settleSpec;
     // The release velocity is handed to the spring, as the reference does: it decides
     // which detent the wheel lands on *and* how it sets off, so a flick arrives fast
     // instead of starting from rest. The drag projection and the settle therefore read
@@ -428,14 +465,18 @@ class _OrionWheelPickerState<T> extends State<OrionWheelPicker<T>>
     final ThemeData theme = Theme.of(context);
     final ColorScheme scheme = theme.colorScheme;
     final bool enabled = _enabled;
-    final Color selectedColor = enabled
-        ? scheme.onSurface
-        : scheme.onSurface.withValues(alpha: 0.38);
-    final Color idleColor = enabled
-        ? scheme.onSurfaceVariant
-        : scheme.onSurface.withValues(alpha: 0.38);
-    final TextStyle textStyle = theme.textTheme.bodyLarge ?? const TextStyle();
-    final BorderRadius radius = BorderRadius.circular(OrionRadii.radius12);
+    final Set<WidgetState> states = <WidgetState>{
+      if (!enabled) WidgetState.disabled,
+    };
+    final Color selectedColor =
+        _style.selectedColor?.resolve(states) ?? scheme.onSurface;
+    final Color idleColor =
+        _style.idleColor?.resolve(states) ?? scheme.onSurfaceVariant;
+    final TextStyle textStyle =
+        _style.textStyle ?? theme.textTheme.bodyLarge ?? const TextStyle();
+    final BorderRadius radius =
+        _style.radius ?? BorderRadius.circular(OrionRadii.radius12);
+    final double ringWidth = _style.focusRingWidth ?? 2;
 
     // The band reaches from the centre to `halo` items away, where the falloff
     // is zero; the window is built from the rounded detent so it only changes
@@ -492,13 +533,16 @@ class _OrionWheelPickerState<T> extends State<OrionWheelPicker<T>>
                 onVerticalDragCancel: enabled ? _onDragCancel : null,
                 child: SizedBox(
                   width: constraints.maxWidth,
-                  height: _itemExtent * widget.visibleItemCount,
+                  height: _extent * widget.visibleItemCount,
                   child: DecoratedBox(
                     position: DecorationPosition.foreground,
                     decoration: BoxDecoration(
                       borderRadius: radius,
                       border: _focused && enabled
-                          ? Border.all(color: scheme.onSurface, width: 2)
+                          ? Border.all(
+                              color: _style.focusRingColor ?? scheme.onSurface,
+                              width: ringWidth,
+                            )
                           : null,
                     ),
                     child: ClipRRect(
@@ -547,16 +591,16 @@ class _OrionWheelPickerState<T> extends State<OrionWheelPicker<T>>
     final double distance = (index - sample).abs();
     final double falloff = (distance / halo).clamp(0.0, 1.0);
     final double top =
-        (index - sample + (widget.visibleItemCount - 1) / 2) * _itemExtent;
+        (index - sample + (widget.visibleItemCount - 1) / 2) * _extent;
     return Positioned(
       top: top,
       left: 0,
       right: 0,
-      height: _itemExtent,
+      height: _extent,
       child: Opacity(
         opacity: 1 - falloff,
         child: Transform.scale(
-          scale: 1 - (1 - _edgeScale) * falloff,
+          scale: 1 - (1 - _edgeScaleFor) * falloff,
           child: row,
         ),
       ),

@@ -25,10 +25,12 @@ Future<void> _pumpWheel(
   bool autofocus = false,
   String? semanticLabel,
   double width = 240,
+  OrionWheelPickerStyle? style,
+  ThemeData? theme,
 }) {
   return tester.pumpWidget(
     MaterialApp(
-      theme: OrionTheme.light(),
+      theme: theme ?? OrionTheme.light(),
       home: Scaffold(
         body: Center(
           child: MediaQuery(
@@ -42,6 +44,7 @@ Future<void> _pumpWheel(
                 visibleItemCount: visibleItemCount,
                 semanticLabel: semanticLabel,
                 autofocus: autofocus,
+                style: style,
               ),
             ),
           ),
@@ -847,6 +850,133 @@ void main() {
         FlutterError.onError = previous;
         expect(errors.whereType<AssertionError>(), isNotEmpty);
       });
+    });
+
+    testWidgets('resolves through the theme and the instance style', (
+      tester,
+    ) async {
+      final ThemeData themed = OrionTheme.apply(
+        OrionTheme.light(),
+        extensions: <ThemeExtension<dynamic>>[
+          OrionWheelPickerTheme(
+            defaultStyle: OrionWheelPickerStyle.from(
+              selectedColor: const Color(0xFF00AA00),
+            ),
+          ),
+        ],
+      );
+
+      Color rowColor(String label) =>
+          DefaultTextStyle.of(tester.element(find.text(label))).style.color!;
+
+      await _pumpWheel(tester, value: 2, onChanged: (_) {}, theme: themed);
+      expect(rowColor('Item 2'), const Color(0xFF00AA00));
+      expect(rowColor('Item 1'), OrionColors.lightScheme.onSurfaceVariant);
+
+      await _pumpWheel(
+        tester,
+        value: 2,
+        onChanged: (_) {},
+        theme: themed,
+        style: OrionWheelPickerStyle.from(
+          selectedColor: const Color(0xFFAA0000),
+        ),
+      );
+      expect(rowColor('Item 2'), const Color(0xFFAA0000));
+      expect(
+        rowColor('Item 1'),
+        OrionColors.lightScheme.onSurfaceVariant,
+        reason: 'the instance style only overrides what it names',
+      );
+    });
+
+    testWidgets('a custom row extent changes the wheel height', (tester) async {
+      await _pumpWheel(
+        tester,
+        value: 0,
+        onChanged: (_) {},
+        style: OrionWheelPickerStyle.from(itemExtent: 32),
+      );
+
+      expect(tester.getSize(find.byType(OrionWheelPicker<int>)).height, 32 * 5);
+    });
+
+    testWidgets('a custom ring colour and width repaint the focus ring', (
+      tester,
+    ) async {
+      FocusManager.instance.highlightStrategy =
+          FocusHighlightStrategy.alwaysTraditional;
+      addTearDown(() {
+        FocusManager.instance.highlightStrategy =
+            FocusHighlightStrategy.automatic;
+      });
+
+      await _pumpWheel(
+        tester,
+        value: 0,
+        onChanged: (_) {},
+        autofocus: true,
+        style: OrionWheelPickerStyle.from(
+          focusRingColor: const Color(0xFF00AA00),
+          focusRingWidth: 4,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final DecoratedBox face = tester.widget<DecoratedBox>(
+        find.descendant(
+          of: find.byType(OrionWheelPicker<int>),
+          matching: find.byType(DecoratedBox),
+        ),
+      );
+      final Border border =
+          (face.decoration as BoxDecoration).border! as Border;
+      expect(border.top.color, const Color(0xFF00AA00));
+      expect(border.top.width, 4);
+    });
+  });
+
+  group('OrionWheelPickerStyle', () {
+    test('a merge only changes the fields it names', () {
+      final OrionWheelPickerStyle base = OrionWheelPickerStyle.from(
+        itemExtent: 32,
+        selectedColor: const Color(0xFF111111),
+      );
+      final OrionWheelPickerStyle merged = base.merge(
+        OrionWheelPickerStyle.from(selectedColor: const Color(0xFF333333)),
+      );
+
+      expect(
+        merged.selectedColor?.resolve(const <WidgetState>{}),
+        const Color(0xFF333333),
+      );
+      expect(merged.itemExtent, 32);
+    });
+
+    test('presets reproduce the shipped wheel', () {
+      final OrionWheelPickerStyle style = OrionWheelPickerPresets.resolve(
+        scheme: OrionColors.lightScheme,
+        textTheme: OrionTheme.light().textTheme,
+      );
+
+      expect(style.itemExtent, OrionSizing.minHitTarget);
+      expect(style.edgeScale, 0.7);
+      expect(style.projectionSeconds, 0.08);
+      expect(style.endResistance, 0.35);
+      expect(style.focusRingColor, OrionColors.lightScheme.onSurface);
+      expect(style.focusRingWidth, 2);
+      expect(
+        style.settleSpring,
+        const OrionSpringSpec(stiffness: 380, dampingRatio: 1),
+      );
+      expect(
+        style.selectedColor?.resolve(const <WidgetState>{}),
+        OrionColors.lightScheme.onSurface,
+      );
+      expect(
+        style.idleColor?.resolve(const <WidgetState>{WidgetState.disabled}),
+        OrionColors.lightScheme.onSurface.withValues(alpha: 0.38),
+      );
     });
   });
 }

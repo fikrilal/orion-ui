@@ -419,6 +419,27 @@ void main() {
       );
     });
 
+    testWidgets('animates the ring out when deselected', (tester) async {
+      const ColorScheme scheme = OrionColors.lightScheme;
+      await _pumpRadio(tester, value: true, onChanged: (_) {});
+      await tester.pumpAndSettle();
+      expect(_ringBorder(tester).color, scheme.primary);
+
+      await _pumpRadio(tester, value: false, onChanged: (_) {});
+      await tester.pump(const Duration(milliseconds: 16));
+
+      expect(
+        _ringBorder(tester).color,
+        isNot(scheme.outline),
+        reason: 'the ring travels back instead of snapping on frame 0',
+      );
+      expect(_ringBorder(tester).color, isNot(scheme.primary));
+
+      await tester.pumpAndSettle();
+      expect(_ringBorder(tester).color, scheme.outline);
+      expect(_dotScale(tester), 0);
+    });
+
     testWidgets('paints the error role', (tester) async {
       const ColorScheme scheme = OrionColors.lightScheme;
       await _pumpRadio(
@@ -734,6 +755,22 @@ void main() {
       expect(
         style.fillColor?.resolve(const <WidgetState>{}),
         Colors.transparent,
+      );
+    });
+
+    test('from fills only the selected state', () {
+      final OrionRadioStyle style = OrionRadioStyle.from(
+        fillColor: const Color(0xFF123456),
+      );
+
+      expect(
+        style.fillColor?.resolve(const <WidgetState>{WidgetState.selected}),
+        const Color(0xFF123456),
+      );
+      expect(
+        style.fillColor?.resolve(const <WidgetState>{}),
+        Colors.transparent,
+        reason: 'the interior stays transparent while unselected',
       );
     });
   });

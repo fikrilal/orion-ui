@@ -178,27 +178,29 @@ class _OrionCheckboxState extends State<OrionCheckbox>
     final OrionCheckboxStyle style = _resolve(theme);
     final bool enabled = widget.onChanged != null;
     final bool indeterminate = widget.value == null;
-    final bool selected = widget.value != false;
 
     final Set<WidgetState> restingStates = <WidgetState>{
       if (!enabled) WidgetState.disabled,
       if (widget.error) WidgetState.error,
     };
-    final Set<WidgetState> selectedStates = <WidgetState>{
+    // The filled end of the travel, resolved unconditionally: these are the
+    // lerp's endpoints, not the live state, so unchecking animates the fill
+    // and border out instead of snapping them on frame 0. The switch builds
+    // its on-state the same way.
+    final Set<WidgetState> filledStates = <WidgetState>{
+      WidgetState.selected,
       ...restingStates,
-      if (selected) WidgetState.selected,
     };
 
-    final Color fill =
-        style.fillColor?.resolve(selectedStates) ?? scheme.primary;
+    final Color fill = style.fillColor?.resolve(filledStates) ?? scheme.primary;
     final Color fillRest =
         style.fillColor?.resolve(restingStates) ?? Colors.transparent;
     final Color borderRest =
         style.borderColor?.resolve(restingStates) ?? scheme.outline;
     final Color borderOn =
-        style.borderColor?.resolve(selectedStates) ?? scheme.primary;
+        style.borderColor?.resolve(filledStates) ?? scheme.primary;
     final Color markColor =
-        style.markColor?.resolve(selectedStates) ?? scheme.onPrimary;
+        style.markColor?.resolve(filledStates) ?? scheme.onPrimary;
     final double boxSize = style.size ?? OrionSizing.iconMedium;
     final BorderRadius radius =
         style.radius ?? BorderRadius.circular(OrionRadii.radius4);

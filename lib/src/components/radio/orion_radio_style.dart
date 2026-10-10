@@ -98,6 +98,9 @@ class OrionRadioStyle {
   ///
   /// Use the main constructor with [WidgetStateProperty] values when a colour
   /// must differ by state; [from] is the flat, one-value-per-field sugar.
+  /// [fillColor] is the one exception: it is the selected fill, and every
+  /// other state stays transparent, matching the interior's transparent
+  /// default.
   static OrionRadioStyle from({
     Color? ringColor,
     Color? dotColor,
@@ -117,7 +120,11 @@ class OrionRadioStyle {
           : WidgetStatePropertyAll<Color?>(dotColor),
       fillColor: fillColor == null
           ? null
-          : WidgetStatePropertyAll<Color?>(fillColor),
+          : WidgetStateProperty.resolveWith<Color?>(
+              (Set<WidgetState> states) => states.contains(WidgetState.selected)
+                  ? fillColor
+                  : Colors.transparent,
+            ),
       size: size,
       dotSize: dotSize,
       borderWidth: borderWidth,

@@ -183,19 +183,23 @@ class _OrionRadioState extends State<OrionRadio>
       if (!enabled) WidgetState.disabled,
       if (widget.error) WidgetState.error,
     };
-    final Set<WidgetState> selectedStates = <WidgetState>{
+    // The filled end of the travel, resolved unconditionally: these are the
+    // lerp's endpoints, not the live state, so deselecting animates the ring
+    // out instead of snapping it on frame 0. The switch builds its on-state
+    // the same way.
+    final Set<WidgetState> filledStates = <WidgetState>{
+      WidgetState.selected,
       ...restingStates,
-      if (widget.value) WidgetState.selected,
     };
 
     final Color ringRest =
         style.ringColor?.resolve(restingStates) ?? scheme.outline;
     final Color ringOn =
-        style.ringColor?.resolve(selectedStates) ?? scheme.primary;
+        style.ringColor?.resolve(filledStates) ?? scheme.primary;
     final Color dotColor =
-        style.dotColor?.resolve(selectedStates) ?? scheme.primary;
+        style.dotColor?.resolve(filledStates) ?? scheme.primary;
     final Color fill =
-        style.fillColor?.resolve(selectedStates) ?? Colors.transparent;
+        style.fillColor?.resolve(filledStates) ?? Colors.transparent;
     final double circle = style.size ?? OrionSizing.iconMedium;
     final double dotSize = style.dotSize ?? OrionSizing.iconSmall * 0.5;
     final double borderWidth = style.borderWidth ?? 2;

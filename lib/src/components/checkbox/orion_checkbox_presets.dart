@@ -37,7 +37,7 @@ abstract final class OrionCheckboxPresets {
       ),
       OrionCheckboxSize.large => (
         28,
-        BorderRadius.circular(6),
+        BorderRadius.circular(OrionRadii.radius6),
         18,
         OrionSpacing.space16,
       ),

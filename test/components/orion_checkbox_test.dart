@@ -483,6 +483,62 @@ void main() {
       );
     });
 
+    testWidgets('animates the fill and border out when unchecked', (
+      tester,
+    ) async {
+      const ColorScheme scheme = OrionColors.lightScheme;
+      await _pumpCheckbox(tester, value: true, onChanged: (_) {});
+      await tester.pumpAndSettle();
+      expect(_boxDecoration(tester).color, scheme.primary);
+
+      await _pumpCheckbox(tester, value: false, onChanged: (_) {});
+      await tester.pump(const Duration(milliseconds: 16));
+
+      final double fillAlpha = _boxDecoration(tester).color!.a;
+      expect(
+        fillAlpha,
+        greaterThan(0),
+        reason: 'the fill travels out instead of snapping on frame 0',
+      );
+      expect(fillAlpha, lessThan(1));
+      expect(_boxBorder(tester).color, isNot(scheme.outline));
+      expect(_boxBorder(tester).color, isNot(scheme.primary));
+
+      await tester.pumpAndSettle();
+      expect(_boxDecoration(tester).color!.a, 0);
+      expect(_boxBorder(tester).color, scheme.outline);
+    });
+
+    testWidgets(
+      'keeps an unchecked box transparent when only a fill is given',
+      (tester) async {
+        const ColorScheme scheme = OrionColors.lightScheme;
+        final OrionCheckboxStyle style = OrionCheckboxStyle.from(
+          fillColor: scheme.primary,
+        );
+
+        await _pumpCheckbox(
+          tester,
+          value: false,
+          onChanged: (_) {},
+          style: style,
+          disableAnimations: true,
+        );
+        await tester.pump();
+        expect(_boxDecoration(tester).color!.a, 0);
+
+        await _pumpCheckbox(
+          tester,
+          value: true,
+          onChanged: (_) {},
+          style: style,
+          disableAnimations: true,
+        );
+        await tester.pump();
+        expect(_boxDecoration(tester).color, scheme.primary);
+      },
+    );
+
     testWidgets('paints the error role', (tester) async {
       const ColorScheme scheme = OrionColors.lightScheme;
       await _pumpCheckbox(
@@ -728,6 +784,22 @@ void main() {
       expect(
         style.borderColor?.resolve(const <WidgetState>{WidgetState.error}),
         OrionColors.lightScheme.error,
+      );
+    });
+
+    test('from fills only the selected state', () {
+      final OrionCheckboxStyle style = OrionCheckboxStyle.from(
+        fillColor: const Color(0xFF123456),
+      );
+
+      expect(
+        style.fillColor?.resolve(const <WidgetState>{WidgetState.selected}),
+        const Color(0xFF123456),
+      );
+      expect(
+        style.fillColor?.resolve(const <WidgetState>{}),
+        Colors.transparent,
+        reason: 'an unchecked box never fills',
       );
     });
   });

@@ -120,6 +120,9 @@ class OrionCheckboxStyle {
   ///
   /// Use the main constructor with [WidgetStateProperty] values when a colour
   /// must differ by state; [from] is the flat, one-value-per-field sugar.
+  /// [fillColor] is the one exception: it is the selected fill, and every
+  /// other state stays transparent, so an unchecked box never fills. A
+  /// resting fill needs the state-resolved constructor.
   static OrionCheckboxStyle from({
     Color? fillColor,
     Color? borderColor,
@@ -136,7 +139,11 @@ class OrionCheckboxStyle {
     return OrionCheckboxStyle(
       fillColor: fillColor == null
           ? null
-          : WidgetStatePropertyAll<Color?>(fillColor),
+          : WidgetStateProperty.resolveWith<Color?>(
+              (Set<WidgetState> states) => states.contains(WidgetState.selected)
+                  ? fillColor
+                  : Colors.transparent,
+            ),
       borderColor: borderColor == null
           ? null
           : WidgetStatePropertyAll<Color?>(borderColor),

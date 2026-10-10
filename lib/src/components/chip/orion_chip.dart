@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 
+import 'package:orion_ui/src/components/chip/orion_chip_presets.dart';
+import 'package:orion_ui/src/components/chip/orion_chip_style.dart';
+import 'package:orion_ui/src/components/chip/orion_chip_theme.dart';
 import 'package:orion_ui/src/core/orion_pressable.dart';
 import 'package:orion_ui/src/motion/orion_spring_driver.dart';
 import 'package:orion_ui/src/motion/orion_spring_spec.dart';
 import 'package:orion_ui/src/theme/orion_theme.dart';
 import 'package:orion_ui/src/theme/orion_theme_data.dart';
 import 'package:orion_ui/src/theme/orion_tokens.dart';
+
+/// The chip's size step.
+enum OrionChipSize { small, medium, large }
 
 /// A pill that reports an independent on or off selection.
 ///
@@ -19,6 +25,12 @@ import 'package:orion_ui/src/theme/orion_tokens.dart';
 /// no surface snaps while the others travel. Selection is not carried by color
 /// alone, which is also what separates the chip from [OrionSegmentedControl] and
 /// its sliding surface.
+///
+/// Look and feel resolve in three layers, each overriding the last: the
+/// built-in [OrionChipPresets] for the [size], the ambient [OrionChipTheme],
+/// and the [style] passed here. Anything an override does not name falls
+/// through, and focus paints a translucent layer over the pill's surface
+/// rather than a second concentric edge.
 class OrionChip extends StatefulWidget {
   /// Creates a controlled chip.
   const OrionChip({
@@ -27,8 +39,10 @@ class OrionChip extends StatefulWidget {
     required this.selected,
     required this.onSelected,
     this.semanticLabel,
+    this.size = OrionChipSize.medium,
     this.focusNode,
     this.autofocus = false,
+    this.style,
   });
 
   /// Visible content. A plain `Text` inherits `labelMedium` and the state color.
@@ -43,11 +57,18 @@ class OrionChip extends StatefulWidget {
   /// Spoken name in place of the visible label.
   final String? semanticLabel;
 
+  /// The size step. Defaults to [OrionChipSize.medium], the shipped pill.
+  final OrionChipSize size;
+
   /// Optional focus node for keyboard activation.
   final FocusNode? focusNode;
 
   /// Whether the chip requests focus on first build.
   final bool autofocus;
+
+  /// Instance-level overrides, merged over the presets and the ambient
+  /// [OrionChipTheme]. Only the fields set here change.
+  final OrionChipStyle? style;
 
   @override
   State<OrionChip> createState() => _OrionChipState();
@@ -55,11 +76,6 @@ class OrionChip extends StatefulWidget {
 
 class _OrionChipState extends State<OrionChip>
     with SingleTickerProviderStateMixin {
-  static const double _height = OrionSizing.controlHeightSmall;
-  static const double _lineWidth = 1;
-  static const double _checkSize = OrionSizing.iconSmall;
-  static const double _checkGap = OrionSpacing.space8;
-
   /// Travel spring for the whole 0 to 1 state change.
   ///
   /// [OrionSpringSpec.snappy] is sized for the documented 0.96 to 1.0 press
@@ -88,6 +104,7 @@ class _OrionChipState extends State<OrionChip>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _syncMotion();
     final bool reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     final bool becameReduced = reduce && !_driver.reducedMotion;
     _driver.reducedMotion = reduce;
@@ -104,6 +121,7 @@ class _OrionChipState extends State<OrionChip>
   @override
   void didUpdateWidget(OrionChip oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _syncMotion();
     if (widget.selected != oldWidget.selected) {
       _sync();
     }
@@ -125,6 +143,20 @@ class _OrionChipState extends State<OrionChip>
     }
   }
 
+  void _syncMotion() {
+    final OrionChipStyle style = _resolve(Theme.of(context));
+    _driver.springSpec = style.spring ?? _travel;
+  }
+
+  OrionChipStyle _resolve(ThemeData theme) {
+    final OrionChipTheme chipTheme =
+        theme.extension<OrionChipTheme>() ?? OrionChipTheme.fallback;
+    return OrionChipPresets.resolve(
+      size: widget.size,
+      scheme: theme.colorScheme,
+    ).merge(chipTheme.defaultStyle).merge(widget.style);
+  }
+
   /// Reports the next value. The haptic belongs to [OrionPressable], so the
   /// keyboard path through [ActivateIntent] stays silent.
   void _select() {
@@ -137,31 +169,55 @@ class _OrionChipState extends State<OrionChip>
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final ColorScheme scheme = theme.colorScheme;
     final OrionThemeData orion = OrionTheme.of(context);
+    final OrionChipStyle style = _resolve(theme);
     final bool enabled = widget.onSelected != null;
-    final BorderRadius radius = BorderRadius.circular(OrionRadii.radiusPill);
+
+    // The selected end of the travel, resolved unconditionally: these are the
+    // lerp's endpoints, not the live state, so unselecting animates the fill
+    // and label out instead of snapping them on frame 0.
+    final Set<WidgetState> restingStates = <WidgetState>{
+      if (!enabled) WidgetState.disabled,
+      if (_focused) WidgetState.focused,
+    };
+    final Set<WidgetState> filledStates = <WidgetState>{
+      WidgetState.selected,
+      ...restingStates,
+    };
+
+    final Color fillIdle =
+        style.fillColor?.resolve(restingStates) ?? theme.colorScheme.secondary;
+    final Color fillOn =
+        style.fillColor?.resolve(filledStates) ?? theme.colorScheme.primary;
+    final Color borderIdle =
+        style.borderColor?.resolve(restingStates) ?? theme.colorScheme.outline;
+    final Color borderOn =
+        style.borderColor?.resolve(filledStates) ?? theme.colorScheme.primary;
+    final Color labelIdle =
+        style.labelColor?.resolve(restingStates) ??
+        theme.colorScheme.onSurfaceVariant;
+    final Color labelOn =
+        style.labelColor?.resolve(filledStates) ?? theme.colorScheme.onPrimary;
+    final Color checkColor =
+        style.checkColor?.resolve(filledStates) ?? theme.colorScheme.onPrimary;
+    final Color overlayColor =
+        style.focusOverlayColor ??
+        theme.colorScheme.onSurface.withValues(alpha: 0.12);
+    final double height = style.height ?? OrionSizing.controlHeightSmall;
+    final double borderWidth = style.borderWidth ?? 1;
+    final double checkSize = style.checkSize ?? OrionSizing.iconSmall;
+    final double checkGap = style.checkGap ?? OrionSpacing.space8;
+    final BorderRadius radius =
+        style.radius ?? BorderRadius.circular(OrionRadii.radiusPill);
+    final EdgeInsets padding =
+        (style.padding ??
+                const EdgeInsets.symmetric(horizontal: OrionSpacing.space12))
+            .resolve(Directionality.of(context));
     final TextStyle baseStyle =
         theme.textTheme.labelMedium ?? const TextStyle();
 
-    final Color fillIdle = enabled
-        ? scheme.secondary
-        : scheme.onSurface.withValues(alpha: 0.12);
-    final Color fillOn = enabled
-        ? scheme.primary
-        : scheme.onSurface.withValues(alpha: 0.12);
-    final Color borderIdle = enabled
-        ? scheme.outline
-        : scheme.onSurface.withValues(alpha: 0.12);
-    final Color labelIdle = enabled
-        ? scheme.onSurfaceVariant
-        : scheme.onSurface.withValues(alpha: 0.38);
-    final Color labelOn = enabled
-        ? scheme.onPrimary
-        : scheme.onSurface.withValues(alpha: 0.38);
-
     // The check is built once per widget build, so the travel ticker reuses it.
-    final Widget check = Icon(Icons.check, size: _checkSize, color: labelOn);
+    final Widget check = Icon(Icons.check, size: checkSize, color: checkColor);
 
     return MergeSemantics(
       child: Semantics(
@@ -210,64 +266,65 @@ class _OrionChipState extends State<OrionChip>
                         color: Color.lerp(fillIdle, fillOn, shown),
                         borderRadius: radius,
                         border: Border.all(
-                          color: Color.lerp(borderIdle, fillOn, shown)!,
-                          width: _lineWidth,
+                          color: Color.lerp(borderIdle, borderOn, shown)!,
+                          width: borderWidth,
                         ),
-                        // The halo sits outside the pill so it stays visible
-                        // once the fill is primary.
-                        boxShadow: _focused && enabled
-                            ? <BoxShadow>[
-                                BoxShadow(
-                                  color: scheme.onSurface,
-                                  spreadRadius: 2,
-                                ),
-                              ]
-                            : null,
                       ),
                       child: ClipRRect(
                         borderRadius: radius,
-                        child: SizedBox(
-                          height: _height,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: OrionSpacing.space12,
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: <Widget>[
-                                SizedBox(
-                                  width: _checkSize * shown,
-                                  height: _checkSize,
-                                  child: ClipRect(
-                                    child: Transform.scale(
-                                      scale: _driver.value.clamp(
-                                        0.0,
-                                        _checkCeiling,
+                        child: Stack(
+                          children: <Widget>[
+                            SizedBox(
+                              height: height,
+                              child: Padding(
+                                padding: padding,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: <Widget>[
+                                    SizedBox(
+                                      width: checkSize * shown,
+                                      height: checkSize,
+                                      child: ClipRect(
+                                        child: Transform.scale(
+                                          scale: _driver.value.clamp(
+                                            0.0,
+                                            _checkCeiling,
+                                          ),
+                                          child: child,
+                                        ),
                                       ),
-                                      child: child,
                                     ),
-                                  ),
-                                ),
-                                SizedBox(width: _checkGap * shown),
-                                // The label travels with the fill, so it never
-                                // snaps to onPrimary over a still-light pill.
-                                DefaultTextStyle(
-                                  style: baseStyle.copyWith(
-                                    color: Color.lerp(
-                                      labelIdle,
-                                      labelOn,
-                                      shown,
+                                    SizedBox(width: checkGap * shown),
+                                    // The label travels with the fill, so it never
+                                    // snaps to onPrimary over a still-light pill.
+                                    DefaultTextStyle(
+                                      style: baseStyle.copyWith(
+                                        color: Color.lerp(
+                                          labelIdle,
+                                          labelOn,
+                                          shown,
+                                        ),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      child: widget.semanticLabel == null
+                                          ? widget.label
+                                          : ExcludeSemantics(
+                                              child: widget.label,
+                                            ),
                                     ),
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  child: widget.semanticLabel == null
-                                      ? widget.label
-                                      : ExcludeSemantics(child: widget.label),
+                                  ],
                                 ),
-                              ],
+                              ),
                             ),
-                          ),
+                            // The focus state layer sits over the surface,
+                            // inside the clip, so the pill keeps one edge and
+                            // focus never draws a second one.
+                            if (_focused && enabled)
+                              Positioned.fill(
+                                child: ColoredBox(color: overlayColor),
+                              ),
+                          ],
                         ),
                       ),
                     );

@@ -15,10 +15,13 @@ Future<void> _pumpChip(
   bool autofocus = false,
   String? semanticLabel,
   String text = 'Live',
+  OrionChipSize size = OrionChipSize.medium,
+  OrionChipStyle? style,
+  ThemeData? theme,
 }) {
   return tester.pumpWidget(
     MaterialApp(
-      theme: OrionTheme.light(),
+      theme: theme ?? OrionTheme.light(),
       home: Scaffold(
         body: Center(
           child: MediaQuery(
@@ -29,6 +32,8 @@ Future<void> _pumpChip(
               onSelected: onSelected,
               semanticLabel: semanticLabel,
               autofocus: autofocus,
+              size: size,
+              style: style,
             ),
           ),
         ),
@@ -444,7 +449,9 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('paints a focus halo when focused', (tester) async {
+    testWidgets('paints the focus layer over the pill when focused', (
+      tester,
+    ) async {
       FocusManager.instance.highlightStrategy =
           FocusHighlightStrategy.alwaysTraditional;
       addTearDown(() {
@@ -460,7 +467,95 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(_chipDecoration(tester).boxShadow, isNotNull);
+      final ColoredBox layer = tester.widget<ColoredBox>(
+        find.descendant(
+          of: find.byType(OrionChip),
+          matching: find.byType(ColoredBox),
+        ),
+      );
+      expect(
+        layer.color,
+        OrionColors.lightScheme.onSurface.withValues(alpha: 0.12),
+      );
+      expect(
+        _chipDecoration(tester).boxShadow,
+        isNull,
+        reason: 'focus is a state layer, not a second edge',
+      );
+    });
+
+    testWidgets('steps the pill, the check and the gap with the size', (
+      tester,
+    ) async {
+      await _pumpChip(
+        tester,
+        selected: true,
+        onSelected: (_) {},
+        size: OrionChipSize.large,
+        disableAnimations: true,
+      );
+      await tester.pump();
+
+      expect(_pillSize(tester).height, OrionSizing.controlHeightMedium);
+      expect(tester.widget<Icon>(find.byIcon(Icons.check)).size, 20);
+
+      await _pumpChip(
+        tester,
+        selected: true,
+        onSelected: (_) {},
+        size: OrionChipSize.small,
+        disableAnimations: true,
+      );
+      await tester.pump();
+
+      expect(_pillSize(tester).height, 28);
+      expect(tester.widget<Icon>(find.byIcon(Icons.check)).size, 12);
+      expect(
+        tester.getSize(find.byType(OrionPressable)).height,
+        OrionSizing.minHitTarget,
+        reason: 'the hit target does not change with the size',
+      );
+    });
+
+    testWidgets('resolves through the theme and the instance style', (
+      tester,
+    ) async {
+      final ThemeData themed = OrionTheme.apply(
+        OrionTheme.light(),
+        extensions: <ThemeExtension<dynamic>>[
+          OrionChipTheme(
+            defaultStyle: OrionChipStyle.from(
+              height: 36,
+              fillColor: const Color(0xFF00AA00),
+            ),
+          ),
+        ],
+      );
+
+      await _pumpChip(
+        tester,
+        selected: false,
+        onSelected: (_) {},
+        theme: themed,
+        disableAnimations: true,
+      );
+      expect(_chipDecoration(tester).color, const Color(0xFF00AA00));
+      expect(_pillSize(tester).height, 36);
+
+      await _pumpChip(
+        tester,
+        selected: false,
+        onSelected: (_) {},
+        theme: themed,
+        disableAnimations: true,
+        style: OrionChipStyle.from(fillColor: const Color(0xFFAA0000)),
+      );
+      expect(_chipDecoration(tester).color, const Color(0xFFAA0000));
+      expect(
+        _pillSize(tester).height,
+        36,
+        reason: 'the instance style only overrides what it names',
+      );
     });
 
     testWidgets('emits one haptic on tap and none from the keyboard', (
@@ -558,6 +653,54 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(reported, isNull);
+    });
+  });
+
+  group('OrionChipStyle', () {
+    test('a merge only changes the fields it names', () {
+      final OrionChipStyle base = OrionChipStyle.from(
+        height: 28,
+        fillColor: const Color(0xFF111111),
+      );
+      final OrionChipStyle merged = base.merge(
+        OrionChipStyle.from(fillColor: const Color(0xFF333333)),
+      );
+
+      expect(
+        merged.fillColor?.resolve(const <WidgetState>{}),
+        const Color(0xFF333333),
+      );
+      expect(merged.height, base.height);
+    });
+
+    test('presets reproduce the shipped pill', () {
+      final OrionChipStyle style = OrionChipPresets.resolve(
+        size: OrionChipSize.medium,
+        scheme: OrionColors.lightScheme,
+      );
+
+      expect(style.height, OrionSizing.controlHeightSmall);
+      expect(style.borderWidth, 1);
+      expect(style.checkSize, OrionSizing.iconSmall);
+      expect(style.checkGap, OrionSpacing.space8);
+      expect(style.radius, BorderRadius.circular(OrionRadii.radiusPill));
+      expect(style.spring, OrionSpringSpec.gentle);
+      expect(
+        style.fillColor?.resolve(const <WidgetState>{}),
+        OrionColors.lightScheme.secondary,
+      );
+      expect(
+        style.fillColor?.resolve(const <WidgetState>{WidgetState.selected}),
+        OrionColors.lightScheme.primary,
+      );
+      expect(
+        style.labelColor?.resolve(const <WidgetState>{WidgetState.selected}),
+        OrionColors.lightScheme.onPrimary,
+      );
+      expect(
+        style.checkColor?.resolve(const <WidgetState>{WidgetState.disabled}),
+        OrionColors.lightScheme.onSurface.withValues(alpha: 0.38),
+      );
     });
   });
 }

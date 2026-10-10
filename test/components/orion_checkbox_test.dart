@@ -13,11 +13,15 @@ Future<void> _pumpCheckbox(
   required ValueChanged<bool?>? onChanged,
   bool disableAnimations = false,
   bool autofocus = false,
+  bool error = false,
   String? semanticLabel,
+  OrionCheckboxSize size = OrionCheckboxSize.medium,
+  OrionCheckboxStyle? style,
+  ThemeData? theme,
 }) {
   return tester.pumpWidget(
     MaterialApp(
-      theme: OrionTheme.light(),
+      theme: theme ?? OrionTheme.light(),
       home: Scaffold(
         body: Center(
           child: MediaQuery(
@@ -26,7 +30,10 @@ Future<void> _pumpCheckbox(
               value: value,
               onChanged: onChanged,
               autofocus: autofocus,
+              error: error,
               semanticLabel: semanticLabel,
+              size: size,
+              style: style,
             ),
           ),
         ),
@@ -52,16 +59,17 @@ BorderSide _boxBorder(WidgetTester tester) {
 }
 
 double _markScale(WidgetTester tester) {
+  // The pressable wraps the whole control and the glyph swap wraps each mark
+  // in a transition, so the travel's transform is the first one under the
+  // box's clip: that is the scale the driver owns.
   final Transform transform = tester
       .widgetList<Transform>(
         find.descendant(
-          of: find.byType(OrionCheckbox),
+          of: find.byType(ClipRRect),
           matching: find.byType(Transform),
         ),
       )
-      // The pressable wraps the whole control, so its scale comes first; the mark's is
-      // the innermost.
-      .last;
+      .first;
   return transform.transform.entry(0, 0);
 }
 
@@ -352,7 +360,9 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('paints a focus halo when focused', (tester) async {
+    testWidgets('paints the focus overlay under the box when focused', (
+      tester,
+    ) async {
       FocusManager.instance.highlightStrategy =
           FocusHighlightStrategy.alwaysTraditional;
       addTearDown(() {
@@ -368,7 +378,183 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(_boxDecoration(tester).boxShadow, isNotNull);
+      final ColoredBox overlay = tester.widget<ColoredBox>(
+        find.descendant(
+          of: find.byType(OrionCheckbox),
+          matching: find.byType(ColoredBox),
+        ),
+      );
+      expect(
+        overlay.color,
+        OrionColors.lightScheme.onSurface.withValues(alpha: 0.12),
+      );
+      expect(
+        _boxDecoration(tester).boxShadow,
+        isNull,
+        reason: 'focus is an overlay, not a second border',
+      );
+    });
+
+    testWidgets('cross-fades the swap between the check and the bar', (
+      tester,
+    ) async {
+      await _pumpCheckbox(tester, value: true, onChanged: (_) {});
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.check), findsOneWidget);
+
+      // Checked and indeterminate share the travel's filled end, so the spring
+      // has nothing to move; the glyph swap is its own transition.
+      await _pumpCheckbox(tester, value: null, onChanged: (_) {});
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(
+        tester.hasRunningAnimations,
+        isTrue,
+        reason: 'the swap animates instead of cutting',
+      );
+
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.check), findsNothing);
+      expect(tester.getSize(find.byType(DecoratedBox).last), const Size(12, 2));
+    });
+
+    testWidgets('swaps the mark at once when motion is reduced', (
+      tester,
+    ) async {
+      await _pumpCheckbox(
+        tester,
+        value: true,
+        onChanged: (_) {},
+        disableAnimations: true,
+      );
+      await tester.pump();
+
+      await _pumpCheckbox(
+        tester,
+        value: null,
+        onChanged: (_) {},
+        disableAnimations: true,
+      );
+      await tester.pump();
+
+      expect(tester.hasRunningAnimations, isFalse);
+      expect(find.byIcon(Icons.check), findsNothing);
+    });
+
+    testWidgets('steps the box, radius, mark and bar with the size', (
+      tester,
+    ) async {
+      await _pumpCheckbox(
+        tester,
+        value: null,
+        onChanged: (_) {},
+        size: OrionCheckboxSize.large,
+        disableAnimations: true,
+      );
+      await tester.pump();
+
+      expect(
+        tester.getSize(find.byType(DecoratedBox).first),
+        const Size(28, 28),
+      );
+      expect(
+        (_boxDecoration(tester).borderRadius! as BorderRadius).topLeft,
+        const Radius.circular(6),
+      );
+      expect(tester.getSize(find.byType(DecoratedBox).last), const Size(16, 2));
+
+      await _pumpCheckbox(
+        tester,
+        value: true,
+        onChanged: (_) {},
+        size: OrionCheckboxSize.small,
+        disableAnimations: true,
+      );
+      await tester.pump();
+
+      expect(
+        tester.getSize(find.byType(DecoratedBox).first),
+        const Size(20, 20),
+      );
+      expect(tester.widget<Icon>(find.byIcon(Icons.check)).size, 12);
+      expect(
+        tester.getSize(find.byType(OrionCheckbox)),
+        const Size(OrionSizing.minHitTarget, OrionSizing.minHitTarget),
+        reason: 'the hit target does not change with the size',
+      );
+    });
+
+    testWidgets('paints the error role', (tester) async {
+      const ColorScheme scheme = OrionColors.lightScheme;
+      await _pumpCheckbox(
+        tester,
+        value: false,
+        onChanged: (_) {},
+        error: true,
+        disableAnimations: true,
+      );
+
+      expect(_boxBorder(tester).color, scheme.error);
+      expect(_boxDecoration(tester).color!.a, 0);
+
+      await _pumpCheckbox(
+        tester,
+        value: true,
+        onChanged: (_) {},
+        error: true,
+        disableAnimations: true,
+      );
+      await tester.pump();
+
+      expect(_boxDecoration(tester).color, scheme.error);
+      expect(_boxBorder(tester).color, scheme.error);
+      expect(
+        tester.widget<Icon>(find.byIcon(Icons.check)).color,
+        scheme.onError,
+      );
+    });
+
+    testWidgets('resolves through the theme and the instance style', (
+      tester,
+    ) async {
+      final ThemeData themed = OrionTheme.apply(
+        OrionTheme.light(),
+        extensions: <ThemeExtension<dynamic>>[
+          OrionCheckboxTheme(
+            defaultStyle: OrionCheckboxStyle.from(
+              size: 18,
+              borderColor: const Color(0xFF00AA00),
+            ),
+          ),
+        ],
+      );
+
+      await _pumpCheckbox(
+        tester,
+        value: false,
+        onChanged: (_) {},
+        theme: themed,
+        disableAnimations: true,
+      );
+      expect(_boxBorder(tester).color, const Color(0xFF00AA00));
+      expect(
+        tester.getSize(find.byType(DecoratedBox).first),
+        const Size(18, 18),
+      );
+
+      await _pumpCheckbox(
+        tester,
+        value: false,
+        onChanged: (_) {},
+        theme: themed,
+        disableAnimations: true,
+        style: OrionCheckboxStyle.from(borderColor: const Color(0xFFAA0000)),
+      );
+      expect(_boxBorder(tester).color, const Color(0xFFAA0000));
+      expect(
+        tester.getSize(find.byType(DecoratedBox).first),
+        const Size(18, 18),
+        reason: 'the instance style only overrides what it names',
+      );
     });
 
     testWidgets('emits one haptic on tap and none from the keyboard', (
@@ -500,6 +686,49 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(reported, isNull);
+    });
+  });
+
+  group('OrionCheckboxStyle', () {
+    test('a merge only changes the fields it names', () {
+      final OrionCheckboxStyle base = OrionCheckboxStyle.from(
+        size: 20,
+        borderColor: const Color(0xFF111111),
+      );
+      final OrionCheckboxStyle merged = base.merge(
+        OrionCheckboxStyle.from(borderColor: const Color(0xFF333333)),
+      );
+
+      expect(
+        merged.borderColor?.resolve(const <WidgetState>{}),
+        const Color(0xFF333333),
+      );
+      expect(merged.size, base.size);
+    });
+
+    test('presets reproduce the shipped box', () {
+      final OrionCheckboxStyle style = OrionCheckboxPresets.resolve(
+        size: OrionCheckboxSize.medium,
+        scheme: OrionColors.lightScheme,
+      );
+
+      expect(style.size, OrionSizing.iconMedium);
+      expect(style.borderWidth, 2);
+      expect(style.markSize, OrionSizing.iconSmall);
+      expect(style.barWidth, OrionSpacing.space12);
+      expect(style.spring, OrionSpringSpec.gentle);
+      expect(
+        style.borderColor?.resolve(const <WidgetState>{}),
+        OrionColors.lightScheme.outline,
+      );
+      expect(
+        style.borderColor?.resolve(const <WidgetState>{WidgetState.selected}),
+        OrionColors.lightScheme.primary,
+      );
+      expect(
+        style.borderColor?.resolve(const <WidgetState>{WidgetState.error}),
+        OrionColors.lightScheme.error,
+      );
     });
   });
 }

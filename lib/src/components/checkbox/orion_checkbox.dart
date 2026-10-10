@@ -1,21 +1,37 @@
 import 'package:flutter/material.dart';
 
+import 'package:orion_ui/src/components/checkbox/orion_checkbox_presets.dart';
+import 'package:orion_ui/src/components/checkbox/orion_checkbox_style.dart';
+import 'package:orion_ui/src/components/checkbox/orion_checkbox_theme.dart';
 import 'package:orion_ui/src/core/orion_pressable.dart';
 import 'package:orion_ui/src/motion/orion_spring_driver.dart';
 import 'package:orion_ui/src/motion/orion_spring_spec.dart';
 import 'package:orion_ui/src/theme/orion_theme.dart';
 import 'package:orion_ui/src/theme/orion_tokens.dart';
 
+/// The box's size step.
+enum OrionCheckboxSize { small, medium, large }
+
 /// A box that confirms a boolean and can show an indeterminate middle state.
 ///
 /// The parent owns [value]; null is indeterminate. The box is tap-only: it
 /// does not drag, and it does not own a label row.
 ///
-/// One [OrionSpringDriver] drives the fill, the border, and the mark on the
-/// travel spring (see `_travel`), which is tuned for the full 0 to 1 state
-/// change rather than for a press release. The mark is clipped by the box, so
-/// the overshoot cannot paint outside it. A tap emits [OrionThemeData.selectionHaptic]
-/// once the tap wins the gesture arena; Enter and Space flip the box silently.
+/// One [OrionSpringDriver] drives the fill, the border, and the mark's scale
+/// on the travel spring, which is tuned for the full 0 to 1 state change
+/// rather than for a press release. Checked and indeterminate share the
+/// travel's filled end, so that step moves nothing - it gets its own 160 ms
+/// cross-fade instead, and reduced motion swaps the glyph at once. The mark is
+/// clipped by the box, so the overshoot cannot paint outside it. A tap emits
+/// [OrionThemeData.selectionHaptic] once the tap wins the gesture arena; Enter
+/// and Space flip the box silently. Focus paints a translucent overlay under
+/// the box, not a second border.
+///
+/// Look and feel resolve in three layers, each overriding the last: the
+/// built-in [OrionCheckboxPresets] for the [size], the ambient
+/// [OrionCheckboxTheme], and the [style] passed here. Anything an override
+/// does not name falls through. [error] rides the same machinery: it only
+/// changes colours, and validation stays the host's.
 class OrionCheckbox extends StatefulWidget {
   /// Creates a controlled checkbox.
   const OrionCheckbox({
@@ -25,6 +41,9 @@ class OrionCheckbox extends StatefulWidget {
     this.focusNode,
     this.autofocus = false,
     this.semanticLabel,
+    this.size = OrionCheckboxSize.medium,
+    this.error = false,
+    this.style,
   });
 
   /// Whether the box is checked. Null is indeterminate.
@@ -43,18 +62,23 @@ class OrionCheckbox extends StatefulWidget {
   /// Spoken name. The checked state is exposed separately.
   final String? semanticLabel;
 
+  /// The size step. Defaults to [OrionCheckboxSize.medium], the shipped box.
+  final OrionCheckboxSize size;
+
+  /// Paints the error role: an unchecked box borders in the scheme's error
+  /// colour, a checked one fills with it. The box does not validate anything.
+  final bool error;
+
+  /// Instance-level overrides, merged over the presets and the ambient
+  /// [OrionCheckboxTheme]. Only the fields set here change.
+  final OrionCheckboxStyle? style;
+
   @override
   State<OrionCheckbox> createState() => _OrionCheckboxState();
 }
 
 class _OrionCheckboxState extends State<OrionCheckbox>
     with SingleTickerProviderStateMixin {
-  static const double _boxSize = OrionSizing.iconMedium;
-  static const double _markSize = OrionSizing.iconSmall;
-  static const double _barWidth = OrionSpacing.space12;
-  static const double _barHeight = 2;
-  static const double _lineWidth = 2;
-
   /// Travel spring for the whole 0 to 1 state change.
   ///
   /// [OrionSpringSpec.snappy] is sized for the documented 0.96 to 1.0 press
@@ -86,6 +110,7 @@ class _OrionCheckboxState extends State<OrionCheckbox>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _syncMotion();
     final bool reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     final bool becameReduced = reduce && !_driver.reducedMotion;
     _driver.reducedMotion = reduce;
@@ -102,6 +127,7 @@ class _OrionCheckboxState extends State<OrionCheckbox>
   @override
   void didUpdateWidget(OrionCheckbox oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _syncMotion();
     if (widget.value != oldWidget.value) {
       _sync();
     }
@@ -124,6 +150,20 @@ class _OrionCheckboxState extends State<OrionCheckbox>
     }
   }
 
+  void _syncMotion() {
+    final OrionCheckboxStyle style = _resolve(Theme.of(context));
+    _driver.springSpec = style.spring ?? _travel;
+  }
+
+  OrionCheckboxStyle _resolve(ThemeData theme) {
+    final OrionCheckboxTheme boxTheme =
+        theme.extension<OrionCheckboxTheme>() ?? OrionCheckboxTheme.fallback;
+    return OrionCheckboxPresets.resolve(
+      size: widget.size,
+      scheme: theme.colorScheme,
+    ).merge(boxTheme.defaultStyle).merge(widget.style);
+  }
+
   void _flip() {
     if (widget.onChanged == null) {
       return;
@@ -135,24 +175,44 @@ class _OrionCheckboxState extends State<OrionCheckbox>
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final ColorScheme scheme = theme.colorScheme;
+    final OrionCheckboxStyle style = _resolve(theme);
     final bool enabled = widget.onChanged != null;
     final bool indeterminate = widget.value == null;
-    final BorderRadius radius = BorderRadius.circular(OrionRadii.radius4);
+    final bool selected = widget.value != false;
 
-    final Color fillOn = enabled
-        ? scheme.primary
-        : scheme.onSurface.withValues(alpha: 0.12);
-    final Color borderOff = enabled
-        ? scheme.outline
-        : scheme.onSurface.withValues(alpha: 0.12);
-    final Color markColor = enabled
-        ? scheme.onPrimary
-        : scheme.onSurface.withValues(alpha: 0.38);
+    final Set<WidgetState> restingStates = <WidgetState>{
+      if (!enabled) WidgetState.disabled,
+      if (widget.error) WidgetState.error,
+    };
+    final Set<WidgetState> selectedStates = <WidgetState>{
+      ...restingStates,
+      if (selected) WidgetState.selected,
+    };
+
+    final Color fill =
+        style.fillColor?.resolve(selectedStates) ?? scheme.primary;
+    final Color fillRest =
+        style.fillColor?.resolve(restingStates) ?? Colors.transparent;
+    final Color borderRest =
+        style.borderColor?.resolve(restingStates) ?? scheme.outline;
+    final Color borderOn =
+        style.borderColor?.resolve(selectedStates) ?? scheme.primary;
+    final Color markColor =
+        style.markColor?.resolve(selectedStates) ?? scheme.onPrimary;
+    final double boxSize = style.size ?? OrionSizing.iconMedium;
+    final BorderRadius radius =
+        style.radius ?? BorderRadius.circular(OrionRadii.radius4);
+    final double borderWidth = style.borderWidth ?? 2;
+    final double markSize = style.markSize ?? OrionSizing.iconSmall;
+    final double barWidth = style.barWidth ?? OrionSpacing.space12;
+    final double barHeight = style.barHeight ?? 2;
+    final Color overlay =
+        style.focusOverlayColor ?? scheme.onSurface.withValues(alpha: 0.12);
 
     final Widget mark = indeterminate
         ? SizedBox(
-            width: _barWidth,
-            height: _barHeight,
+            width: barWidth,
+            height: barHeight,
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: markColor,
@@ -160,7 +220,26 @@ class _OrionCheckboxState extends State<OrionCheckbox>
               ),
             ),
           )
-        : Icon(Icons.check, size: _markSize, color: markColor);
+        : Icon(Icons.check, size: markSize, color: markColor);
+
+    // Checked and indeterminate are the same filled end, so the travel has no
+    // distance to cover between them; the glyph swap carries its own
+    // transition, and reduced motion swaps at once.
+    final bool reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    final Widget swappedMark = AnimatedSwitcher(
+      duration: reduce ? Duration.zero : const Duration(milliseconds: 160),
+      switchInCurve: Curves.easeOut,
+      switchOutCurve: Curves.easeOut,
+      transitionBuilder: (Widget child, Animation<double> animation) =>
+          FadeTransition(
+            opacity: animation,
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 0.5, end: 1).animate(animation),
+              child: child,
+            ),
+          ),
+      child: KeyedSubtree(key: ValueKey<bool>(indeterminate), child: mark),
+    );
 
     return Semantics(
       container: true,
@@ -196,44 +275,46 @@ class _OrionCheckboxState extends State<OrionCheckbox>
             width: OrionSizing.minHitTarget,
             height: OrionSizing.minHitTarget,
             child: Center(
-              child: SizedBox.square(
-                dimension: _boxSize,
-                child: AnimatedBuilder(
-                  animation: _driver,
-                  child: mark,
-                  builder: (BuildContext context, Widget? child) {
-                    final double shown = _driver.value.clamp(0.0, 1.0);
-                    return DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: Color.lerp(Colors.transparent, fillOn, shown),
-                        borderRadius: radius,
-                        border: Border.all(
-                          color: Color.lerp(borderOff, fillOn, shown)!,
-                          width: _lineWidth,
+              child: AnimatedBuilder(
+                animation: _driver,
+                child: swappedMark,
+                builder: (BuildContext context, Widget? child) {
+                  final double shown = _driver.value.clamp(0.0, 1.0);
+                  return Stack(
+                    alignment: Alignment.center,
+                    children: <Widget>[
+                      // The overlay sits under the box, so the border and fill
+                      // stay legible and focus never draws a second border.
+                      if (_focused && enabled)
+                        SizedBox.square(
+                          dimension: boxSize + OrionSpacing.space16,
+                          child: ClipOval(child: ColoredBox(color: overlay)),
                         ),
-                        // The ring sits outside the box so it stays visible
-                        // when the fill is already onSurface.
-                        boxShadow: _focused && enabled
-                            ? <BoxShadow>[
-                                BoxShadow(
-                                  color: scheme.onSurface,
-                                  spreadRadius: _lineWidth,
-                                ),
-                              ]
-                            : null,
-                      ),
-                      child: ClipRRect(
-                        borderRadius: radius,
-                        child: Center(
-                          child: Transform.scale(
-                            scale: _driver.value.clamp(0.0, _markCeiling),
-                            child: child,
+                      SizedBox.square(
+                        dimension: boxSize,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Color.lerp(fillRest, fill, shown),
+                            borderRadius: radius,
+                            border: Border.all(
+                              color: Color.lerp(borderRest, borderOn, shown)!,
+                              width: borderWidth,
+                            ),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: radius,
+                            child: Center(
+                              child: Transform.scale(
+                                scale: _driver.value.clamp(0.0, _markCeiling),
+                                child: child,
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    );
-                  },
-                ),
+                    ],
+                  );
+                },
               ),
             ),
           ),

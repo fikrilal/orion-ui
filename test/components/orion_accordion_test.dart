@@ -948,6 +948,72 @@ void main() {
 
       await tester.pumpAndSettle();
     });
+
+    testWidgets('header and panel content share exact horizontal alignment', (
+      tester,
+    ) async {
+      await _pumpAccordion(tester, expanded: true, onExpandedChanged: (_) {});
+      await tester.pumpAndSettle();
+
+      final double headerLeft = tester.getTopLeft(find.text(_headerText)).dx;
+      final double panelLeft = tester.getTopLeft(find.text(_panelText)).dx;
+
+      expect(headerLeft, equals(panelLeft));
+    });
+
+    testWidgets(
+      'header compresses to calm 0.99 pressed scale on pointer down',
+      (tester) async {
+        await _pumpAccordion(
+          tester,
+          expanded: false,
+          onExpandedChanged: (_) {},
+        );
+
+        final TestGesture gesture = await tester.startGesture(
+          tester.getCenter(find.text(_headerText)),
+        );
+        // First tick sets zero elapsed time; second tick advances simulation.
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+
+        final OrionPressableState state = tester.state<OrionPressableState>(
+          find.byType(OrionPressable),
+        );
+        // The calm 0.99 micro-tactile scale rather than the disruptive 0.96.
+        expect(state.driver.target, 0.99);
+        expect(state.driver.value, lessThan(1.0));
+
+        await gesture.up();
+        await tester.pumpAndSettle();
+      },
+    );
+
+    testWidgets('card style paints container border and background', (
+      tester,
+    ) async {
+      await _pumpAccordion(
+        tester,
+        expanded: false,
+        onExpandedChanged: (_) {},
+        style: OrionAccordionStyle.from(
+          backgroundColor: const Color(0xFFF0F0F0),
+          borderColor: const Color(0xFFCCCCCC),
+        ),
+      );
+
+      final Container container = tester.widget<Container>(
+        find
+            .descendant(
+              of: find.byType(OrionAccordion),
+              matching: find.byType(Container),
+            )
+            .first,
+      );
+      final BoxDecoration decoration = container.decoration as BoxDecoration;
+      expect(decoration.color, const Color(0xFFF0F0F0));
+      expect(decoration.border?.top.color, const Color(0xFFCCCCCC));
+    });
   });
 
   group('OrionAccordionStyle', () {
@@ -989,6 +1055,11 @@ void main() {
           vertical: OrionSpacing.space8,
         ),
       );
+      expect(
+        style.contentPadding,
+        const EdgeInsets.symmetric(horizontal: OrionSpacing.space16),
+      );
+      expect(style.pressedScale, 0.99);
     });
   });
 }

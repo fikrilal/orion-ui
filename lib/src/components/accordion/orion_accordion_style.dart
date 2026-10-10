@@ -17,6 +17,12 @@ import 'package:orion_ui/src/motion/orion_spring_spec.dart';
 class OrionAccordionStyle {
   const OrionAccordionStyle({
     this.headerPadding,
+    this.contentPadding,
+    this.pressedScale,
+    this.backgroundColor,
+    this.borderColor,
+    this.borderWidth,
+    this.borderRadius,
     this.focusRingColor,
     this.focusRingWidth,
     this.disabledOpacity,
@@ -27,6 +33,28 @@ class OrionAccordionStyle {
 
   /// The header's inner padding.
   final EdgeInsetsGeometry? headerPadding;
+
+  /// The panel's content padding. Defaults to matching the header's horizontal
+  /// inset so the header text and the expanded content share a single vertical
+  /// alignment axis.
+  final EdgeInsetsGeometry? contentPadding;
+
+  /// Scale factor applied during header press. Defaults to 0.99 for subtle,
+  /// calm micro-tactility on wide rows.
+  final double? pressedScale;
+
+  /// Optional card container background color. Null renders as a quiet
+  /// borderless row.
+  final Color? backgroundColor;
+
+  /// Optional card container border color.
+  final Color? borderColor;
+
+  /// Container border width.
+  final double? borderWidth;
+
+  /// Container border radius.
+  final BorderRadius? borderRadius;
 
   /// The focus ring's colour. The ring is drawn over the header, so showing
   /// focus never moves the content the caller put there.
@@ -54,6 +82,12 @@ class OrionAccordionStyle {
   /// Returns a copy with the provided fields replaced.
   OrionAccordionStyle copyWith({
     EdgeInsetsGeometry? headerPadding,
+    EdgeInsetsGeometry? contentPadding,
+    double? pressedScale,
+    Color? backgroundColor,
+    Color? borderColor,
+    double? borderWidth,
+    BorderRadius? borderRadius,
     Color? focusRingColor,
     double? focusRingWidth,
     double? disabledOpacity,
@@ -63,6 +97,12 @@ class OrionAccordionStyle {
   }) {
     return OrionAccordionStyle(
       headerPadding: headerPadding ?? this.headerPadding,
+      contentPadding: contentPadding ?? this.contentPadding,
+      pressedScale: pressedScale ?? this.pressedScale,
+      backgroundColor: backgroundColor ?? this.backgroundColor,
+      borderColor: borderColor ?? this.borderColor,
+      borderWidth: borderWidth ?? this.borderWidth,
+      borderRadius: borderRadius ?? this.borderRadius,
       focusRingColor: focusRingColor ?? this.focusRingColor,
       focusRingWidth: focusRingWidth ?? this.focusRingWidth,
       disabledOpacity: disabledOpacity ?? this.disabledOpacity,
@@ -79,6 +119,12 @@ class OrionAccordionStyle {
     }
     return OrionAccordionStyle(
       headerPadding: other.headerPadding ?? headerPadding,
+      contentPadding: other.contentPadding ?? contentPadding,
+      pressedScale: other.pressedScale ?? pressedScale,
+      backgroundColor: other.backgroundColor ?? backgroundColor,
+      borderColor: other.borderColor ?? borderColor,
+      borderWidth: other.borderWidth ?? borderWidth,
+      borderRadius: other.borderRadius ?? borderRadius,
       focusRingColor: other.focusRingColor ?? focusRingColor,
       focusRingWidth: other.focusRingWidth ?? focusRingWidth,
       disabledOpacity: other.disabledOpacity ?? disabledOpacity,
@@ -91,6 +137,12 @@ class OrionAccordionStyle {
   /// Builds a style from plain values.
   static OrionAccordionStyle from({
     EdgeInsetsGeometry? headerPadding,
+    EdgeInsetsGeometry? contentPadding,
+    double? pressedScale,
+    Color? backgroundColor,
+    Color? borderColor,
+    double? borderWidth,
+    BorderRadius? borderRadius,
     Color? focusRingColor,
     double? focusRingWidth,
     double? disabledOpacity,
@@ -100,6 +152,12 @@ class OrionAccordionStyle {
   }) {
     return OrionAccordionStyle(
       headerPadding: headerPadding,
+      contentPadding: contentPadding,
+      pressedScale: pressedScale,
+      backgroundColor: backgroundColor,
+      borderColor: borderColor,
+      borderWidth: borderWidth,
+      borderRadius: borderRadius,
       focusRingColor: focusRingColor,
       focusRingWidth: focusRingWidth,
       disabledOpacity: disabledOpacity,
@@ -116,6 +174,12 @@ class OrionAccordionStyle {
     }
     return other is OrionAccordionStyle &&
         other.headerPadding == headerPadding &&
+        other.contentPadding == contentPadding &&
+        other.pressedScale == pressedScale &&
+        other.backgroundColor == backgroundColor &&
+        other.borderColor == borderColor &&
+        other.borderWidth == borderWidth &&
+        other.borderRadius == borderRadius &&
         other.focusRingColor == focusRingColor &&
         other.focusRingWidth == focusRingWidth &&
         other.disabledOpacity == disabledOpacity &&
@@ -127,6 +191,12 @@ class OrionAccordionStyle {
   @override
   int get hashCode => Object.hashAll(<Object?>[
     headerPadding,
+    contentPadding,
+    pressedScale,
+    backgroundColor,
+    borderColor,
+    borderWidth,
+    borderRadius,
     focusRingColor,
     focusRingWidth,
     disabledOpacity,

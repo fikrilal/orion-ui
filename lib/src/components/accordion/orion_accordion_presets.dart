@@ -17,6 +17,10 @@ abstract final class OrionAccordionPresets {
         horizontal: OrionSpacing.space16,
         vertical: OrionSpacing.space8,
       ),
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: OrionSpacing.space16,
+      ),
+      pressedScale: 0.99,
       focusRingColor: scheme.onSurface,
       focusRingWidth: 2,
       disabledOpacity: 0.38,

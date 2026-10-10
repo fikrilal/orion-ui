@@ -218,6 +218,9 @@ class _OrionAccordionState extends State<OrionAccordion>
           horizontal: OrionSpacing.space16,
           vertical: OrionSpacing.space8,
         );
+    final EdgeInsetsGeometry contentPadding =
+        style.contentPadding ??
+        const EdgeInsets.symmetric(horizontal: OrionSpacing.space16);
 
     final Widget headerFace = DecoratedBox(
       position: DecorationPosition.foreground,
@@ -290,7 +293,7 @@ class _OrionAccordionState extends State<OrionAccordion>
           },
           child: OrionPressable(
             onTap: enabled ? _toggle : null,
-            pressedScale: orion.pressScale,
+            pressedScale: style.pressedScale ?? 0.99,
             springSpec: orion.pressSpring,
             releaseSpringSpec: orion.releaseSpring,
             hapticType: orion.selectionHaptic,
@@ -326,11 +329,11 @@ class _OrionAccordionState extends State<OrionAccordion>
         child: ClipRect(
           child: AnimatedBuilder(
             animation: _driver,
-            // The caller's content is built once and only ever clipped.
-            child: widget.child,
+            // The caller's content is wrapped with aligned contentPadding and held stable.
+            child: Padding(padding: contentPadding, child: widget.child),
             builder: (BuildContext context, Widget? child) {
               return Align(
-                alignment: Alignment.topCenter,
+                alignment: Alignment.topLeft,
                 heightFactor: _reveal(_driver.value),
                 child: child,
               );
@@ -340,10 +343,30 @@ class _OrionAccordionState extends State<OrionAccordion>
       ),
     );
 
-    return Column(
+    Widget body = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[header, panel],
     );
+
+    if (style.backgroundColor != null || style.borderColor != null) {
+      final BorderRadius radius =
+          style.borderRadius ?? BorderRadius.circular(OrionRadii.radius12);
+      body = Container(
+        decoration: BoxDecoration(
+          color: style.backgroundColor,
+          borderRadius: radius,
+          border: Border.all(
+            color:
+                style.borderColor ??
+                scheme.outlineVariant.withValues(alpha: 0.30),
+            width: style.borderWidth ?? 1,
+          ),
+        ),
+        child: ClipRRect(borderRadius: radius, child: body),
+      );
+    }
+
+    return body;
   }
 }

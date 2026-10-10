@@ -14,11 +14,15 @@ Future<void> _pumpRadio(
   required ValueChanged<bool>? onChanged,
   bool disableAnimations = false,
   bool autofocus = false,
+  bool error = false,
   String? semanticLabel,
+  OrionRadioSize size = OrionRadioSize.medium,
+  OrionRadioStyle? style,
+  ThemeData? theme,
 }) {
   return tester.pumpWidget(
     MaterialApp(
-      theme: OrionTheme.light(),
+      theme: theme ?? OrionTheme.light(),
       home: Scaffold(
         body: Center(
           child: MediaQuery(
@@ -27,7 +31,10 @@ Future<void> _pumpRadio(
               value: value,
               onChanged: onChanged,
               autofocus: autofocus,
+              error: error,
               semanticLabel: semanticLabel,
+              size: size,
+              style: style,
             ),
           ),
         ),
@@ -335,7 +342,9 @@ void main() {
       expect(_ring(tester).boxShadow, isNull);
     });
 
-    testWidgets('paints a focus halo when focused', (tester) async {
+    testWidgets('paints the focus overlay under the circle when focused', (
+      tester,
+    ) async {
       FocusManager.instance.highlightStrategy =
           FocusHighlightStrategy.alwaysTraditional;
       addTearDown(() {
@@ -351,9 +360,173 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final BoxShadow halo = _ring(tester).boxShadow!.single;
-      expect(halo.color, OrionColors.lightScheme.onSurface);
-      expect(halo.spreadRadius, 2);
+      final ColoredBox overlay = tester.widget<ColoredBox>(
+        find
+            .descendant(
+              of: find.byType(OrionRadio),
+              matching: find.byType(ColoredBox),
+            )
+            .first,
+      );
+      expect(
+        overlay.color,
+        OrionColors.lightScheme.onSurface.withValues(alpha: 0.12),
+      );
+      expect(
+        _ring(tester).boxShadow,
+        isNull,
+        reason: 'focus is an overlay, not a second ring',
+      );
+    });
+
+    testWidgets('steps the circle and the dot with the size', (tester) async {
+      await _pumpRadio(
+        tester,
+        value: true,
+        onChanged: (_) {},
+        size: OrionRadioSize.large,
+        disableAnimations: true,
+      );
+      await tester.pump();
+
+      expect(
+        tester.getSize(find.byType(DecoratedBox).first),
+        const Size(28, 28),
+      );
+      expect(
+        tester.getSize(find.byType(DecoratedBox).last),
+        const Size(10, 10),
+      );
+
+      await _pumpRadio(
+        tester,
+        value: true,
+        onChanged: (_) {},
+        size: OrionRadioSize.small,
+        disableAnimations: true,
+      );
+      await tester.pump();
+
+      expect(
+        tester.getSize(find.byType(DecoratedBox).first),
+        const Size(20, 20),
+      );
+      expect(tester.getSize(find.byType(DecoratedBox).last), const Size(7, 7));
+      expect(
+        tester.getSize(find.byType(OrionRadio)),
+        const Size(OrionSizing.minHitTarget, OrionSizing.minHitTarget),
+        reason: 'the hit target does not change with the size',
+      );
+    });
+
+    testWidgets('paints the error role', (tester) async {
+      const ColorScheme scheme = OrionColors.lightScheme;
+      await _pumpRadio(
+        tester,
+        value: false,
+        onChanged: (_) {},
+        error: true,
+        disableAnimations: true,
+      );
+
+      expect(_ringBorder(tester).color, scheme.error);
+
+      await _pumpRadio(
+        tester,
+        value: true,
+        onChanged: (_) {},
+        error: true,
+        disableAnimations: true,
+      );
+      await tester.pump();
+
+      expect(_ringBorder(tester).color, scheme.error);
+      expect(_dotColor(tester), scheme.error);
+    });
+
+    testWidgets('keeps the interior transparent until a fill is given', (
+      tester,
+    ) async {
+      await _pumpRadio(
+        tester,
+        value: true,
+        onChanged: (_) {},
+        disableAnimations: true,
+      );
+      await tester.pump();
+
+      final ColoredBox interior = tester.widget<ColoredBox>(
+        find
+            .descendant(
+              of: find.byType(OrionRadio),
+              matching: find.byType(ColoredBox),
+            )
+            .last,
+      );
+      expect(interior.color.a, 0);
+
+      await _pumpRadio(
+        tester,
+        value: true,
+        onChanged: (_) {},
+        disableAnimations: true,
+        style: OrionRadioStyle.from(fillColor: OrionColors.lightScheme.primary),
+      );
+      await tester.pump();
+
+      final ColoredBox filled = tester.widget<ColoredBox>(
+        find
+            .descendant(
+              of: find.byType(OrionRadio),
+              matching: find.byType(ColoredBox),
+            )
+            .last,
+      );
+      expect(filled.color, OrionColors.lightScheme.primary);
+    });
+
+    testWidgets('resolves through the theme and the instance style', (
+      tester,
+    ) async {
+      final ThemeData themed = OrionTheme.apply(
+        OrionTheme.light(),
+        extensions: <ThemeExtension<dynamic>>[
+          OrionRadioTheme(
+            defaultStyle: OrionRadioStyle.from(
+              size: 18,
+              ringColor: const Color(0xFF00AA00),
+            ),
+          ),
+        ],
+      );
+
+      await _pumpRadio(
+        tester,
+        value: false,
+        onChanged: (_) {},
+        theme: themed,
+        disableAnimations: true,
+      );
+      expect(_ringBorder(tester).color, const Color(0xFF00AA00));
+      expect(
+        tester.getSize(find.byType(DecoratedBox).first),
+        const Size(18, 18),
+      );
+
+      await _pumpRadio(
+        tester,
+        value: false,
+        onChanged: (_) {},
+        theme: themed,
+        disableAnimations: true,
+        style: OrionRadioStyle.from(ringColor: const Color(0xFFAA0000)),
+      );
+      expect(_ringBorder(tester).color, const Color(0xFFAA0000));
+      expect(
+        tester.getSize(find.byType(DecoratedBox).first),
+        const Size(18, 18),
+        reason: 'the instance style only overrides what it names',
+      );
     });
 
     testWidgets('emits one haptic on tap and none from the keyboard', (
@@ -516,6 +689,52 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(reported, isNull);
+    });
+  });
+
+  group('OrionRadioStyle', () {
+    test('a merge only changes the fields it names', () {
+      final OrionRadioStyle base = OrionRadioStyle.from(
+        size: 20,
+        ringColor: const Color(0xFF111111),
+      );
+      final OrionRadioStyle merged = base.merge(
+        OrionRadioStyle.from(ringColor: const Color(0xFF333333)),
+      );
+
+      expect(
+        merged.ringColor?.resolve(const <WidgetState>{}),
+        const Color(0xFF333333),
+      );
+      expect(merged.size, base.size);
+    });
+
+    test('presets reproduce the shipped circle', () {
+      final OrionRadioStyle style = OrionRadioPresets.resolve(
+        size: OrionRadioSize.medium,
+        scheme: OrionColors.lightScheme,
+      );
+
+      expect(style.size, OrionSizing.iconMedium);
+      expect(style.dotSize, OrionSizing.iconSmall * 0.5);
+      expect(style.borderWidth, 2);
+      expect(style.spring, OrionSpringSpec.gentle);
+      expect(
+        style.ringColor?.resolve(const <WidgetState>{}),
+        OrionColors.lightScheme.outline,
+      );
+      expect(
+        style.ringColor?.resolve(const <WidgetState>{WidgetState.selected}),
+        OrionColors.lightScheme.primary,
+      );
+      expect(
+        style.ringColor?.resolve(const <WidgetState>{WidgetState.error}),
+        OrionColors.lightScheme.error,
+      );
+      expect(
+        style.fillColor?.resolve(const <WidgetState>{}),
+        Colors.transparent,
+      );
     });
   });
 }

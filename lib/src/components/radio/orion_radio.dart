@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 
+import 'package:orion_ui/src/components/radio/orion_radio_presets.dart';
+import 'package:orion_ui/src/components/radio/orion_radio_style.dart';
+import 'package:orion_ui/src/components/radio/orion_radio_theme.dart';
 import 'package:orion_ui/src/core/orion_pressable.dart';
 import 'package:orion_ui/src/motion/orion_spring_driver.dart';
 import 'package:orion_ui/src/motion/orion_spring_spec.dart';
 import 'package:orion_ui/src/theme/orion_theme.dart';
 import 'package:orion_ui/src/theme/orion_tokens.dart';
+
+/// The circle's size step.
+enum OrionRadioSize { small, medium, large }
 
 /// A circle that marks the one chosen option in a group.
 ///
@@ -13,15 +19,22 @@ import 'package:orion_ui/src/theme/orion_tokens.dart';
 /// by activating it.
 ///
 /// It is tap-only: it does not drag, and it does not own a label row. The dot
-/// rides the travel spring (see `_travel`), which is tuned for the full 0 to 1
-/// state change rather than for a press release. The dot is clipped by the
-/// circle, so the overshoot cannot paint outside it. A tap emits
-/// [OrionThemeData.selectionHaptic] once the tap wins the gesture arena; Enter and
-/// Space select silently.
+/// rides the travel spring, which is tuned for the full 0 to 1 state change
+/// rather than for a press release. The dot is clipped by the circle, so the
+/// overshoot cannot paint outside it. A tap emits
+/// [OrionThemeData.selectionHaptic] once the tap wins the gesture arena; Enter
+/// and Space select silently.
 ///
 /// The mark and the shape both differ from [OrionCheckbox] on purpose: the two
 /// controls share a form, so a filled box with a check and a ring with a dot
-/// stay distinguishable at a glance.
+/// stay distinguishable at a glance. The interior stays transparent by default
+/// - [OrionRadioStyle.fillColor] is the opt-in for a filled radio.
+///
+/// Look and feel resolve in three layers, each overriding the last: the
+/// built-in [OrionRadioPresets] for the [size], the ambient [OrionRadioTheme],
+/// and the [style] passed here. Anything an override does not name falls
+/// through. [error] rides the same machinery: it only changes colours, and
+/// validation stays the host's.
 class OrionRadio extends StatefulWidget {
   /// Creates a controlled radio.
   const OrionRadio({
@@ -31,6 +44,9 @@ class OrionRadio extends StatefulWidget {
     this.focusNode,
     this.autofocus = false,
     this.semanticLabel,
+    this.size = OrionRadioSize.medium,
+    this.error = false,
+    this.style,
   });
 
   /// Whether this option is the chosen one.
@@ -49,19 +65,23 @@ class OrionRadio extends StatefulWidget {
   /// Spoken name. The selected state is exposed separately.
   final String? semanticLabel;
 
+  /// The size step. Defaults to [OrionRadioSize.medium], the shipped circle.
+  final OrionRadioSize size;
+
+  /// Paints the error role: the ring and the dot take the scheme's error
+  /// colour. The circle does not validate anything.
+  final bool error;
+
+  /// Instance-level overrides, merged over the presets and the ambient
+  /// [OrionRadioTheme]. Only the fields set here change.
+  final OrionRadioStyle? style;
+
   @override
   State<OrionRadio> createState() => _OrionRadioState();
 }
 
 class _OrionRadioState extends State<OrionRadio>
     with SingleTickerProviderStateMixin {
-  static const double _boxSize = OrionSizing.iconMedium;
-
-  /// Half the small icon: an 8 pt dot inside a 24 pt circle leaves a 6 pt gap
-  /// on each side, which is the proportion that reads as a radio.
-  static const double _dotSize = OrionSizing.iconSmall * 0.5;
-  static const double _lineWidth = 2;
-
   /// Travel spring for the whole 0 to 1 state change.
   ///
   /// [OrionSpringSpec.snappy] is sized for the documented 0.96 to 1.0 press
@@ -91,6 +111,7 @@ class _OrionRadioState extends State<OrionRadio>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _syncMotion();
     final bool reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     final bool becameReduced = reduce && !_driver.reducedMotion;
     _driver.reducedMotion = reduce;
@@ -107,6 +128,7 @@ class _OrionRadioState extends State<OrionRadio>
   @override
   void didUpdateWidget(OrionRadio oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _syncMotion();
     if (widget.value != oldWidget.value) {
       _sync();
     }
@@ -128,6 +150,20 @@ class _OrionRadioState extends State<OrionRadio>
     }
   }
 
+  void _syncMotion() {
+    final OrionRadioStyle style = _resolve(Theme.of(context));
+    _driver.springSpec = style.spring ?? _travel;
+  }
+
+  OrionRadioStyle _resolve(ThemeData theme) {
+    final OrionRadioTheme radioTheme =
+        theme.extension<OrionRadioTheme>() ?? OrionRadioTheme.fallback;
+    return OrionRadioPresets.resolve(
+      size: widget.size,
+      scheme: theme.colorScheme,
+    ).merge(radioTheme.defaultStyle).merge(widget.style);
+  }
+
   /// Reports the choice. The value is always `true`; see the class docs.
   void _select() {
     if (widget.onChanged == null) {
@@ -138,22 +174,37 @@ class _OrionRadioState extends State<OrionRadio>
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme scheme = theme.colorScheme;
+    final OrionRadioStyle style = _resolve(theme);
     final bool enabled = widget.onChanged != null;
 
-    final Color ringOff = enabled
-        ? scheme.outline
-        : scheme.onSurface.withValues(alpha: 0.12);
-    final Color ringOn = enabled
-        ? scheme.primary
-        : scheme.onSurface.withValues(alpha: 0.12);
-    final Color dotColor = enabled
-        ? scheme.primary
-        : scheme.onSurface.withValues(alpha: 0.38);
+    final Set<WidgetState> restingStates = <WidgetState>{
+      if (!enabled) WidgetState.disabled,
+      if (widget.error) WidgetState.error,
+    };
+    final Set<WidgetState> selectedStates = <WidgetState>{
+      ...restingStates,
+      if (widget.value) WidgetState.selected,
+    };
+
+    final Color ringRest =
+        style.ringColor?.resolve(restingStates) ?? scheme.outline;
+    final Color ringOn =
+        style.ringColor?.resolve(selectedStates) ?? scheme.primary;
+    final Color dotColor =
+        style.dotColor?.resolve(selectedStates) ?? scheme.primary;
+    final Color fill =
+        style.fillColor?.resolve(selectedStates) ?? Colors.transparent;
+    final double circle = style.size ?? OrionSizing.iconMedium;
+    final double dotSize = style.dotSize ?? OrionSizing.iconSmall * 0.5;
+    final double borderWidth = style.borderWidth ?? 2;
+    final Color overlay =
+        style.focusOverlayColor ?? scheme.onSurface.withValues(alpha: 0.12);
 
     // Built once per widget build, so the ticker only rescales it.
     final Widget dot = SizedBox.square(
-      dimension: _dotSize,
+      dimension: dotSize,
       child: DecoratedBox(
         decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
       ),
@@ -193,45 +244,53 @@ class _OrionRadioState extends State<OrionRadio>
             width: OrionSizing.minHitTarget,
             height: OrionSizing.minHitTarget,
             child: Center(
-              child: SizedBox.square(
-                dimension: _boxSize,
-                child: AnimatedBuilder(
-                  animation: _driver,
-                  child: dot,
-                  builder: (BuildContext context, Widget? child) {
-                    return DecoratedBox(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Color.lerp(
-                            ringOff,
-                            ringOn,
-                            _driver.value.clamp(0.0, 1.0),
-                          )!,
-                          width: _lineWidth,
+              child: AnimatedBuilder(
+                animation: _driver,
+                child: dot,
+                builder: (BuildContext context, Widget? child) {
+                  final double shown = _driver.value.clamp(0.0, 1.0);
+                  return Stack(
+                    alignment: Alignment.center,
+                    children: <Widget>[
+                      // The overlay sits under the circle, so the ring stays
+                      // legible and focus never draws a second ring.
+                      if (_focused && enabled)
+                        SizedBox.square(
+                          dimension: circle + OrionSpacing.space16,
+                          child: ClipOval(child: ColoredBox(color: overlay)),
                         ),
-                        // The ring sits outside the circle so it stays visible
-                        // when the hairline is already primary.
-                        boxShadow: _focused && enabled
-                            ? <BoxShadow>[
-                                BoxShadow(
-                                  color: scheme.onSurface,
-                                  spreadRadius: _lineWidth,
+                      SizedBox.square(
+                        dimension: circle,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Color.lerp(ringRest, ringOn, shown)!,
+                              width: borderWidth,
+                            ),
+                          ),
+                          child: ClipOval(
+                            child: ColoredBox(
+                              // The interior is transparent by default; a fill
+                              // colour rides the same travel as the ring.
+                              color: Color.lerp(
+                                Colors.transparent,
+                                fill,
+                                shown,
+                              )!,
+                              child: Center(
+                                child: Transform.scale(
+                                  scale: _driver.value.clamp(0.0, _dotCeiling),
+                                  child: child,
                                 ),
-                              ]
-                            : null,
-                      ),
-                      child: ClipOval(
-                        child: Center(
-                          child: Transform.scale(
-                            scale: _driver.value.clamp(0.0, _dotCeiling),
-                            child: child,
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    );
-                  },
-                ),
+                    ],
+                  );
+                },
               ),
             ),
           ),

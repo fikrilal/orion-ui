@@ -193,7 +193,8 @@ class OrionSpringDriver extends Animation<double>
           : next.clamp(_target, double.infinity);
     }
     _value = next;
-    if (simulation.isDone(t) || next == _target) {
+    if (simulation.isDone(t) ||
+        (_springSpec.clampOvershoot && next == _target)) {
       _settleAt(_target);
       return;
     }

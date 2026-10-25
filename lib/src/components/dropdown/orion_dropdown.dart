@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
 import 'package:orion_ui/src/components/dropdown/orion_dropdown_option.dart';
@@ -30,6 +31,11 @@ import 'package:orion_ui/src/theme/orion_theme_data.dart';
 /// full keyboard model (wrapping arrows that skip disabled options, Home/End,
 /// Enter/Space, Escape with focus restore, Tab with form advance), one
 /// semantic node per control, and the kit's three-layer styling contract.
+///
+/// [searchable] replaces the open face with a query and marks it with a search
+/// icon. The list keeps a case-insensitive subsequence of the label, the
+/// description, and a [String] value. Enter commits, Space types, and closing
+/// clears the query.
 class OrionDropdown<T> extends StatefulWidget {
   const OrionDropdown({
     super.key,
@@ -45,6 +51,7 @@ class OrionDropdown<T> extends StatefulWidget {
     this.autovalidateMode,
     this.reserveCaption = false,
     this.enabled = true,
+    this.searchable = false,
     this.variant = OrionDropdownVariant.outline,
     this.size = OrionDropdownSize.medium,
     this.placement = OrionPopoverPlacement.bottomStart,
@@ -91,6 +98,11 @@ class OrionDropdown<T> extends StatefulWidget {
   /// False mutes the control and takes no input.
   final bool enabled;
 
+  /// While open, the face accepts a query and the panel shows only the options
+  /// that match it. A search icon marks that face. A plain dropdown leaves
+  /// this false.
+  final bool searchable;
+
   /// The face of the trigger.
   final OrionDropdownVariant variant;
 
@@ -135,6 +147,8 @@ class OrionDropdownState<T> extends State<OrionDropdown<T>>
   final OverlayPortalController _portalController = OverlayPortalController();
   final ScrollController _panelScrollController = ScrollController();
   final FocusNode _panelFocusNode = FocusNode(debugLabel: 'OrionDropdownPanel');
+  final FocusNode _queryFocus = FocusNode(debugLabel: 'OrionDropdownQuery');
+  final TextEditingController _queryController = TextEditingController();
 
   late final OrionSpringDriver _openDriver;
   late final OrionSpringDriver _faceFocusDriver;
@@ -150,6 +164,14 @@ class OrionDropdownState<T> extends State<OrionDropdown<T>>
 
   bool _isOpen = false;
   bool _isClosing = false;
+  bool _queryKeysArmed = false;
+
+  /// What the face is editing. Cleared as soon as the close starts.
+  String _query = '';
+
+  /// What the panel is filtering by. Held through the close so the list does
+  /// not refill while it is leaving.
+  String _listQuery = '';
   int? _activeIndex;
   OrionPopoverResolvedLayout? _resolvedLayout;
   Rect? _lastTriggerRect;
@@ -217,6 +239,7 @@ class OrionDropdownState<T> extends State<OrionDropdown<T>>
     _openDriver.addStatusListener(_onOpenStatus);
     _bindFocus(widget.focusNode);
     _attachController();
+    _queryFocus.addListener(_onQueryFocusChanged);
   }
 
   @override
@@ -250,7 +273,8 @@ class OrionDropdownState<T> extends State<OrionDropdown<T>>
       if (_isOpen &&
           current != null &&
           (current >= widget.options.length ||
-              !widget.options[current].enabled)) {
+              !widget.options[current].enabled ||
+              _visiblePosition(current) < 0)) {
         _setActive(_resolveFallbackActive(), glide: false);
       }
     }
@@ -273,6 +297,12 @@ class OrionDropdownState<T> extends State<OrionDropdown<T>>
     if (_ownsFocus) {
       _focusNode.dispose();
     }
+    if (_queryKeysArmed) {
+      FocusManager.instance.removeEarlyKeyEventHandler(_onEarlyQueryKey);
+    }
+    _queryFocus.removeListener(_onQueryFocusChanged);
+    _queryFocus.dispose();
+    _queryController.dispose();
     _panelFocusNode.dispose();
     _panelScrollController.dispose();
     _openDriver.dispose();
@@ -350,31 +380,90 @@ class OrionDropdownState<T> extends State<OrionDropdown<T>>
     return -1;
   }
 
-  int? _resolveFallbackActive() {
-    final int selected = _indexOf(widget.value);
-    if (selected >= 0 && widget.options[selected].enabled) return selected;
-    for (int i = 0; i < widget.options.length; i++) {
-      if (widget.options[i].enabled) return i;
+  /// Case-insensitive subsequence. An empty query matches everything. A
+  /// [String] value joins the label and the description; other value types do
+  /// not, because their `toString` is not a name.
+  bool _optionMatches(OrionDropdownOption<T> option, String query) {
+    final String needle = query.trim().toLowerCase();
+    if (needle.isEmpty) return true;
+    final StringBuffer haystack = StringBuffer(option.label);
+    final String? description = option.description;
+    if (description != null) {
+      haystack
+        ..write(' ')
+        ..write(description);
     }
-    return null;
+    final T value = option.value;
+    if (value is String) {
+      haystack
+        ..write(' ')
+        ..write(value);
+    }
+    final String text = haystack.toString().toLowerCase();
+    int queryIndex = 0;
+    for (int i = 0; i < text.length; i++) {
+      if (text[i] == needle[queryIndex]) queryIndex += 1;
+      if (queryIndex == needle.length) return true;
+    }
+    return false;
+  }
+
+  List<int> _visibleIndices() {
+    final int count = widget.options.length;
+    if (!widget.searchable || _listQuery.trim().isEmpty) {
+      return List<int>.generate(count, (int index) => index);
+    }
+    final List<int> indices = <int>[];
+    for (int i = 0; i < count; i++) {
+      if (_optionMatches(widget.options[i], _listQuery)) indices.add(i);
+    }
+    return indices;
+  }
+
+  int _visiblePosition(int? optionIndex) {
+    if (optionIndex == null) return -1;
+    return _visibleIndices().indexOf(optionIndex);
+  }
+
+  int? _resolveFallbackActive() {
+    final List<int> enabled = _enabledIndices();
+    final int selected = _indexOf(widget.value);
+    if (enabled.contains(selected)) return selected;
+    if (enabled.isEmpty) return null;
+    return enabled.first;
   }
 
   List<int> _enabledIndices() {
     final List<int> indices = <int>[];
-    for (int i = 0; i < widget.options.length; i++) {
-      if (widget.options[i].enabled) indices.add(i);
+    for (final int index in _visibleIndices()) {
+      if (widget.options[index].enabled) indices.add(index);
     }
     return indices;
   }
 
   void _setActive(int? index, {bool glide = true}) {
-    if (index == null || index == _activeIndex) return;
+    final bool changed = index != _activeIndex;
     _activeIndex = index;
-    if (glide && !_highlightDriver.reducedMotion) {
-      _highlightDriver.retarget(index.toDouble());
+    if (index == null) return;
+    final int position = _visiblePosition(index);
+    if (position < 0) return;
+    final double target = position.toDouble();
+    final bool parked =
+        (_highlightDriver.target - target).abs() < 0.001 &&
+        (_highlightDriver.value - target).abs() < 0.001;
+    if (!changed && parked) return;
+    if (glide && changed && !_highlightDriver.reducedMotion) {
+      _highlightDriver.retarget(target);
     } else {
-      _highlightDriver.jumpTo(index.toDouble());
+      _highlightDriver.jumpTo(target);
     }
+  }
+
+  void _revealActive() {
+    final int position = _visiblePosition(_activeIndex);
+    _panelStateKey.currentState?.ensureRowVisible(
+      position < 0 ? null : position,
+    );
   }
 
   Rect? _measureTriggerRect() {
@@ -393,7 +482,12 @@ class OrionDropdownState<T> extends State<OrionDropdown<T>>
     _lastTriggerRect = rect;
     _isClosing = false;
     _isOpen = true;
-    _activeIndex = _resolveFallbackActive();
+    if (widget.searchable) {
+      _query = '';
+      _listQuery = '';
+      _queryController.clear();
+    }
+    _setActive(_resolveFallbackActive(), glide: false);
     _effectiveController.updateOpenState(true);
     _syncMotionSpecs();
 
@@ -420,9 +514,6 @@ class OrionDropdownState<T> extends State<OrionDropdown<T>>
     );
 
     _portalController.show();
-    if (_activeIndex != null) {
-      _highlightDriver.jumpTo(_activeIndex!.toDouble());
-    }
     if (_openDriver.reducedMotion) {
       _openDriver.jumpTo(1.0);
     } else {
@@ -437,8 +528,12 @@ class OrionDropdownState<T> extends State<OrionDropdown<T>>
     setState(() {});
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_isOpen) return;
-      _panelFocusNode.requestFocus();
-      _panelStateKey.currentState?.ensureRowVisible(_activeIndex);
+      if (widget.searchable) {
+        _queryFocus.requestFocus();
+      } else {
+        _panelFocusNode.requestFocus();
+      }
+      _revealActive();
     });
   }
 
@@ -446,6 +541,10 @@ class OrionDropdownState<T> extends State<OrionDropdown<T>>
   void hide({bool restoreFocus = false}) {
     if (!_isOpen || _isClosing) return;
     _isClosing = true;
+    if (widget.searchable) {
+      _query = '';
+      _queryController.clear();
+    }
     setState(() {});
     if (restoreFocus) {
       _focusNode.requestFocus();
@@ -488,6 +587,7 @@ class OrionDropdownState<T> extends State<OrionDropdown<T>>
     if (!_isOpen && !_isClosing) return;
     _isClosing = false;
     _isOpen = false;
+    _listQuery = '';
     _portalController.hide();
     _effectiveController.updateOpenState(false);
     _syncFaceFocus();
@@ -517,12 +617,70 @@ class OrionDropdownState<T> extends State<OrionDropdown<T>>
         ? (delta > 0 ? 0 : enabled.length - 1)
         : (at + delta + enabled.length) % enabled.length;
     _setActive(enabled[next]);
-    _panelStateKey.currentState?.ensureRowVisible(_activeIndex);
+    _revealActive();
   }
 
   void _setActiveAndReveal(int? index) {
     _setActive(index);
-    _panelStateKey.currentState?.ensureRowVisible(_activeIndex);
+    _revealActive();
+  }
+
+  void _onQueryFocusChanged() {
+    final bool focused = _queryFocus.hasFocus;
+    if (focused && !_queryKeysArmed) {
+      FocusManager.instance.addEarlyKeyEventHandler(_onEarlyQueryKey);
+      _queryKeysArmed = true;
+    } else if (!focused && _queryKeysArmed) {
+      FocusManager.instance.removeEarlyKeyEventHandler(_onEarlyQueryKey);
+      _queryKeysArmed = false;
+    }
+  }
+
+  /// Runs before the text field, so arrows move the list and Space still types.
+  KeyEventResult _onEarlyQueryKey(KeyEvent event) {
+    if (!_queryFocus.hasFocus) return KeyEventResult.ignored;
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final LogicalKeyboardKey key = event.logicalKey;
+    if (key == LogicalKeyboardKey.arrowDown ||
+        key == LogicalKeyboardKey.arrowUp) {
+      if (!_isOpen || _isClosing) {
+        show();
+      } else {
+        _step(key == LogicalKeyboardKey.arrowDown ? 1 : -1);
+      }
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.home || key == LogicalKeyboardKey.end) {
+      if (!_isOpen || _isClosing) return KeyEventResult.ignored;
+      final List<int> enabled = _enabledIndices();
+      _setActiveAndReveal(
+        enabled.isEmpty
+            ? null
+            : (key == LogicalKeyboardKey.home ? enabled.first : enabled.last),
+      );
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.enter) {
+      if (_isOpen && !_isClosing && _activeIndex != null) {
+        _commit(_activeIndex!);
+      }
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.escape) {
+      if (_isOpen && !_isClosing) hide(restoreFocus: true);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  void _onQueryChanged(String next) {
+    _query = next;
+    if (!_isOpen || _isClosing) return;
+    _listQuery = next;
+    _setActive(_resolveFallbackActive(), glide: false);
+    setState(() {});
   }
 
   KeyEventResult _onTriggerKey(FocusNode node, KeyEvent event) {
@@ -671,19 +829,20 @@ class OrionDropdownState<T> extends State<OrionDropdown<T>>
     final String? selectedLabel = selectedOption?.label;
     final Widget? selectedLeading = selectedOption?.leading;
 
+    final bool editing = widget.searchable && _isOpen && !_isClosing;
     final Widget trigger = Semantics(
       container: true,
       button: true,
       enabled: enabled,
       expanded: _isOpen,
       label: widget.label ?? widget.placeholder,
-      value: selectedLabel,
+      value: editing ? _query : selectedLabel,
       child: ExcludeSemantics(
         child: MouseRegion(
           cursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: enabled ? toggle : null,
+            onTap: enabled && !editing ? toggle : null,
             child: Focus(
               focusNode: _focusNode,
               onKeyEvent: _onTriggerKey,
@@ -693,6 +852,7 @@ class OrionDropdownState<T> extends State<OrionDropdown<T>>
                 scheme,
                 enabled: enabled,
                 hasError: hasError,
+                editing: editing,
                 display: selectedLabel ?? widget.placeholder ?? '',
                 hasValue: selectedLabel != null,
                 selectedLeading: selectedLeading,
@@ -750,6 +910,7 @@ class OrionDropdownState<T> extends State<OrionDropdown<T>>
     ColorScheme scheme, {
     required bool enabled,
     required bool hasError,
+    required bool editing,
     required String display,
     required bool hasValue,
     Widget? selectedLeading,
@@ -779,8 +940,17 @@ class OrionDropdownState<T> extends State<OrionDropdown<T>>
           Directionality.of(context),
         );
     final bool underline = widget.variant == OrionDropdownVariant.underline;
+    // The query lives in the face. A search icon is what makes that obvious.
+    // A caller prefix, or a selected option's own leading while closed, wins.
+    final bool searchMark =
+        widget.searchable &&
+        widget.prefix == null &&
+        (editing || selectedLeading == null);
     final Widget? effectiveLeading =
-        widget.prefix ?? (hasValue ? selectedLeading : null);
+        widget.prefix ??
+        (searchMark
+            ? const Icon(Icons.search_rounded)
+            : (hasValue ? selectedLeading : null));
 
     final Widget content = Padding(
       padding: padding,
@@ -789,7 +959,7 @@ class OrionDropdownState<T> extends State<OrionDropdown<T>>
           if (effectiveLeading != null) ...<Widget>[
             IconTheme.merge(
               data: IconThemeData(
-                color: hasValue ? textColor : hintColor,
+                color: searchMark || !hasValue ? hintColor : textColor,
                 size: style.iconSize ?? 18.0,
               ),
               child: effectiveLeading,
@@ -797,26 +967,54 @@ class OrionDropdownState<T> extends State<OrionDropdown<T>>
             const SizedBox(width: 8.0),
           ],
           Expanded(
-            child: Text(
-              display,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: textStyle.copyWith(
-                color: hasValue ? textColor : hintColor,
-              ),
-            ),
+            child: editing
+                ? TextField(
+                    controller: _queryController,
+                    focusNode: _queryFocus,
+                    maxLines: 1,
+                    autocorrect: false,
+                    enableSuggestions: false,
+                    style: textStyle.copyWith(color: textColor),
+                    cursorColor: textColor,
+                    decoration: InputDecoration(
+                      isCollapsed: true,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      disabledBorder: InputBorder.none,
+                      errorBorder: InputBorder.none,
+                      focusedErrorBorder: InputBorder.none,
+                      contentPadding: EdgeInsets.zero,
+                      hintText: widget.placeholder,
+                      hintStyle: textStyle.copyWith(color: hintColor),
+                    ),
+                    onChanged: _onQueryChanged,
+                  )
+                : Text(
+                    display,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textStyle.copyWith(
+                      color: hasValue ? textColor : hintColor,
+                    ),
+                  ),
           ),
           const SizedBox(width: 8.0),
-          AnimatedBuilder(
-            animation: _openDriver,
-            child: Icon(
-              Icons.keyboard_arrow_down_rounded,
-              size: style.iconSize ?? 18.0,
-              color: style.chevronColor ?? scheme.onSurfaceVariant,
-            ),
-            builder: (BuildContext context, Widget? child) => Transform.rotate(
-              angle: math.pi * _openDriver.value.clamp(0.0, 1.0),
-              child: child,
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: enabled && editing ? toggle : null,
+            child: AnimatedBuilder(
+              animation: _openDriver,
+              child: Icon(
+                Icons.keyboard_arrow_down_rounded,
+                size: style.iconSize ?? 18.0,
+                color: style.chevronColor ?? scheme.onSurfaceVariant,
+              ),
+              builder: (BuildContext context, Widget? child) =>
+                  Transform.rotate(
+                    angle: math.pi * _openDriver.value.clamp(0.0, 1.0),
+                    child: child,
+                  ),
             ),
           ),
         ],
@@ -859,8 +1057,8 @@ class OrionDropdownState<T> extends State<OrionDropdown<T>>
   Widget _buildOverlay(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final OrionDropdownStyle style = _resolveStyle(theme);
-    final Rect triggerRect =
-        _measureTriggerRect() ?? _lastTriggerRect ?? Rect.zero;
+    final Rect? measuredTrigger = _measureTriggerRect() ?? _lastTriggerRect;
+    final Rect triggerRect = measuredTrigger ?? Rect.zero;
     final double panelMaxWidth = style.panelMaxWidth ?? 320.0;
     final double panelWidth = triggerRect.width.clamp(140.0, panelMaxWidth);
 
@@ -872,6 +1070,8 @@ class OrionDropdownState<T> extends State<OrionDropdown<T>>
         _OrionDropdownPanel<T>(
           key: _panelStateKey,
           options: widget.options,
+          rowIndices: _visibleIndices(),
+          activeIndex: _activeIndex,
           style: style,
           selectedValue: widget.value,
           highlightDriver: _highlightDriver,
@@ -893,13 +1093,19 @@ class OrionDropdownState<T> extends State<OrionDropdown<T>>
         child: Stack(
           children: <Widget>[
             Positioned.fill(
-              child: GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                excludeFromSemantics: true,
-                onTap: () => hide(),
-                onPanStart: widget.dismissOnScroll
-                    ? (DragStartDetails _) => hide()
-                    : null,
+              child: _OrionDropdownBarrier(
+                // The query is painted on the trigger, under this overlay.
+                // Leave that rect out so a tap lands in the field. A plain
+                // dropdown keeps the full barrier.
+                hole: widget.searchable && !_isClosing ? measuredTrigger : null,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  excludeFromSemantics: true,
+                  onTap: () => hide(),
+                  onPanStart: widget.dismissOnScroll
+                      ? (DragStartDetails _) => hide()
+                      : null,
+                ),
               ),
             ),
             Positioned.fill(
@@ -991,6 +1197,8 @@ class _OrionDropdownPanel<T> extends StatefulWidget {
   const _OrionDropdownPanel({
     super.key,
     required this.options,
+    required this.rowIndices,
+    required this.activeIndex,
     required this.style,
     required this.selectedValue,
     required this.highlightDriver,
@@ -1000,6 +1208,13 @@ class _OrionDropdownPanel<T> extends StatefulWidget {
   });
 
   final List<OrionDropdownOption<T>> options;
+
+  /// Option indexes, in list order, that the current query still shows.
+  final List<int> rowIndices;
+
+  /// Option index of the keyboard cursor. Null paints no highlight, so a
+  /// disabled-only match does not look active.
+  final int? activeIndex;
   final OrionDropdownStyle style;
   final T? selectedValue;
   final OrionSpringDriver highlightDriver;
@@ -1016,6 +1231,22 @@ class _OrionDropdownPanelState<T> extends State<_OrionDropdownPanel<T>> {
   final GlobalKey _gliderHostKey = GlobalKey();
   List<Rect> _rowRects = const <Rect>[];
   bool _measureScheduled = false;
+
+  @override
+  void didUpdateWidget(covariant _OrionDropdownPanel<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_sameIndices(oldWidget.rowIndices, widget.rowIndices)) {
+      _rowRects = const <Rect>[];
+    }
+  }
+
+  bool _sameIndices(List<int> a, List<int> b) {
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
 
   /// Jumps the smallest scroll that brings [index] fully into view.
   ///
@@ -1064,7 +1295,7 @@ class _OrionDropdownPanelState<T> extends State<_OrionDropdownPanel<T>> {
           _gliderHostKey.currentContext?.findRenderObject() as RenderBox?;
       if (host == null) return;
       final List<Rect> rects = <Rect>[];
-      final int count = widget.options.length;
+      final int count = widget.rowIndices.length;
       for (int i = 0; i < count && i < _rowKeys.length; i++) {
         final GlobalKey key = _rowKeys[i];
         final RenderBox? box =
@@ -1083,7 +1314,8 @@ class _OrionDropdownPanelState<T> extends State<_OrionDropdownPanel<T>> {
 
   @override
   Widget build(BuildContext context) {
-    final int count = widget.options.length;
+    final List<int> indices = widget.rowIndices;
+    final int count = indices.length;
     while (_rowKeys.length < count) {
       _rowKeys.add(GlobalKey());
     }
@@ -1091,19 +1323,35 @@ class _OrionDropdownPanelState<T> extends State<_OrionDropdownPanel<T>> {
       _rowKeys.removeLast();
     }
 
-    final List<Widget> rows = <Widget>[
-      for (int i = 0; i < count; i++)
-        _OrionDropdownRow<T>(
-          key: _rowKeys[i],
-          option: widget.options[i],
-          style: widget.style,
-          isSelected:
-              widget.selectedValue != null &&
-              widget.options[i].value == widget.selectedValue,
-          onSelect: () => widget.onSelect(i),
-          onHover: () => widget.onHover(i),
-        ),
-    ];
+    final List<Widget> rows = indices.isEmpty
+        ? <Widget>[
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12.0,
+                vertical: 14.0,
+              ),
+              child: Text(
+                'No matches',
+                style: (widget.style.rowTitleStyle ?? const TextStyle())
+                    .copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+            ),
+          ]
+        : <Widget>[
+            for (int i = 0; i < count; i++)
+              _OrionDropdownRow<T>(
+                key: _rowKeys[i],
+                option: widget.options[indices[i]],
+                style: widget.style,
+                isSelected:
+                    widget.selectedValue != null &&
+                    widget.options[indices[i]].value == widget.selectedValue,
+                onSelect: () => widget.onSelect(indices[i]),
+                onHover: () => widget.onHover(indices[i]),
+              ),
+          ];
 
     _scheduleMeasure();
 
@@ -1127,6 +1375,7 @@ class _OrionDropdownPanelState<T> extends State<_OrionDropdownPanel<T>> {
             painter: _OrionDropdownGliderPainter(
               driver: widget.highlightDriver,
               rects: _rowRects,
+              activeIndex: widget.activeIndex,
               color: widget.style.activeRowColor ?? Colors.transparent,
               radius:
                   widget.style.activeRowRadius ?? BorderRadius.circular(8.0),
@@ -1262,18 +1511,20 @@ class _OrionDropdownGliderPainter extends CustomPainter {
   _OrionDropdownGliderPainter({
     required this.driver,
     required this.rects,
+    required this.activeIndex,
     required this.color,
     required this.radius,
   }) : super(repaint: driver);
 
   final Animation<double> driver;
   final List<Rect> rects;
+  final int? activeIndex;
   final Color color;
   final BorderRadius radius;
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (rects.isEmpty || color.a == 0) return;
+    if (activeIndex == null || rects.isEmpty || color.a == 0) return;
     final double position = driver.value.clamp(
       0.0,
       (rects.length - 1).toDouble(),
@@ -1288,6 +1539,50 @@ class _OrionDropdownGliderPainter extends CustomPainter {
   @override
   bool shouldRepaint(_OrionDropdownGliderPainter oldDelegate) =>
       oldDelegate.rects != rects ||
+      oldDelegate.activeIndex != activeIndex ||
       oldDelegate.color != color ||
       oldDelegate.radius != radius;
+}
+
+/// Full-screen dismiss layer that ignores hits inside [hole].
+///
+/// The overlay sits above the trigger. A searchable field has to receive those
+/// hits, so the hole is the trigger rect in global coordinates.
+class _OrionDropdownBarrier extends SingleChildRenderObjectWidget {
+  const _OrionDropdownBarrier({required this.hole, required super.child});
+
+  final Rect? hole;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) {
+    return _OrionDropdownBarrierRender(hole: hole);
+  }
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _OrionDropdownBarrierRender renderObject,
+  ) {
+    renderObject.hole = hole;
+  }
+}
+
+class _OrionDropdownBarrierRender extends RenderProxyBox {
+  _OrionDropdownBarrierRender({required Rect? hole}) : _hole = hole;
+
+  Rect? _hole;
+
+  set hole(Rect? value) {
+    if (_hole == value) return;
+    _hole = value;
+  }
+
+  @override
+  bool hitTest(BoxHitTestResult result, {required Offset position}) {
+    final Rect? hole = _hole;
+    if (hole != null && hole.contains(localToGlobal(position))) {
+      return false;
+    }
+    return super.hitTest(result, position: position);
+  }
 }

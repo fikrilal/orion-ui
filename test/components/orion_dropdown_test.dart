@@ -26,6 +26,8 @@ class _Host extends StatefulWidget {
     this.formKey,
     this.alignment = Alignment.center,
     this.disableAnimations = false,
+    this.searchable = false,
+    this.options,
   });
 
   final String? initialValue;
@@ -37,6 +39,8 @@ class _Host extends StatefulWidget {
   final GlobalKey<FormState>? formKey;
   final AlignmentGeometry alignment;
   final bool disableAnimations;
+  final bool searchable;
+  final List<OrionDropdownOption<String>>? options;
 
   @override
   State<_Host> createState() => _HostState();
@@ -54,13 +58,14 @@ class _HostState extends State<_Host> {
   @override
   Widget build(BuildContext context) {
     final Widget dropdown = OrionDropdown<String>(
-      options: _options,
+      options: widget.options ?? _options,
       value: _value,
       label: widget.label,
       placeholder: 'Pick one',
       error: widget.error,
       validator: widget.validator,
       enabled: widget.enabled,
+      searchable: widget.searchable,
       onChanged: (String value) {
         setState(() => _value = value);
         widget.onChanged?.call(value);
@@ -755,6 +760,272 @@ void main() {
         expect(state.panelRect, isNull);
       },
     );
+
+    testWidgets('a searchable face shows a search icon', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(const _Host());
+      expect(find.byIcon(Icons.search_rounded), findsNothing);
+
+      await tester.pumpWidget(const _Host(searchable: true));
+      expect(find.byIcon(Icons.search_rounded), findsOneWidget);
+
+      await _open(tester);
+      expect(find.byIcon(Icons.search_rounded), findsOneWidget);
+      expect(find.byType(TextField), findsOneWidget);
+    });
+
+    testWidgets('searchable defaults to false', (WidgetTester tester) async {
+      await tester.pumpWidget(const _Host());
+      expect(
+        tester
+            .widget<OrionDropdown<String>>(find.byType(OrionDropdown<String>))
+            .searchable,
+        isFalse,
+      );
+    });
+
+    testWidgets(
+      'a query keeps a case-insensitive subsequence of the label, description, and string value',
+      (WidgetTester tester) async {
+        const List<OrionDropdownOption<String>> described =
+            <OrionDropdownOption<String>>[
+              OrionDropdownOption<String>(
+                value: 'a',
+                label: 'Alpha',
+                description: 'Netherlands office',
+              ),
+              OrionDropdownOption<String>(value: 'b', label: 'Beta'),
+              OrionDropdownOption<String>(
+                value: 'netherlands',
+                label: 'Lowlands',
+              ),
+            ];
+        await tester.pumpWidget(
+          const _Host(searchable: true, options: described),
+        );
+        await _open(tester);
+        await tester.enterText(find.byType(TextField), '  NeT ');
+        await tester.pump();
+
+        expect(find.text('Alpha'), findsOneWidget);
+        expect(find.text('Lowlands'), findsOneWidget);
+        expect(find.text('Beta'), findsNothing);
+
+        await tester.enterText(find.byType(TextField), 'off');
+        await tester.pump();
+        expect(find.text('Alpha'), findsOneWidget);
+        expect(find.text('Lowlands'), findsNothing);
+      },
+    );
+
+    testWidgets('an int value is not searched through its toString', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: const Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 300,
+                child: OrionDropdown<int>(
+                  searchable: true,
+                  placeholder: 'Pick one',
+                  options: <OrionDropdownOption<int>>[
+                    OrionDropdownOption<int>(value: 123, label: 'Count'),
+                    OrionDropdownOption<int>(value: 7, label: 'Seven'),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await _open(tester);
+      await tester.enterText(find.byType(TextField), '123');
+      await tester.pump();
+      expect(find.text('No matches'), findsOneWidget);
+      expect(find.text('Count'), findsNothing);
+
+      await tester.enterText(find.byType(TextField), 'sev');
+      await tester.pump();
+      expect(find.text('Seven'), findsOneWidget);
+      expect(find.text('Count'), findsNothing);
+    });
+
+    testWidgets(
+      'a disabled match stays visible, is not the cursor, and does not commit',
+      (WidgetTester tester) async {
+        final List<String> changes = <String>[];
+        await tester.pumpWidget(
+          _Host(searchable: true, onChanged: changes.add),
+        );
+        await _open(tester);
+        await tester.enterText(find.byType(TextField), 'fra');
+        await tester.pump();
+
+        expect(find.text('France'), findsOneWidget);
+        expect(find.text('Netherlands'), findsNothing);
+        expect(_state(tester).activeIndex, isNull);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+        expect(changes, isEmpty);
+        expect(_state(tester).isOpen, isTrue);
+        expect(find.text('No matches'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'a query that hides the cursor falls back, and Enter commits that row',
+      (WidgetTester tester) async {
+        final List<String> changes = <String>[];
+        await tester.pumpWidget(
+          _Host(searchable: true, initialValue: 'nl', onChanged: changes.add),
+        );
+        await tester.tap(find.text('Netherlands'));
+        await tester.pumpAndSettle();
+        expect(_state(tester).activeIndex, 0);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pump();
+        expect(_state(tester).activeIndex, 3);
+
+        await tester.enterText(find.byType(TextField), 'ger');
+        await tester.pump();
+        expect(find.text('Spain'), findsNothing);
+        expect(find.text('Netherlands'), findsNothing);
+        expect(_state(tester).activeIndex, 1);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+        expect(changes, equals(<String>['de']));
+        expect(_state(tester).isOpen, isFalse);
+        expect(find.text('Germany'), findsOneWidget);
+      },
+    );
+
+    testWidgets('an empty result stays open and Enter commits nothing', (
+      WidgetTester tester,
+    ) async {
+      final List<String> changes = <String>[];
+      await tester.pumpWidget(_Host(searchable: true, onChanged: changes.add));
+      await _open(tester);
+      await tester.enterText(find.byType(TextField), 'zzzz');
+      await tester.pump();
+
+      expect(find.text('No matches'), findsOneWidget);
+      expect(find.text('Netherlands'), findsNothing);
+      expect(_state(tester).activeIndex, isNull);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      expect(changes, isEmpty);
+      expect(_state(tester).isOpen, isTrue);
+    });
+
+    testWidgets(
+      'closing clears the query on the face and the next open lists everything',
+      (WidgetTester tester) async {
+        await tester.pumpWidget(const _Host(searchable: true));
+        await _open(tester);
+        await tester.enterText(find.byType(TextField), 'net');
+        await tester.pump();
+        expect(find.text('Germany'), findsNothing);
+
+        await tester.tapAt(const Offset(5, 5));
+        await tester.pump();
+        final OrionDropdownState<String> state = _state(tester);
+        expect(state.isOpen, isTrue);
+        expect(find.text('Germany'), findsNothing);
+        expect(find.text('Netherlands'), findsOneWidget);
+        expect(find.text('Pick one'), findsOneWidget);
+
+        await tester.pumpAndSettle();
+        expect(state.isOpen, isFalse);
+        expect(find.byType(TextField), findsNothing);
+        expect(find.text('Pick one'), findsOneWidget);
+
+        await _open(tester);
+        expect(find.text('Germany'), findsOneWidget);
+        expect(find.text('Spain'), findsOneWidget);
+        expect(find.text('France'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'arrows move the visible rows, and an arrow while closed only opens',
+      (WidgetTester tester) async {
+        await tester.pumpWidget(
+          const _Host(searchable: true, initialValue: 'es'),
+        );
+        final OrionDropdownState<String> state = _state(tester);
+        state.triggerFocusNode.requestFocus();
+        await tester.pump();
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pumpAndSettle();
+        expect(state.isOpen, isTrue);
+        expect(state.activeIndex, 3);
+        expect(state.triggerFocusNode.hasFocus, isTrue);
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowDown);
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pump();
+        expect(state.activeIndex, 1, reason: 'Spain -> Netherlands -> Germany');
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowDown);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowDown);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+        expect(state.isOpen, isFalse);
+        expect(state.triggerFocusNode.hasFocus, isTrue);
+      },
+    );
+
+    testWidgets('space types into the query', (WidgetTester tester) async {
+      final List<String> changes = <String>[];
+      await tester.pumpWidget(_Host(searchable: true, onChanged: changes.add));
+      await _open(tester);
+      expect(_state(tester).activeIndex, 0);
+
+      // The hardware key must not commit. A widget test has no IME, so the
+      // character arrives through the text input connection.
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.pump();
+      expect(changes, isEmpty);
+      expect(_state(tester).isOpen, isTrue);
+      expect(_state(tester).activeIndex, 0);
+
+      await tester.showKeyboard(find.byType(TextField));
+      tester.testTextInput.enterText(' ');
+      await tester.pump();
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        ' ',
+      );
+      expect(changes, isEmpty);
+      expect(_state(tester).isOpen, isTrue);
+      expect(find.text('Netherlands'), findsOneWidget);
+    });
+
+    testWidgets('a tap in the query stays open and the chevron closes it', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(const _Host(searchable: true));
+      await _open(tester);
+      expect(_state(tester).isOpen, isTrue);
+
+      await tester.tap(find.byType(TextField));
+      await tester.pump();
+      expect(_state(tester).isOpen, isTrue);
+
+      await tester.tap(find.byIcon(Icons.keyboard_arrow_down_rounded));
+      await tester.pumpAndSettle();
+      expect(_state(tester).isOpen, isFalse);
+    });
   });
 
   group('OrionDropdownStyle', () {

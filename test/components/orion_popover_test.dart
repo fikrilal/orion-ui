@@ -579,10 +579,166 @@ void main() {
         isTrue,
       );
     });
+
+    testWidgets(
+      'dynamic style updates take effect immediately without theme change',
+      (tester) async {
+        bool frosted = false;
+        double borderWidth = 1.0;
+        late StateSetter setHostState;
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: StatefulBuilder(
+              builder: (BuildContext context, StateSetter setState) {
+                setHostState = setState;
+                return Scaffold(
+                  body: Center(
+                    child: OrionPopover(
+                      style: OrionPopoverStyle.from(
+                        frosted: frosted,
+                        borderWidth: borderWidth,
+                      ),
+                      trigger: const Text('Dynamic Trigger'),
+                      content: const Text('Dynamic Body'),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+
+        await tester.tap(find.text('Dynamic Trigger'));
+        await tester.pumpAndSettle();
+        expect(find.byType(BackdropFilter), findsNothing);
+
+        // Update style dynamically -> frosted blur appears immediately.
+        setHostState(() {
+          frosted = true;
+          borderWidth = 0.0;
+        });
+        await tester.pumpAndSettle();
+        expect(find.byType(BackdropFilter), findsOneWidget);
+
+        // borderWidth: 0 omits foreground border cleanly.
+        final Iterable<DecoratedBox> foregroundBorders = tester
+            .widgetList<DecoratedBox>(find.byType(DecoratedBox))
+            .where(
+              (DecoratedBox b) =>
+                  b.position == DecorationPosition.foreground &&
+                  (b.decoration as BoxDecoration).border != null,
+            );
+        expect(foregroundBorders, isEmpty);
+      },
+    );
+
+    testWidgets(
+      'closing releases barrier immediately and allows zero-cooldown reopen',
+      (tester) async {
+        final OrionPopoverController controller = OrionPopoverController();
+        addTearDown(controller.dispose);
+        int outsideCount = 0;
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  ElevatedButton(
+                    onPressed: () => outsideCount++,
+                    child: const Text('Outside Target'),
+                  ),
+                  const SizedBox(height: 24),
+                  OrionPopover(
+                    controller: controller,
+                    triggerBuilder: (BuildContext context, OrionPopoverController c) =>
+                        ElevatedButton(
+                          onPressed: c.toggle,
+                          child: const Text('Zero Cooldown Trigger'),
+                        ),
+                    content: const Text('Zero Cooldown Body'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.text('Zero Cooldown Trigger'));
+        await tester.pumpAndSettle();
+        expect(controller.isOpen, isTrue);
+
+        // Begin closing, pump only 16 ms (mid-exit), and verify logical state
+        // is already false and an outside target can be tapped immediately.
+        controller.hide();
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(controller.isOpen, isFalse);
+
+        await tester.tap(find.text('Outside Target'));
+        expect(outsideCount, 1);
+
+        // Immediately reopen mid-close without waiting for exit tail.
+        controller.show();
+        await tester.pumpAndSettle();
+        expect(controller.isOpen, isTrue);
+        expect(find.text('Zero Cooldown Body'), findsOneWidget);
+      },
+    );
+
+    testWidgets('respects status bar padding and keyboard viewInsets', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: MediaQuery(
+            data: const MediaQueryData(
+              size: Size(400, 600),
+              padding: EdgeInsets.only(top: 50, bottom: 34),
+              viewInsets: EdgeInsets.only(bottom: 260),
+              disableAnimations: true,
+            ),
+            child: Scaffold(
+              resizeToAvoidBottomInset: false,
+              body: Align(
+                alignment: Alignment.topCenter,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 60),
+                  child: OrionPopover(
+                    placement: OrionPopoverPlacement.topCenter,
+                    autoFlip: false,
+                    trigger: const Text('Top Safe Trigger'),
+                    content: const SizedBox(
+                      width: 160,
+                      height: 80,
+                      child: Text('Safe Body'),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Top Safe Trigger'));
+      await tester.pump();
+
+      final Rect bodyRect = tester.getRect(find.text('Safe Body'));
+      expect(
+        bodyRect.top,
+        greaterThanOrEqualTo(58.0),
+        reason: 'popover must stay below status bar padding',
+      );
+    });
   });
 
   group('OrionPopoverStyle & Themes', () {
-    test('presets reproduce the light scheme default', () {
+    test('presets provide crisp elevated light and dark defaults', () {
       final style = OrionPopoverPresets.resolve(
         scheme: OrionColors.lightScheme,
       );
@@ -590,13 +746,32 @@ void main() {
       expect(style.borderWidth, 1.0);
       expect(style.gap, 8.0);
       expect(style.minWidth, 140.0);
+      expect(style.backgroundColor, OrionColors.lightScheme.surfaceContainer);
+      expect(style.borderColor, OrionColors.lightScheme.outlineVariant);
+      expect(style.borderRadius, BorderRadius.circular(14.0));
+      expect(style.padding, const EdgeInsets.all(6.0));
       expect(
         style.springSpec,
-        const OrionSpringSpec(stiffness: 420.0, dampingRatio: 0.82),
+        const OrionSpringSpec(stiffness: 520.0, dampingRatio: 0.86),
       );
+      expect(
+        style.dismissSpringSpec,
+        const OrionSpringSpec(
+          stiffness: 620.0,
+          dampingRatio: 1.0,
+          clampOvershoot: true,
+        ),
+      );
+
+      final darkStyle = OrionPopoverPresets.resolve(
+        scheme: OrionColors.darkScheme,
+      );
+      expect(darkStyle.backgroundColor, OrionColors.darkScheme.surfaceContainer);
+      expect(darkStyle.backgroundColor, isNot(OrionColors.darkScheme.surface));
+      expect(darkStyle.borderColor, OrionColors.darkScheme.outlineVariant);
     });
 
-    test('style merge overrides only named fields', () {
+    test('style merge overrides only named fields and theme lerp interpolates', () {
       final base = OrionPopoverStyle.from(
         borderWidth: 2.0,
         backgroundColor: Colors.white,
@@ -608,6 +783,15 @@ void main() {
 
       expect(merged.borderWidth, 2.0);
       expect(merged.backgroundColor, Colors.blue);
+
+      final themeA = OrionPopoverTheme(
+        defaultStyle: OrionPopoverStyle.from(gap: 4.0),
+      );
+      final themeB = OrionPopoverTheme(
+        defaultStyle: OrionPopoverStyle.from(gap: 12.0),
+      );
+      final lerped = themeA.lerp(themeB, 0.5);
+      expect(lerped.defaultStyle?.gap, 8.0);
     });
   });
 }

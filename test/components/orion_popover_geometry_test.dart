@@ -110,5 +110,31 @@ void main() {
         expect(layout.transformOrigin.y, 1.0); // Origin at bottom edge
       },
     );
+
+    test('respects RTL directionality for start and end placements', () {
+      const triggerRect = Rect.fromLTWH(200.0, 100.0, 80.0, 40.0);
+
+      final startLayout = OrionPopoverGeometry.resolve(
+        triggerRect: triggerRect,
+        popoverSize: popoverSize,
+        viewportSize: viewportSize,
+        viewportPadding: padding,
+        preferredPlacement: OrionPopoverPlacement.bottomStart,
+        textDirection: TextDirection.rtl,
+      );
+      // In RTL, start aligns right edge of popover with right edge of trigger (280 - 180 = 100).
+      expect(startLayout.offset.dx, 100.0);
+
+      final endLayout = OrionPopoverGeometry.resolve(
+        triggerRect: triggerRect,
+        popoverSize: popoverSize,
+        viewportSize: viewportSize,
+        viewportPadding: padding,
+        preferredPlacement: OrionPopoverPlacement.bottomEnd,
+        textDirection: TextDirection.rtl,
+      );
+      // In RTL, end aligns left edge of popover with left edge of trigger (200).
+      expect(endLayout.offset.dx, 200.0);
+    });
   });
 }

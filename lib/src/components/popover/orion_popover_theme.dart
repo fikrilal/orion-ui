@@ -20,7 +20,9 @@ class OrionPopoverTheme extends ThemeExtension<OrionPopoverTheme> {
   @override
   OrionPopoverTheme lerp(ThemeExtension<OrionPopoverTheme>? other, double t) {
     if (other is! OrionPopoverTheme) return this;
-    return OrionPopoverTheme(defaultStyle: defaultStyle);
+    return OrionPopoverTheme(
+      defaultStyle: OrionPopoverStyle.lerp(defaultStyle, other.defaultStyle, t),
+    );
   }
 
   @override

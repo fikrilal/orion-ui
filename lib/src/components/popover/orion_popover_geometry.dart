@@ -36,6 +36,12 @@ class OrionPopoverResolvedLayout {
 
   /// The horizontal or vertical offset for the caret arrow along the popover edge, if visible.
   final Offset? arrowOffset;
+
+  /// Whether this resolved placement sits above the trigger.
+  bool get isTop =>
+      placement == OrionPopoverPlacement.topStart ||
+      placement == OrionPopoverPlacement.topCenter ||
+      placement == OrionPopoverPlacement.topEnd;
 }
 
 /// Pure geometric positioning calculator for popovers and floating menus.
@@ -52,6 +58,7 @@ abstract final class OrionPopoverGeometry {
     bool autoFlip = true,
     bool showArrow = false,
     Size arrowSize = const Size(14.0, 7.0),
+    TextDirection textDirection = TextDirection.ltr,
   }) {
     final double minX = viewportPadding.left;
     final double maxX = math.max(
@@ -105,7 +112,7 @@ abstract final class OrionPopoverGeometry {
 
     final double resolvedY = targetY.clamp(minY, maxY);
 
-    // 2. Determine Horizontal Placement
+    // 2. Determine Horizontal Placement (respecting textDirection for start/end)
     final bool isStart =
         preferredPlacement == OrionPopoverPlacement.topStart ||
         preferredPlacement == OrionPopoverPlacement.bottomStart;
@@ -116,11 +123,12 @@ abstract final class OrionPopoverGeometry {
         preferredPlacement == OrionPopoverPlacement.topEnd ||
         preferredPlacement == OrionPopoverPlacement.bottomEnd;
 
-    double targetX;
+    final bool rtl = textDirection == TextDirection.rtl;
+    final double targetX;
     if (isStart) {
-      targetX = triggerRect.left;
+      targetX = rtl ? triggerRect.right - popoverSize.width : triggerRect.left;
     } else if (isEnd) {
-      targetX = triggerRect.right - popoverSize.width;
+      targetX = rtl ? triggerRect.left : triggerRect.right - popoverSize.width;
     } else if (isCenter) {
       targetX = triggerRect.center.dx - (popoverSize.width / 2.0);
     } else {
@@ -138,17 +146,19 @@ abstract final class OrionPopoverGeometry {
 
     // In Flutter Alignment, -1.0 is left/top, 0.0 is center, +1.0 is right/bottom.
     final double alignX = (normalizedOriginX * 2.0) - 1.0;
-    final double alignY = isTop
-        ? 1.0
-        : -1.0; // Grows down from top edge (if isTop=false) or up from bottom edge (if isTop=true)
+    final double alignY = isTop ? 1.0 : -1.0;
 
     // 4. Compute Arrow Offset
     Offset? arrowOffset;
     if (showArrow) {
+      final double inset = math.min(
+        14.0,
+        math.max(0.0, (popoverSize.width - arrowSize.width) / 2.0),
+      );
       final double arrowX = (triggerMidX - resolvedX - (arrowSize.width / 2.0))
           .clamp(
-            12.0,
-            math.max(12.0, popoverSize.width - 12.0 - arrowSize.width),
+            inset,
+            math.max(inset, popoverSize.width - inset - arrowSize.width),
           );
       final double arrowY = isTop ? popoverSize.height : -arrowSize.height;
       arrowOffset = Offset(arrowX, arrowY);

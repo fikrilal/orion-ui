@@ -1,3 +1,5 @@
+import 'dart:ui' show lerpDouble;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -35,13 +37,13 @@ class OrionPopoverStyle {
   /// Popover outline border color.
   final Color? borderColor;
 
-  /// Popover outline border width.
+  /// Popover outline border width. Set to `0` to omit the border cleanly.
   final double? borderWidth;
 
   /// Popover container border radius.
   final BorderRadius? borderRadius;
 
-  /// Elevation box shadow list.
+  /// Elevation box shadow list. Pass an empty list for a flat surface.
   final List<BoxShadow>? shadow;
 
   /// Whether to render a static frosted blur behind the popover content.
@@ -176,6 +178,35 @@ class OrionPopoverStyle {
       maxWidth: other.maxWidth,
       minHeight: other.minHeight,
       maxHeight: other.maxHeight,
+    );
+  }
+
+  /// Linearly interpolates between two [OrionPopoverStyle]s.
+  static OrionPopoverStyle? lerp(
+    OrionPopoverStyle? a,
+    OrionPopoverStyle? b,
+    double t,
+  ) {
+    if (identical(a, b)) return a;
+    if (a == null) return b;
+    if (b == null) return a;
+    return OrionPopoverStyle(
+      backgroundColor: Color.lerp(a.backgroundColor, b.backgroundColor, t),
+      borderColor: Color.lerp(a.borderColor, b.borderColor, t),
+      borderWidth: lerpDouble(a.borderWidth, b.borderWidth, t),
+      borderRadius: BorderRadius.lerp(a.borderRadius, b.borderRadius, t),
+      shadow: BoxShadow.lerpList(a.shadow, b.shadow, t),
+      frosted: t < 0.5 ? a.frosted : b.frosted,
+      gap: lerpDouble(a.gap, b.gap, t),
+      padding: EdgeInsetsGeometry.lerp(a.padding, b.padding, t),
+      arrowSize: Size.lerp(a.arrowSize, b.arrowSize, t),
+      showArrow: t < 0.5 ? a.showArrow : b.showArrow,
+      springSpec: t < 0.5 ? a.springSpec : b.springSpec,
+      dismissSpringSpec: t < 0.5 ? a.dismissSpringSpec : b.dismissSpringSpec,
+      minWidth: lerpDouble(a.minWidth, b.minWidth, t),
+      maxWidth: lerpDouble(a.maxWidth, b.maxWidth, t),
+      minHeight: lerpDouble(a.minHeight, b.minHeight, t),
+      maxHeight: lerpDouble(a.maxHeight, b.maxHeight, t),
     );
   }
 

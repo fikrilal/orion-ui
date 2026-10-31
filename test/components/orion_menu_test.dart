@@ -1,4 +1,7 @@
+import 'dart:ui' show PointerDeviceKind;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orion_ui/orion_ui.dart';
 
@@ -372,5 +375,178 @@ void main() {
         expect(find.text('Modal Item'), findsNothing);
       },
     );
+
+    testWidgets(
+      'supports section headers, selected checkmarks, and closeOnTap: false',
+      (tester) async {
+        int toggleCount = 0;
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: Center(
+                child: OrionMenu(
+                  trigger: const Text('Rich Menu Trigger'),
+                  items: <OrionMenuItem>[
+                    const OrionMenuItem.header('SORT ORDER'),
+                    OrionMenuItem(
+                      title: 'Newest First',
+                      selected: true,
+                      closeOnTap: false,
+                      onTap: () => toggleCount++,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.text('Rich Menu Trigger'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('SORT ORDER'), findsOneWidget);
+        expect(find.byIcon(Icons.check_rounded), findsOneWidget);
+
+        // closeOnTap: false runs callback without dismissing the menu.
+        await tester.tap(find.text('Newest First'));
+        await tester.pumpAndSettle();
+
+        expect(toggleCount, 1);
+        expect(find.text('Newest First'), findsOneWidget);
+      },
+    );
+
+    testWidgets('paints hover and pressed pill backgrounds on menu rows', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: Scaffold(
+            body: Center(
+              child: OrionMenu(
+                trigger: const Text('Hover Menu Trigger'),
+                items: <OrionMenuItem>[
+                  OrionMenuItem(title: 'Normal Row', onTap: () {}),
+                  OrionMenuItem(
+                    title: 'Danger Row',
+                    destructive: true,
+                    onTap: () {},
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Hover Menu Trigger'));
+      await tester.pumpAndSettle();
+
+      final TestGesture mouse = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+      );
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(location: Offset.zero);
+      await tester.pump();
+
+      await mouse.moveTo(tester.getCenter(find.text('Danger Row')));
+      await tester.pump();
+
+      final DecoratedBox dangerRowBox = tester
+          .widgetList<DecoratedBox>(
+            find.ancestor(
+              of: find.text('Danger Row'),
+              matching: find.byType(DecoratedBox),
+            ),
+          )
+          .first;
+      final Color? hoverColor = (dangerRowBox.decoration as BoxDecoration).color;
+      expect(
+        hoverColor,
+        OrionColors.lightScheme.error.withValues(alpha: 0.08),
+      );
+    });
+
+    testWidgets(
+      'keyboard arrows skip headers, dividers, and disabled items and Enter activates',
+      (tester) async {
+        String? activated;
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: Center(
+                child: OrionMenu(
+                  trigger: const Text('Keyboard Menu Trigger'),
+                  items: <OrionMenuItem>[
+                    const OrionMenuItem.header('GROUP'),
+                    OrionMenuItem(
+                      title: 'First',
+                      onTap: () => activated = 'First',
+                    ),
+                    const OrionMenuItem.divider(),
+                    OrionMenuItem(
+                      title: 'Disabled',
+                      enabled: false,
+                      onTap: () => activated = 'Disabled',
+                    ),
+                    OrionMenuItem(
+                      title: 'Last',
+                      onTap: () => activated = 'Last',
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.text('Keyboard Menu Trigger'));
+        await tester.pumpAndSettle();
+
+        // Down -> First (skips header), Down -> Last (skips divider & disabled).
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+
+        expect(activated, 'Last');
+        expect(find.text('Last'), findsNothing);
+      },
+    );
+
+    testWidgets('long menus scroll cleanly inside maxHeight without overflow', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: Scaffold(
+            body: Center(
+              child: OrionMenu(
+                style: OrionPopoverStyle.from(maxHeight: 180),
+                trigger: const Text('Long Menu Trigger'),
+                items: <OrionMenuItem>[
+                  for (int i = 0; i < 15; i++)
+                    OrionMenuItem(title: 'Action $i', onTap: () {}),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Long Menu Trigger'));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Action 0'), findsOneWidget);
+    });
   });
 }

@@ -3,12 +3,8 @@ import 'package:orion_ui_example/showcase/orion_showcase_kit.dart';
 import 'package:orion_ui_example/showcase/orion_showcase_scaffold.dart';
 import 'package:orion_ui/orion_ui.dart';
 
-/// Playground for the progress family.
-///
-/// The step, partial, empty, linear and indeterminate samples stay as
-/// reference sections - the sweeping bar runs forever - and the playground
-/// last steps `count`/`value` with small steppers and generates the call
-/// behind the Code tab.
+/// Playground for the progress family: [OrionLinearProgress],
+/// [OrionSegmentedProgress], and [OrionCircularProgress].
 class OrionProgressShowcaseScreen extends StatefulWidget {
   const OrionProgressShowcaseScreen({super.key});
 
@@ -22,12 +18,17 @@ class _OrionProgressShowcaseScreenState
   static const int _maxPlaygroundCount = 8;
   static const double _playgroundStep = 0.5;
 
-  // Steps sample: the running one near the top of the page.
+  // Steps sample
   int _step = 1;
 
-  // Playground: the focused specimen's own axes.
+  // Live linear & circular sample
+  double? _linearValue = 0.35;
+  double _bufferedValue = 0.65;
+
+  // Playground: segmented specimen controls
   int _playgroundCount = 4;
   double _playgroundValue = 2;
+  OrionProgressTone _tone = OrionProgressTone.primary;
 
   void _incrementCount() {
     setState(() {
@@ -48,11 +49,38 @@ class _OrionProgressShowcaseScreenState
 
   void _decrementValue() => setState(() => _playgroundValue -= _playgroundStep);
 
+  void _advanceLinear() {
+    setState(() {
+      final double current = _linearValue ?? 0.0;
+      final double next = (current + 0.2).clamp(0.0, 1.0);
+      _linearValue = next;
+      if (_bufferedValue < next) {
+        _bufferedValue = (next + 0.15).clamp(0.0, 1.0);
+      }
+    });
+  }
+
+  void _advanceBuffer() {
+    setState(() {
+      _linearValue ??= 0.2;
+      _bufferedValue = (_bufferedValue + 0.2).clamp(0.0, 1.0);
+    });
+  }
+
+  String _toneLabel(OrionProgressTone tone) => switch (tone) {
+    OrionProgressTone.primary => 'Primary',
+    OrionProgressTone.success => 'Success',
+    OrionProgressTone.warning => 'Warning',
+    OrionProgressTone.error => 'Error',
+  };
+
   /// The exact call the current controls produce.
   String get _snippet => <String>[
     'OrionSegmentedProgress(',
     '  count: $_playgroundCount,',
     '  value: ${_formatValue(_playgroundValue)},',
+    if (_tone != OrionProgressTone.primary)
+      '  tone: OrionProgressTone.${_tone.name},',
     ')',
   ].join('\n');
 
@@ -61,10 +89,10 @@ class _OrionProgressShowcaseScreenState
     return OrionThemedScaffold(
       title: 'Orion Progress',
       builder: (context) {
-        // Read under the scaffold so the theme toggle reaches every sample.
         final TextTheme textTheme = Theme.of(context).textTheme;
         final ColorScheme scheme = Theme.of(context).colorScheme;
         final bool isDark = Theme.of(context).brightness == Brightness.dark;
+        final int linearPercent = ((_linearValue ?? 0.0) * 100).round();
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -93,7 +121,7 @@ class _OrionProgressShowcaseScreenState
                       ),
                     ),
                     child: Text(
-                      'INDICATOR • CRITICALLY DAMPED',
+                      'INDICATOR • LINEAR • SEGMENTED • CIRCULAR',
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
@@ -104,7 +132,7 @@ class _OrionProgressShowcaseScreenState
                   ),
                   const SizedBox(height: OrionSpacing.space8),
                   Text(
-                    'Segmented progress and continuous linear bars. Fills settle on critically damped springs (zeta 1.0) so progress never wobbles or overshoots.',
+                    'Segmented, linear, and circular progress indicators with critically damped fills, smooth buffer animation, semantic tones, and reduced-motion fallbacks.',
                     style: TextStyle(
                       fontSize: 13.5,
                       height: 1.4,
@@ -114,6 +142,182 @@ class _OrionProgressShowcaseScreenState
                 ],
               ),
             ),
+
+            // Interactive Linear & Circular Card
+            OrionShowcaseSection(
+              title: 'Linear & Circular (Interactive)',
+              subtitle:
+                  'Live critically-damped fill and buffer springs with indeterminate toggle',
+              card: true,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      OrionCircularProgress(
+                        value: _linearValue,
+                        tone: _linearValue == 1.0
+                            ? OrionProgressTone.success
+                            : _tone,
+                        size: 56,
+                        strokeWidth: 4.5,
+                        child: _linearValue == null
+                            ? null
+                            : _linearValue == 1.0
+                            ? Icon(
+                                Icons.check_rounded,
+                                size: 22,
+                                color: OrionProgressStyle.resolveToneColor(
+                                  scheme: scheme,
+                                  tone: OrionProgressTone.success,
+                                ),
+                              )
+                            : Text(
+                                '$linearPercent%',
+                                style: textTheme.labelSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: scheme.onSurface,
+                                  fontFeatures: const <FontFeature>[
+                                    FontFeature.tabularFigures(),
+                                  ],
+                                ),
+                              ),
+                      ),
+                      const SizedBox(width: OrionSpacing.space16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  _linearValue == null
+                                      ? 'Preparing upload…'
+                                      : _linearValue == 1.0
+                                      ? 'Upload complete'
+                                      : 'Uploading assets',
+                                  style: textTheme.labelMedium?.copyWith(
+                                    color: scheme.onSurface,
+                                  ),
+                                ),
+                                Text(
+                                  _linearValue == null ? '—' : '$linearPercent%',
+                                  style: textTheme.labelSmall?.copyWith(
+                                    color: scheme.onSurfaceVariant,
+                                    fontFeatures: const <FontFeature>[
+                                      FontFeature.tabularFigures(),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: OrionSpacing.space8),
+                            OrionLinearProgress(
+                              value: _linearValue,
+                              bufferedValue: _bufferedValue,
+                              tone: _linearValue == 1.0
+                                  ? OrionProgressTone.success
+                                  : _tone,
+                              style: OrionProgressStyle.from(height: 6),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: OrionSpacing.space16),
+                  Wrap(
+                    spacing: OrionSpacing.space8,
+                    runSpacing: OrionSpacing.space8,
+                    children: [
+                      OrionButton(
+                        size: OrionButtonSize.small,
+                        onPressed: _advanceLinear,
+                        child: const Text('+20%'),
+                      ),
+                      OrionButton(
+                        size: OrionButtonSize.small,
+                        variant: OrionButtonVariant.bordered,
+                        onPressed: _advanceBuffer,
+                        child: const Text('+Buffer'),
+                      ),
+                      OrionButton(
+                        size: OrionButtonSize.small,
+                        variant: OrionButtonVariant.bordered,
+                        onPressed: () => setState(() {
+                          _linearValue = _linearValue == null ? 0.25 : null;
+                        }),
+                        child: Text(
+                          _linearValue == null ? 'Determinate' : 'Indeterminate',
+                        ),
+                      ),
+                      OrionButton(
+                        size: OrionButtonSize.small,
+                        variant: OrionButtonVariant.flat,
+                        onPressed: () => setState(() {
+                          _linearValue = 0.0;
+                          _bufferedValue = 0.2;
+                        }),
+                        child: const Text('Reset'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: OrionSpacing.space20),
+
+            // Circular Spinners & Tones Card
+            OrionShowcaseSection(
+              title: 'Circular & Semantic Tones',
+              subtitle:
+                  'Determinate rings, C1-smooth indeterminate spinners, and status tones',
+              card: true,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: const [
+                      OrionCircularProgress(size: 24, strokeWidth: 3),
+                      OrionCircularProgress(
+                        value: 0.72,
+                        tone: OrionProgressTone.primary,
+                      ),
+                      OrionCircularProgress(
+                        value: 1.0,
+                        tone: OrionProgressTone.success,
+                      ),
+                      OrionCircularProgress(
+                        value: 0.65,
+                        tone: OrionProgressTone.warning,
+                      ),
+                      OrionCircularProgress(
+                        value: 0.35,
+                        tone: OrionProgressTone.error,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: OrionSpacing.space20),
+                  const OrionLinearProgress(
+                    value: 0.85,
+                    tone: OrionProgressTone.success,
+                  ),
+                  const SizedBox(height: OrionSpacing.space12),
+                  const OrionLinearProgress(
+                    value: 0.55,
+                    tone: OrionProgressTone.warning,
+                  ),
+                  const SizedBox(height: OrionSpacing.space12),
+                  const OrionLinearProgress(
+                    value: 0.30,
+                    tone: OrionProgressTone.error,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Steps Card
             OrionShowcaseSection(
@@ -126,61 +330,23 @@ class _OrionProgressShowcaseScreenState
                 children: [
                   OrionSegmentedProgress(count: 4, value: _step.toDouble()),
                   const SizedBox(height: OrionSpacing.space16),
-                  OrionButton(
-                    size: OrionButtonSize.small,
-                    onPressed: _step >= 4
-                        ? null
-                        : () => setState(() => _step += 1),
-                    child: const Text('Next'),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: OrionSpacing.space20),
-
-            // Partial Card
-            const OrionShowcaseSection(
-              title: 'Partial',
-              subtitle: 'Fractional values filling the final segment partially',
-              card: true,
-              child: OrionSegmentedProgress(count: 5, value: 2.5),
-            ),
-            const SizedBox(height: OrionSpacing.space20),
-
-            // Empty Card
-            const OrionShowcaseSection(
-              title: 'Empty',
-              subtitle: 'Zero progress resting empty on quiet track container',
-              card: true,
-              child: OrionSegmentedProgress(count: 3, value: 0),
-            ),
-            const SizedBox(height: OrionSpacing.space20),
-
-            // Linear Card
-            OrionShowcaseSection(
-              title: 'Linear',
-              subtitle:
-                  'Continuous 0..1 clamped progress bar with optional buffered cache layer',
-              card: true,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const OrionLinearProgress(value: 0.25),
-                  const SizedBox(height: OrionSpacing.space16),
-                  const OrionLinearProgress(value: 0.6, bufferedValue: 0.8),
-                  const SizedBox(height: OrionSpacing.space16),
                   Row(
                     children: [
-                      const Expanded(child: OrionLinearProgress(value: 0.85)),
+                      OrionButton(
+                        size: OrionButtonSize.small,
+                        onPressed: _step >= 4
+                            ? null
+                            : () => setState(() => _step += 1),
+                        child: const Text('Next'),
+                      ),
                       const SizedBox(width: OrionSpacing.space8),
-                      Text(
-                        '85%',
-                        style: textTheme.labelSmall?.copyWith(
-                          color: scheme.onSurfaceVariant,
-                          fontFeatures: const <FontFeature>[
-                            FontFeature.tabularFigures(),
-                          ],
-                        ),
+                      OrionButton(
+                        size: OrionButtonSize.small,
+                        variant: OrionButtonVariant.flat,
+                        onPressed: _step <= 0
+                            ? null
+                            : () => setState(() => _step = 0),
+                        child: const Text('Reset'),
                       ),
                     ],
                   ),
@@ -189,13 +355,22 @@ class _OrionProgressShowcaseScreenState
             ),
             const SizedBox(height: OrionSpacing.space20),
 
-            // Indeterminate Card
-            const OrionShowcaseSection(
-              title: 'Indeterminate',
+            // Partial & Indeterminate Card
+            OrionShowcaseSection(
+              title: 'Partial & Indeterminate',
               subtitle:
-                  'Continuous looping sweep animation resting static under reduced motion',
+                  'Fractional segmented progress and pill-capped indeterminate linear sweep',
               card: true,
-              child: OrionLinearProgress(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const OrionSegmentedProgress(count: 5, value: 2.5),
+                  const SizedBox(height: OrionSpacing.space16),
+                  OrionLinearProgress(
+                    style: OrionProgressStyle.from(height: 6),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: OrionSpacing.space20),
 
@@ -203,7 +378,7 @@ class _OrionProgressShowcaseScreenState
             OrionShowcaseSection(
               title: 'Playground',
               subtitle:
-                  'Interactive segment count and value controls with live code generator',
+                  'Interactive segment count, value, and tone controls with live code generator',
               child: OrionShowcasePanel(
                 key: const ValueKey<String>('showcase-panel-playground'),
                 preview: Column(
@@ -214,22 +389,27 @@ class _OrionProgressShowcaseScreenState
                       padding: const EdgeInsets.all(OrionSpacing.space24),
                       decoration: BoxDecoration(
                         color: isDark
-                            ? scheme.surfaceContainerLowest
+                            ? scheme.surface
                             : scheme.surfaceContainerLowest,
                         borderRadius: BorderRadius.circular(OrionRadii.radius12),
-                        border: Border.all(
-                          color: isDark
-                              ? scheme.outlineVariant.withValues(alpha: 0.15)
-                              : scheme.outlineVariant.withValues(alpha: 0.30),
-                          width: 1,
-                        ),
+                        border: Border.all(color: scheme.outlineVariant),
                       ),
                       child: OrionSegmentedProgress(
                         count: _playgroundCount,
                         value: _playgroundValue,
+                        tone: _tone,
                       ),
                     ),
                     const SizedBox(height: OrionSpacing.space20),
+
+                    OrionShowcaseChoice<OrionProgressTone>(
+                      label: 'Tone',
+                      values: OrionProgressTone.values,
+                      selected: _tone,
+                      labelOf: _toneLabel,
+                      onChanged: (value) => setState(() => _tone = value),
+                    ),
+                    const SizedBox(height: OrionSpacing.space16),
 
                     OrionShowcaseLabeledRow(
                       label: 'Count',

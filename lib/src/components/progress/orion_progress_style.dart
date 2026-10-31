@@ -1,9 +1,28 @@
+import 'dart:ui' show lerpDouble;
+
 import 'package:flutter/material.dart';
 
 import 'package:orion_ui/src/motion/orion_spring_spec.dart';
 import 'package:orion_ui/src/theme/orion_tokens.dart';
 
-/// The overridable contract shared by the progress family.
+/// Semantic colour tone for progress indicators.
+enum OrionProgressTone {
+  /// Default neutral/primary accent (`scheme.primary`).
+  primary,
+
+  /// Positive completion tone (semantic green).
+  success,
+
+  /// Cautionary progress tone (semantic amber).
+  warning,
+
+  /// Failure or stalled progress tone (`scheme.error`).
+  error,
+}
+
+/// The overridable contract shared by the progress family
+/// (`OrionLinearProgress`, `OrionSegmentedProgress`, and
+/// `OrionCircularProgress`).
 ///
 /// Three layers produce the effective style, each overriding the last: the
 /// built-in [defaults], the theme's `OrionProgressTheme`, and the instance
@@ -11,8 +30,9 @@ import 'package:orion_ui/src/theme/orion_tokens.dart';
 /// through to the layer beneath it, so an override changes exactly what it
 /// names.
 ///
-/// [gap] applies to the segmented bar only, and [bufferColor] to the linear
-/// bar only; the rest are painted by both.
+/// [gap] applies to the segmented bar, [bufferColor] applies to the linear bar,
+/// and [size]/[strokeWidth]/[strokeCap] apply to the circular indicator; the
+/// rest are shared across the family.
 @immutable
 class OrionProgressStyle {
   const OrionProgressStyle({
@@ -22,6 +42,9 @@ class OrionProgressStyle {
     this.height,
     this.gap,
     this.radius,
+    this.size,
+    this.strokeWidth,
+    this.strokeCap,
     this.spring,
   });
 
@@ -35,18 +58,27 @@ class OrionProgressStyle {
   /// linear bar from its `bufferedValue`.
   final Color? bufferColor;
 
-  /// Bar height.
+  /// Bar height (linear and segmented bars).
   final double? height;
 
-  /// Space between segments, on the segmented bar.
+  /// Space between segments (segmented bar).
   final double? gap;
 
-  /// Corner radius of the track and its fills.
+  /// Corner radius of the track and its fills (linear and segmented bars).
   final BorderRadius? radius;
 
-  /// Settle spec for determinate value changes. The indeterminate sweep runs
-  /// on its own linear clock; a progress fill that must reach its target and
-  /// stay there settles critically damped by default.
+  /// Outer diameter of a circular progress ring.
+  final double? size;
+
+  /// Ring thickness of a circular progress ring.
+  final double? strokeWidth;
+
+  /// Cap shape at the ends of a circular progress arc.
+  final StrokeCap? strokeCap;
+
+  /// Settle spec for determinate value changes. Indeterminate sweeps run on
+  /// their own continuous clocks; a progress fill that must reach its target
+  /// and stay there settles critically damped by default.
   final OrionSpringSpec? spring;
 
   /// Returns a copy with the provided fields replaced.
@@ -57,6 +89,9 @@ class OrionProgressStyle {
     double? height,
     double? gap,
     BorderRadius? radius,
+    double? size,
+    double? strokeWidth,
+    StrokeCap? strokeCap,
     OrionSpringSpec? spring,
   }) {
     return OrionProgressStyle(
@@ -66,6 +101,9 @@ class OrionProgressStyle {
       height: height ?? this.height,
       gap: gap ?? this.gap,
       radius: radius ?? this.radius,
+      size: size ?? this.size,
+      strokeWidth: strokeWidth ?? this.strokeWidth,
+      strokeCap: strokeCap ?? this.strokeCap,
       spring: spring ?? this.spring,
     );
   }
@@ -82,7 +120,33 @@ class OrionProgressStyle {
       height: other.height ?? height,
       gap: other.gap ?? gap,
       radius: other.radius ?? radius,
+      size: other.size ?? size,
+      strokeWidth: other.strokeWidth ?? strokeWidth,
+      strokeCap: other.strokeCap ?? strokeCap,
       spring: other.spring ?? spring,
+    );
+  }
+
+  /// Linearly interpolates between two [OrionProgressStyle]s.
+  static OrionProgressStyle? lerp(
+    OrionProgressStyle? a,
+    OrionProgressStyle? b,
+    double t,
+  ) {
+    if (identical(a, b)) return a;
+    if (a == null) return b;
+    if (b == null) return a;
+    return OrionProgressStyle(
+      trackColor: Color.lerp(a.trackColor, b.trackColor, t),
+      fillColor: Color.lerp(a.fillColor, b.fillColor, t),
+      bufferColor: Color.lerp(a.bufferColor, b.bufferColor, t),
+      height: lerpDouble(a.height, b.height, t),
+      gap: lerpDouble(a.gap, b.gap, t),
+      radius: BorderRadius.lerp(a.radius, b.radius, t),
+      size: lerpDouble(a.size, b.size, t),
+      strokeWidth: lerpDouble(a.strokeWidth, b.strokeWidth, t),
+      strokeCap: t < 0.5 ? a.strokeCap : b.strokeCap,
+      spring: t < 0.5 ? a.spring : b.spring,
     );
   }
 
@@ -94,6 +158,9 @@ class OrionProgressStyle {
     double? height,
     double? gap,
     BorderRadius? radius,
+    double? size,
+    double? strokeWidth,
+    StrokeCap? strokeCap,
     OrionSpringSpec? spring,
   }) {
     return OrionProgressStyle(
@@ -103,23 +170,49 @@ class OrionProgressStyle {
       height: height,
       gap: gap,
       radius: radius,
+      size: size,
+      strokeWidth: strokeWidth,
+      strokeCap: strokeCap,
       spring: spring,
     );
   }
 
-  /// The built-in look: the segmented bar's shipped geometry and colours,
-  /// with [height] supplied by the component that resolves it.
+  /// Resolves the semantic fill colour for a given [tone] and [scheme].
+  static Color resolveToneColor({
+    required ColorScheme scheme,
+    required OrionProgressTone tone,
+  }) {
+    final bool isDark = scheme.brightness == Brightness.dark;
+    return switch (tone) {
+      OrionProgressTone.primary => scheme.primary,
+      OrionProgressTone.success =>
+        isDark ? const Color(0xFF22C55E) : const Color(0xFF16A34A),
+      OrionProgressTone.warning =>
+        isDark ? const Color(0xFFF59E0B) : const Color(0xFFD97706),
+      OrionProgressTone.error => scheme.error,
+    };
+  }
+
+  /// The built-in look, with [height] and [tone] supplied by the component
+  /// that resolves it.
   static OrionProgressStyle defaults({
     required ColorScheme scheme,
     required double height,
+    OrionProgressTone tone = OrionProgressTone.primary,
+    double size = 40.0,
+    double strokeWidth = 4.0,
   }) {
+    final Color fill = resolveToneColor(scheme: scheme, tone: tone);
     return OrionProgressStyle(
       trackColor: scheme.secondary,
-      fillColor: scheme.primary,
-      bufferColor: scheme.primary.withValues(alpha: 0.24),
+      fillColor: fill,
+      bufferColor: fill.withValues(alpha: 0.24),
       height: height,
       gap: OrionSpacing.space4,
       radius: BorderRadius.circular(OrionRadii.radiusPill),
+      size: size,
+      strokeWidth: strokeWidth,
+      strokeCap: StrokeCap.round,
       spring: const OrionSpringSpec(stiffness: 380, dampingRatio: 1),
     );
   }
@@ -136,6 +229,9 @@ class OrionProgressStyle {
         other.height == height &&
         other.gap == gap &&
         other.radius == radius &&
+        other.size == size &&
+        other.strokeWidth == strokeWidth &&
+        other.strokeCap == strokeCap &&
         other.spring == spring;
   }
 
@@ -147,6 +243,9 @@ class OrionProgressStyle {
     height,
     gap,
     radius,
+    size,
+    strokeWidth,
+    strokeCap,
     spring,
   ]);
 }

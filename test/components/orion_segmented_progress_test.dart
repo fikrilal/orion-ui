@@ -250,10 +250,50 @@ void main() {
         12,
       );
     });
+
+    testWidgets(
+      'clamps gap cleanly on narrow widths, formats clean float semantics, and supports tones',
+      (tester) async {
+        final SemanticsHandle handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: Center(
+                child: SizedBox(
+                  width: 120,
+                  child: OrionSegmentedProgress(
+                    count: 20,
+                    value: 1.333333333,
+                    tone: OrionProgressTone.success,
+                    style: OrionProgressStyle.from(gap: 12),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        expect(tester.takeException(), isNull);
+        expect(
+          tester.getSemantics(find.byType(OrionSegmentedProgress)).value,
+          '1.3 of 20',
+        );
+        expect(
+          _fillColors(tester).first,
+          OrionProgressStyle.resolveToneColor(
+            scheme: OrionColors.lightScheme,
+            tone: OrionProgressTone.success,
+          ),
+        );
+        handle.dispose();
+      },
+    );
   });
 
   group('OrionProgressStyle', () {
-    test('a merge only changes the fields it names', () {
+    test('a merge only changes the fields it names and theme lerp interpolates', () {
       const OrionProgressStyle base = OrionProgressStyle(
         trackColor: Color(0xFF111111),
         fillColor: Color(0xFF222222),
@@ -266,6 +306,16 @@ void main() {
       expect(merged.fillColor, const Color(0xFF333333));
       expect(merged.trackColor, const Color(0xFF111111));
       expect(merged.height, 8);
+
+      final OrionProgressTheme a = OrionProgressTheme(
+        defaultStyle: OrionProgressStyle.from(height: 4, gap: 4),
+      );
+      final OrionProgressTheme b = OrionProgressTheme(
+        defaultStyle: OrionProgressStyle.from(height: 12, gap: 12),
+      );
+      final OrionProgressTheme lerped = a.lerp(b, 0.5);
+      expect(lerped.defaultStyle?.height, 8.0);
+      expect(lerped.defaultStyle?.gap, 8.0);
     });
 
     test('defaults reproduce the shipped geometry', () {

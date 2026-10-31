@@ -54,6 +54,7 @@ export 'src/components/popover/orion_popover_geometry.dart';
 export 'src/components/popover/orion_popover_presets.dart';
 export 'src/components/popover/orion_popover_style.dart';
 export 'src/components/popover/orion_popover_theme.dart';
+export 'src/components/progress/orion_circular_progress.dart';
 export 'src/components/progress/orion_linear_progress.dart';
 export 'src/components/progress/orion_progress_style.dart';
 export 'src/components/progress/orion_progress_theme.dart';

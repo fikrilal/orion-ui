@@ -232,5 +232,104 @@ void main() {
       FlutterError.onError = previous;
       expect(errors.whereType<AssertionError>(), isNotEmpty);
     });
+
+    testWidgets('animates bufferedValue smoothly instead of snapping', (
+      tester,
+    ) async {
+      await _pumpBar(tester, value: 0.2, bufferedValue: 0.2);
+      await _pumpBar(tester, value: 0.2, bufferedValue: 0.8);
+      await tester.pump(const Duration(milliseconds: 16));
+
+      final Finder layers = find.descendant(
+        of: find.byType(OrionLinearProgress),
+        matching: find.byType(DecoratedBox),
+      );
+      final double midWidth = tester.getSize(layers.at(1)).width;
+      expect(midWidth, greaterThan(60.0));
+      expect(midWidth, lessThan(240.0));
+
+      await tester.pumpAndSettle();
+      expect(tester.getSize(layers.at(1)).width, closeTo(240.0, 0.1));
+    });
+
+    testWidgets(
+      'resets determinate spring when returning from indeterminate so it advances forward',
+      (tester) async {
+        await _pumpBar(tester, value: 0.9);
+        await tester.pumpAndSettle();
+        expect(_fillScale(tester), closeTo(0.9, 0.001));
+
+        // Switch to indeterminate, then back to 0.2.
+        await _pumpBar(tester, value: null);
+        await tester.pump(const Duration(milliseconds: 100));
+
+        await _pumpBar(tester, value: 0.2);
+        await tester.pump(const Duration(milliseconds: 16));
+
+        final double scale = _fillScale(tester);
+        expect(scale, greaterThan(0.0));
+        expect(
+          scale,
+          lessThanOrEqualTo(0.2),
+          reason: 'must animate forward from 0 -> 0.2, not backward from 0.9',
+        );
+        await tester.pumpAndSettle();
+        expect(_fillScale(tester), closeTo(0.2, 0.001));
+      },
+    );
+
+    testWidgets(
+      'guards NaN values, supports tones, pill sweep caps, and semanticValue override',
+      (tester) async {
+        final SemanticsHandle handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: const Scaffold(
+              body: Center(
+                child: SizedBox(
+                  width: 300,
+                  child: OrionLinearProgress(
+                    value: double.nan,
+                    bufferedValue: double.nan,
+                    tone: OrionProgressTone.error,
+                    semanticValue: 'Retrying',
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        expect(tester.takeException(), isNull);
+        expect(_fillScale(tester), 0.0);
+        expect(_colors(tester).last, OrionColors.lightScheme.error);
+        expect(
+          tester.getSemantics(find.byType(OrionLinearProgress)).value,
+          'Retrying',
+        );
+
+        // Indeterminate sweep lines inherit the pill borderRadius.
+        await _pumpBar(tester);
+        await tester.pump(const Duration(milliseconds: 250));
+        final Iterable<DecoratedBox> sweepBoxes = tester
+            .widgetList<PositionedDirectional>(
+              find.descendant(
+                of: find.byType(OrionLinearProgress),
+                matching: find.byType(PositionedDirectional),
+              ),
+            )
+            .map((PositionedDirectional p) => p.child as DecoratedBox);
+        expect(sweepBoxes, isNotEmpty);
+        for (final DecoratedBox box in sweepBoxes) {
+          expect(
+            (box.decoration as BoxDecoration).borderRadius,
+            BorderRadius.circular(OrionRadii.radiusPill),
+          );
+        }
+        handle.dispose();
+      },
+    );
   });
 }

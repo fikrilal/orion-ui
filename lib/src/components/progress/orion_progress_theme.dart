@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:orion_ui/src/components/progress/orion_progress_style.dart';
 
-/// Theme-level defaults for every progress bar.
+/// Theme-level defaults for every progress indicator.
 ///
 /// Installed through the theme's extension list - typically
 /// `OrionTheme.apply(base, extensions: [OrionProgressTheme(...)])` - so a
@@ -26,14 +26,18 @@ class OrionProgressTheme extends ThemeExtension<OrionProgressTheme> {
     return OrionProgressTheme(defaultStyle: defaultStyle ?? this.defaultStyle);
   }
 
-  /// Styles are discrete specs, not interpolable numbers; the theme animation
-  /// swaps at the midpoint, the same way the kit's springs do.
   @override
   OrionProgressTheme lerp(ThemeExtension<OrionProgressTheme>? other, double t) {
     if (other is! OrionProgressTheme) {
       return this;
     }
-    return t < 0.5 ? this : other;
+    return OrionProgressTheme(
+      defaultStyle: OrionProgressStyle.lerp(
+        defaultStyle,
+        other.defaultStyle,
+        t,
+      ),
+    );
   }
 
   @override

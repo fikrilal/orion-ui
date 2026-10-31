@@ -8,15 +8,17 @@ import 'package:orion_ui/src/motion/orion_spring_driver.dart';
 import 'package:orion_ui/src/motion/orion_spring_spec.dart';
 import 'package:orion_ui/src/theme/orion_tokens.dart';
 
+double _clampUnit(double value) => value.isFinite ? value.clamp(0.0, 1.0) : 0.0;
+
 /// A continuous progress bar from 0 through 1, determinate or indeterminate.
 ///
 /// [value] is clamped to 0 through 1. A null [value] reads as indeterminate:
-/// a bar that grows out of the leading edge, stretches across the track and
-/// sweeps through, with the next already growing before the previous leaves
-/// (Material's linear-indicator rhythm), resting as a static centred fill
-/// under reduced motion. [bufferedValue] paints the buffered (cached)
-/// layer between track and fill and is ignored while indeterminate. The parent
-/// owns the values, the bar does not take taps, and a bounded width is
+/// a pill-capped bar that grows out of the leading edge, stretches across the
+/// track and sweeps through, with the next already growing before the previous
+/// leaves (Material's linear-indicator rhythm), resting as a static centred
+/// fill under reduced motion. [bufferedValue] animates smoothly behind [value]
+/// on the same critically-damped spring and is ignored while indeterminate. The
+/// parent owns the values, the bar does not take taps, and a bounded width is
 /// required.
 ///
 /// Look and feel resolve in three layers, each overriding the last: the
@@ -29,19 +31,29 @@ class OrionLinearProgress extends StatefulWidget {
     super.key,
     this.value,
     this.bufferedValue,
+    this.tone = OrionProgressTone.primary,
     this.semanticLabel,
+    this.semanticValue,
     this.style,
   });
 
-  /// Progress from 0 through 1, clamped. Null reads as indeterminate.
+  /// Progress from 0 through 1, clamped (non-finite values map to 0). Null
+  /// reads as indeterminate.
   final double? value;
 
-  /// Buffered progress from 0 through 1, painted behind [value] and clamped.
-  /// Null paints no cache layer; the value is ignored while indeterminate.
+  /// Buffered progress from 0 through 1, smoothly animated behind [value] and
+  /// clamped. Null paints no cache layer; ignored while indeterminate.
   final double? bufferedValue;
+
+  /// Semantic colour tone. Defaults to [OrionProgressTone.primary].
+  final OrionProgressTone tone;
 
   /// Spoken name. Defaults to "Progress".
   final String? semanticLabel;
+
+  /// Optional spoken value override (e.g. `"340 MB of 1 GB"`). Defaults to the
+  /// rounded percentage when determinate, or null when indeterminate.
+  final String? semanticValue;
 
   /// Instance-level overrides, merged over the defaults and the ambient
   /// [OrionProgressTheme]. Only the fields set here change.
@@ -68,9 +80,12 @@ class _OrionLinearProgressState extends State<OrionLinearProgress>
   static const Duration _sweepDuration = Duration(milliseconds: 1800);
 
   late final OrionSpringDriver _driver;
+  late final OrionSpringDriver _bufferDriver;
   late final AnimationController _sweep;
   late double _paintMin;
   late double _paintMax;
+  late double _bufferPaintMin;
+  late double _bufferPaintMax;
   bool _reduced = false;
 
   bool get _indeterminate => widget.value == null;
@@ -78,14 +93,24 @@ class _OrionLinearProgressState extends State<OrionLinearProgress>
   @override
   void initState() {
     super.initState();
-    final double initial = (widget.value ?? 0).clamp(0.0, 1.0);
+    final double initial = widget.value == null ? 0.0 : _clampUnit(widget.value!);
+    final double initialBuffer = widget.bufferedValue == null
+        ? 0.0
+        : _clampUnit(widget.bufferedValue!);
     _driver = OrionSpringDriver(
       vsync: this,
       initialValue: initial,
       springSpec: _settle,
     );
+    _bufferDriver = OrionSpringDriver(
+      vsync: this,
+      initialValue: initialBuffer,
+      springSpec: _settle,
+    );
     _paintMin = initial;
     _paintMax = initial;
+    _bufferPaintMin = initialBuffer;
+    _bufferPaintMax = initialBuffer;
     _sweep = AnimationController(vsync: this, duration: _sweepDuration);
   }
 
@@ -96,12 +121,22 @@ class _OrionLinearProgressState extends State<OrionLinearProgress>
     _syncMotion();
     final bool becameReduced = _reduced && !_driver.reducedMotion;
     _driver.reducedMotion = _reduced;
+    _bufferDriver.reducedMotion = _reduced;
     if (becameReduced && !_indeterminate) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_driver.reducedMotion) {
+        if (!mounted || !_driver.reducedMotion || _indeterminate) {
           return;
         }
-        _driver.jumpTo((widget.value ?? 0).clamp(0.0, 1.0));
+        final double target = _clampUnit(widget.value!);
+        _paintMin = target;
+        _paintMax = target;
+        _driver.jumpTo(target);
+        if (widget.bufferedValue != null) {
+          final double bufTarget = _clampUnit(widget.bufferedValue!);
+          _bufferPaintMin = bufTarget;
+          _bufferPaintMax = bufTarget;
+          _bufferDriver.jumpTo(bufTarget);
+        }
       });
     }
     _syncSweep();
@@ -111,10 +146,32 @@ class _OrionLinearProgressState extends State<OrionLinearProgress>
   void didUpdateWidget(OrionLinearProgress oldWidget) {
     super.didUpdateWidget(oldWidget);
     _syncMotion();
-    if (widget.value != oldWidget.value) {
+
+    final bool wasIndeterminate = oldWidget.value == null;
+    if (wasIndeterminate != _indeterminate) {
       _syncSweep();
-      if (!_indeterminate) {
-        _sync();
+      if (_indeterminate) {
+        // Stop and reset determinate drivers while indeterminate so a later
+        // return to determinate always advances forward from 0 cleanly.
+        _paintMin = 0.0;
+        _paintMax = 0.0;
+        _driver.jumpTo(0.0);
+        _bufferPaintMin = 0.0;
+        _bufferPaintMax = 0.0;
+        _bufferDriver.jumpTo(0.0);
+        return;
+      }
+      _syncValue();
+      _syncBuffer(snapIfNew: true);
+      return;
+    }
+
+    if (!_indeterminate) {
+      if (widget.value != oldWidget.value) {
+        _syncValue();
+      }
+      if (widget.bufferedValue != oldWidget.bufferedValue) {
+        _syncBuffer(snapIfNew: oldWidget.bufferedValue == null);
       }
     }
   }
@@ -122,18 +179,21 @@ class _OrionLinearProgressState extends State<OrionLinearProgress>
   @override
   void dispose() {
     _sweep.dispose();
+    _bufferDriver.dispose();
     _driver.dispose();
     super.dispose();
   }
 
   void _syncMotion() {
     final OrionProgressStyle style = _resolve(Theme.of(context));
-    _driver.springSpec = style.spring ?? _settle;
+    final OrionSpringSpec spec = style.spring ?? _settle;
+    _driver.springSpec = spec;
+    _bufferDriver.springSpec = spec;
   }
 
-  void _sync() {
-    final double target = widget.value!.clamp(0.0, 1.0);
-    if (_driver.target == target) {
+  void _syncValue() {
+    final double target = _clampUnit(widget.value!);
+    if (_driver.target == target && _driver.value == target) {
       return;
     }
     _paintMin = math.min(_driver.value, target);
@@ -145,7 +205,32 @@ class _OrionLinearProgressState extends State<OrionLinearProgress>
     }
   }
 
+  void _syncBuffer({required bool snapIfNew}) {
+    if (widget.bufferedValue == null) {
+      _bufferPaintMin = 0.0;
+      _bufferPaintMax = 0.0;
+      _bufferDriver.jumpTo(0.0);
+      return;
+    }
+    final double target = _clampUnit(widget.bufferedValue!);
+    if (snapIfNew || _bufferDriver.reducedMotion) {
+      _bufferPaintMin = target;
+      _bufferPaintMax = target;
+      _bufferDriver.jumpTo(target);
+      return;
+    }
+    if (_bufferDriver.target == target) {
+      return;
+    }
+    _bufferPaintMin = math.min(_bufferDriver.value, target);
+    _bufferPaintMax = math.max(_bufferDriver.value, target);
+    _bufferDriver.retarget(target);
+  }
+
   double _painted(double current) => current.clamp(_paintMin, _paintMax);
+
+  double _paintedBuffer(double current) =>
+      current.clamp(_bufferPaintMin, _bufferPaintMax);
 
   void _syncSweep() {
     final bool shouldRun = _indeterminate && !_reduced;
@@ -165,15 +250,19 @@ class _OrionLinearProgressState extends State<OrionLinearProgress>
     return OrionProgressStyle.defaults(
       scheme: theme.colorScheme,
       height: _defaultHeight,
+      tone: widget.tone,
     ).merge(progressTheme.defaultStyle).merge(widget.style);
   }
 
   String? _valueText() {
+    if (widget.semanticValue != null) {
+      return widget.semanticValue;
+    }
     final double? value = widget.value;
     if (value == null) {
       return null;
     }
-    return '${(value.clamp(0.0, 1.0) * 100).round()}%';
+    return '${(_clampUnit(value) * 100).round()}%';
   }
 
   @override
@@ -187,9 +276,9 @@ class _OrionLinearProgressState extends State<OrionLinearProgress>
     final Color trackColor = style.trackColor ?? scheme.secondary;
     final Color fillColor = style.fillColor ?? scheme.primary;
     final Color bufferColor =
-        style.bufferColor ?? scheme.primary.withValues(alpha: 0.24);
-    final double? value = widget.value?.clamp(0.0, 1.0);
-    final double? buffered = widget.bufferedValue?.clamp(0.0, 1.0);
+        style.bufferColor ?? fillColor.withValues(alpha: 0.24);
+    final bool determinate = !_indeterminate;
+    final bool hasBuffer = determinate && widget.bufferedValue != null;
 
     return Semantics(
       container: true,
@@ -211,18 +300,27 @@ class _OrionLinearProgressState extends State<OrionLinearProgress>
                 fit: StackFit.expand,
                 children: <Widget>[
                   DecoratedBox(decoration: BoxDecoration(color: trackColor)),
-                  if (value != null && buffered != null)
-                    Align(
-                      alignment: AlignmentDirectional.centerStart,
-                      child: SizedBox(
-                        width: width * buffered,
-                        height: double.infinity,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(color: bufferColor),
-                        ),
+                  if (hasBuffer)
+                    AnimatedBuilder(
+                      animation: _bufferDriver,
+                      builder: (BuildContext context, Widget? child) {
+                        final double amount = _paintedBuffer(
+                          _bufferDriver.value,
+                        ).clamp(0.0, 1.0);
+                        return Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: SizedBox(
+                            width: width * amount,
+                            height: double.infinity,
+                            child: child,
+                          ),
+                        );
+                      },
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(color: bufferColor),
                       ),
                     ),
-                  if (value != null)
+                  if (determinate)
                     AnimatedBuilder(
                       animation: _driver,
                       builder: (BuildContext context, Widget? child) {
@@ -245,6 +343,7 @@ class _OrionLinearProgressState extends State<OrionLinearProgress>
                       reduced: _reduced,
                       width: width,
                       color: fillColor,
+                      radius: radius,
                     ),
                 ],
               ),
@@ -267,6 +366,7 @@ class _IndeterminateSweep extends StatelessWidget {
     required this.reduced,
     required this.width,
     required this.color,
+    required this.radius,
   });
 
   final AnimationController controller;
@@ -275,6 +375,7 @@ class _IndeterminateSweep extends StatelessWidget {
   /// The track's width, which the segment fractions resolve against.
   final double width;
   final Color color;
+  final BorderRadius radius;
 
   /// The static fill's width under reduced motion, as a fraction of the track.
   static const double _reducedFraction = 0.3;
@@ -310,7 +411,9 @@ class _IndeterminateSweep extends StatelessWidget {
         child: SizedBox(
           width: width * _reducedFraction,
           height: double.infinity,
-          child: DecoratedBox(decoration: BoxDecoration(color: color)),
+          child: DecoratedBox(
+            decoration: BoxDecoration(color: color, borderRadius: radius),
+          ),
         ),
       );
     }
@@ -341,7 +444,9 @@ class _IndeterminateSweep extends StatelessWidget {
         width: (head - tail) * width,
         top: 0,
         bottom: 0,
-        child: DecoratedBox(decoration: BoxDecoration(color: color)),
+        child: DecoratedBox(
+          decoration: BoxDecoration(color: color, borderRadius: radius),
+        ),
       ),
     ];
   }

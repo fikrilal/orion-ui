@@ -23,7 +23,9 @@ class OrionSegmentedProgress extends StatefulWidget {
     super.key,
     required this.count,
     required this.value,
+    this.tone = OrionProgressTone.primary,
     this.semanticLabel,
+    this.semanticValue,
     this.style,
   });
 
@@ -34,8 +36,14 @@ class OrionSegmentedProgress extends StatefulWidget {
   /// A fraction fills the next segment by that fraction.
   final double value;
 
+  /// Semantic colour tone. Defaults to [OrionProgressTone.primary].
+  final OrionProgressTone tone;
+
   /// Spoken name. Defaults to "Progress".
   final String? semanticLabel;
+
+  /// Optional spoken value override (e.g. `"Step 2 of 4 — Shipping"`).
+  final String? semanticValue;
 
   /// Instance-level overrides, merged over the defaults and the ambient
   /// [OrionProgressTheme]. Only the fields set here change.
@@ -60,17 +68,25 @@ class _OrionSegmentedProgressState extends State<OrionSegmentedProgress>
   late double _paintMin;
   late double _paintMax;
 
+  double get _clampedValue {
+    if (widget.count < 1 || !widget.value.isFinite) {
+      return 0.0;
+    }
+    return widget.value.clamp(0.0, widget.count.toDouble());
+  }
+
   @override
   void initState() {
     super.initState();
     _debugValidate();
+    final double initial = _clampedValue;
     _driver = OrionSpringDriver(
       vsync: this,
-      initialValue: widget.value,
+      initialValue: initial,
       springSpec: _settle,
     );
-    _paintMin = widget.value;
-    _paintMax = widget.value;
+    _paintMin = initial;
+    _paintMax = initial;
   }
 
   @override
@@ -85,7 +101,10 @@ class _OrionSegmentedProgressState extends State<OrionSegmentedProgress>
         if (!mounted || !_driver.reducedMotion) {
           return;
         }
-        _driver.jumpTo(widget.value);
+        final double target = _clampedValue;
+        _paintMin = target;
+        _paintMax = target;
+        _driver.jumpTo(target);
       });
     }
   }
@@ -107,8 +126,10 @@ class _OrionSegmentedProgressState extends State<OrionSegmentedProgress>
   void _debugValidate() {
     assert(widget.count >= 1, 'count must be at least 1');
     assert(
-      widget.value >= 0 && widget.value <= widget.count,
-      'value must be from 0 through count',
+      widget.value.isFinite &&
+          widget.value >= 0 &&
+          widget.value <= widget.count,
+      'value must be finite and from 0 through count',
     );
   }
 
@@ -118,8 +139,8 @@ class _OrionSegmentedProgressState extends State<OrionSegmentedProgress>
   }
 
   void _sync() {
-    final double target = widget.value;
-    if (_driver.target == target) {
+    final double target = _clampedValue;
+    if (_driver.target == target && _driver.value == target) {
       return;
     }
     _paintMin = math.min(_driver.value, target);
@@ -134,10 +155,14 @@ class _OrionSegmentedProgressState extends State<OrionSegmentedProgress>
   double _painted(double current) => current.clamp(_paintMin, _paintMax);
 
   String _valueText() {
-    final double value = widget.value;
-    final String shown = value == value.roundToDouble()
-        ? value.toInt().toString()
-        : value.toString();
+    if (widget.semanticValue != null) {
+      return widget.semanticValue!;
+    }
+    final double value = _clampedValue;
+    final double rounded = (value * 10).round() / 10;
+    final String shown = rounded == rounded.roundToDouble()
+        ? rounded.toInt().toString()
+        : rounded.toStringAsFixed(1);
     return '$shown of ${widget.count}';
   }
 
@@ -147,6 +172,7 @@ class _OrionSegmentedProgressState extends State<OrionSegmentedProgress>
     return OrionProgressStyle.defaults(
       scheme: theme.colorScheme,
       height: _defaultHeight,
+      tone: widget.tone,
     ).merge(progressTheme.defaultStyle).merge(widget.style);
   }
 
@@ -158,6 +184,7 @@ class _OrionSegmentedProgressState extends State<OrionSegmentedProgress>
     final BorderRadius radius =
         style.radius ?? BorderRadius.circular(OrionRadii.radiusPill);
     final double gap = style.gap ?? OrionSpacing.space4;
+
     return Semantics(
       container: true,
       label: widget.semanticLabel ?? 'Progress',
@@ -168,13 +195,19 @@ class _OrionSegmentedProgressState extends State<OrionSegmentedProgress>
             constraints.hasBoundedWidth,
             'OrionSegmentedProgress requires a bounded width.',
           );
+          final double maxWidth = constraints.maxWidth;
+          final double maxSafeGap = widget.count > 1
+              ? math.max(0.0, (maxWidth - widget.count) / (widget.count - 1))
+              : 0.0;
+          final double effectiveGap = math.min(gap, maxSafeGap);
+
           return SizedBox(
-            width: constraints.maxWidth,
+            width: maxWidth,
             height: style.height ?? _defaultHeight,
             child: Row(
               children: <Widget>[
                 for (int index = 0; index < widget.count; index++) ...<Widget>[
-                  if (index > 0) SizedBox(width: gap),
+                  if (index > 0) SizedBox(width: effectiveGap),
                   Expanded(
                     child: _ProgressSegment(
                       driver: _driver,
@@ -219,9 +252,7 @@ class _ProgressSegment extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: <Widget>[
-          DecoratedBox(
-            decoration: BoxDecoration(color: trackColor, borderRadius: radius),
-          ),
+          DecoratedBox(decoration: BoxDecoration(color: trackColor)),
           AnimatedBuilder(
             animation: driver,
             builder: (BuildContext context, Widget? child) {

@@ -26,14 +26,14 @@ class OrionRadioTheme extends ThemeExtension<OrionRadioTheme> {
     return OrionRadioTheme(defaultStyle: defaultStyle ?? this.defaultStyle);
   }
 
-  /// Styles are discrete specs, not interpolable numbers; the theme animation
-  /// swaps at the midpoint, the same way the kit's springs do.
   @override
   OrionRadioTheme lerp(ThemeExtension<OrionRadioTheme>? other, double t) {
     if (other is! OrionRadioTheme) {
       return this;
     }
-    return t < 0.5 ? this : other;
+    return OrionRadioTheme(
+      defaultStyle: OrionRadioStyle.lerp(defaultStyle, other.defaultStyle, t),
+    );
   }
 
   @override

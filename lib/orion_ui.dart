@@ -60,6 +60,7 @@ export 'src/components/progress/orion_progress_style.dart';
 export 'src/components/progress/orion_progress_theme.dart';
 export 'src/components/progress/orion_segmented_progress.dart';
 export 'src/components/radio/orion_radio.dart';
+export 'src/components/radio/orion_radio_group.dart';
 export 'src/components/radio/orion_radio_presets.dart';
 export 'src/components/radio/orion_radio_style.dart';
 export 'src/components/radio/orion_radio_theme.dart';

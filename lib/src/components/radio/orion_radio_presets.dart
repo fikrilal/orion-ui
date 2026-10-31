@@ -9,9 +9,16 @@ import 'package:orion_ui/src/theme/orion_tokens.dart';
 ///
 /// This is the bottom layer of the circle's three-layer resolution: the size
 /// steps the circle and the dot as real geometry, the medium size reproduces
-/// the shipped 24 pt circle exactly, and the selection travel keeps the kit's
-/// gentle spring.
+/// the shipped 24 pt circle, and the selection travel matches
+/// `OrionCheckboxPresets.defaultSpring` (`k = 520, zeta = 0.80`) so sibling
+/// form controls feel cohesive side-by-side.
 abstract final class OrionRadioPresets {
+  /// Default crisp spring for radio selection transitions.
+  static const OrionSpringSpec defaultSpring = OrionSpringSpec(
+    stiffness: 520.0,
+    dampingRatio: 0.80,
+  );
+
   /// Resolves the built-in style against the ambient scheme.
   static OrionRadioStyle resolve({
     required OrionRadioSize size,
@@ -39,9 +46,13 @@ abstract final class OrionRadioPresets {
         if (states.contains(WidgetState.error)) {
           return scheme.error;
         }
-        return states.contains(WidgetState.selected)
-            ? scheme.primary
-            : scheme.outline;
+        if (states.contains(WidgetState.selected)) {
+          return scheme.primary;
+        }
+        if (states.contains(WidgetState.hovered)) {
+          return Color.lerp(scheme.outline, scheme.onSurface, 0.25);
+        }
+        return scheme.outline;
       }),
       dotColor: WidgetStateProperty.resolveWith<Color?>((
         Set<WidgetState> states,
@@ -53,12 +64,14 @@ abstract final class OrionRadioPresets {
             ? scheme.error
             : scheme.primary;
       }),
-      fillColor: WidgetStatePropertyAll<Color?>(Colors.transparent),
+      fillColor: const WidgetStatePropertyAll<Color?>(Colors.transparent),
       size: circle,
       dotSize: dot,
       borderWidth: 2,
+      pressedScale: 0.90,
       focusOverlayColor: scheme.onSurface.withValues(alpha: 0.12),
-      spring: OrionSpringSpec.gentle,
+      hoverOverlayColor: scheme.onSurface.withValues(alpha: 0.05),
+      spring: defaultSpring,
     );
   }
 }

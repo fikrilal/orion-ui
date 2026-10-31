@@ -1,4 +1,4 @@
-import 'dart:ui' show CheckedState, Tristate;
+import 'dart:ui' show CheckedState, PointerDeviceKind, Tristate;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -739,10 +739,19 @@ void main() {
       expect(style.size, OrionSizing.iconMedium);
       expect(style.dotSize, OrionSizing.iconSmall * 0.5);
       expect(style.borderWidth, 2);
-      expect(style.spring, OrionSpringSpec.gentle);
+      expect(style.pressedScale, 0.90);
+      expect(style.spring, OrionRadioPresets.defaultSpring);
       expect(
         style.ringColor?.resolve(const <WidgetState>{}),
         OrionColors.lightScheme.outline,
+      );
+      expect(
+        style.ringColor?.resolve(const <WidgetState>{WidgetState.hovered}),
+        Color.lerp(
+          OrionColors.lightScheme.outline,
+          OrionColors.lightScheme.onSurface,
+          0.25,
+        ),
       );
       expect(
         style.ringColor?.resolve(const <WidgetState>{WidgetState.selected}),
@@ -755,6 +764,10 @@ void main() {
       expect(
         style.fillColor?.resolve(const <WidgetState>{}),
         Colors.transparent,
+      );
+      expect(
+        style.hoverOverlayColor,
+        OrionColors.lightScheme.onSurface.withValues(alpha: 0.05),
       );
     });
 
@@ -772,6 +785,264 @@ void main() {
         Colors.transparent,
         reason: 'the interior stays transparent while unselected',
       );
+    });
+
+    test('lerp interpolates scalars, colours, and theme extensions', () {
+      final OrionRadioStyle a = OrionRadioStyle.from(
+        ringColor: const Color(0xFF000000),
+        dotColor: const Color(0xFF000000),
+        fillColor: const Color(0xFF000000),
+        size: 20,
+        dotSize: 6,
+        borderWidth: 1,
+        pressedScale: 0.88,
+        focusOverlayColor: const Color(0x00000000),
+        hoverOverlayColor: const Color(0x00000000),
+      );
+      final OrionRadioStyle b = OrionRadioStyle.from(
+        ringColor: const Color(0xFFFFFFFF),
+        dotColor: const Color(0xFFFFFFFF),
+        fillColor: const Color(0xFFFFFFFF),
+        size: 28,
+        dotSize: 10,
+        borderWidth: 3,
+        pressedScale: 0.96,
+        focusOverlayColor: const Color(0xFF000000),
+        hoverOverlayColor: const Color(0xFF000000),
+      );
+
+      final OrionRadioTheme lerpedTheme = OrionRadioTheme(
+        defaultStyle: a,
+      ).lerp(OrionRadioTheme(defaultStyle: b), 0.5);
+      final OrionRadioStyle mid = lerpedTheme.defaultStyle!;
+
+      expect(mid.size, closeTo(24, 0.001));
+      expect(mid.dotSize, closeTo(8, 0.001));
+      expect(mid.borderWidth, closeTo(2, 0.001));
+      expect(mid.pressedScale, closeTo(0.92, 0.001));
+      expect(
+        mid.ringColor?.resolve(const <WidgetState>{}),
+        Color.lerp(const Color(0xFF000000), const Color(0xFFFFFFFF), 0.5),
+      );
+      expect(
+        mid.fillColor?.resolve(const <WidgetState>{WidgetState.selected}),
+        Color.lerp(const Color(0xFF000000), const Color(0xFFFFFFFF), 0.5),
+      );
+      expect(
+        mid.focusOverlayColor,
+        Color.lerp(const Color(0x00000000), const Color(0xFF000000), 0.5),
+      );
+      expect(
+        mid.hoverOverlayColor,
+        Color.lerp(const Color(0x00000000), const Color(0xFF000000), 0.5),
+      );
+    });
+  });
+
+  group('OrionRadio upgrades', () {
+    testWidgets('resolves custom unselected fillColor without dropping it', (
+      tester,
+    ) async {
+      const Color restFill = Color(0xFFEEEEEE);
+      const Color selectedFill = Color(0xFF222222);
+      final OrionRadioStyle style = OrionRadioStyle(
+        fillColor: WidgetStateProperty.resolveWith<Color?>(
+          (Set<WidgetState> states) =>
+              states.contains(WidgetState.selected) ? selectedFill : restFill,
+        ),
+      );
+
+      await _pumpRadio(
+        tester,
+        value: false,
+        onChanged: (_) {},
+        disableAnimations: true,
+        style: style,
+      );
+      await tester.pump();
+
+      final ColoredBox restingInterior = tester.widget<ColoredBox>(
+        find
+            .descendant(
+              of: find.byType(OrionRadio),
+              matching: find.byType(ColoredBox),
+            )
+            .last,
+      );
+      expect(restingInterior.color, restFill);
+
+      await _pumpRadio(
+        tester,
+        value: true,
+        onChanged: (_) {},
+        disableAnimations: true,
+        style: style,
+      );
+      await tester.pump();
+
+      final ColoredBox selectedInterior = tester.widget<ColoredBox>(
+        find
+            .descendant(
+              of: find.byType(OrionRadio),
+              matching: find.byType(ColoredBox),
+            )
+            .last,
+      );
+      expect(selectedInterior.color, selectedFill);
+    });
+
+    testWidgets('expands hit target for custom sizes larger than 44 pt', (
+      tester,
+    ) async {
+      await _pumpRadio(
+        tester,
+        value: true,
+        onChanged: (_) {},
+        disableAnimations: true,
+        style: OrionRadioStyle.from(size: 56),
+      );
+      await tester.pump();
+
+      expect(tester.getSize(find.byType(OrionRadio)), const Size(56, 56));
+      expect(
+        tester.getSize(find.byType(DecoratedBox).first),
+        const Size(56, 56),
+      );
+    });
+
+    testWidgets('omits border cleanly when borderWidth is zero or negative', (
+      tester,
+    ) async {
+      await _pumpRadio(
+        tester,
+        value: false,
+        onChanged: (_) {},
+        disableAnimations: true,
+        style: OrionRadioStyle.from(borderWidth: 0),
+      );
+      expect(_ring(tester).border, isNull);
+
+      await _pumpRadio(
+        tester,
+        value: false,
+        onChanged: (_) {},
+        disableAnimations: true,
+        style: OrionRadioStyle.from(borderWidth: -2),
+      );
+      expect(tester.takeException(), isNull);
+      expect(_ring(tester).border, isNull);
+    });
+
+    testWidgets('shows hover overlay and ring emphasis on pointer hover', (
+      tester,
+    ) async {
+      await _pumpRadio(tester, value: false, onChanged: (_) {});
+
+      final TestGesture mouse = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+      );
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await tester.pump();
+
+      await mouse.moveTo(tester.getCenter(find.byType(OrionRadio)));
+      await tester.pump();
+
+      final ColoredBox hoverHalo = tester.widget<ColoredBox>(
+        find
+            .descendant(
+              of: find.byType(OrionRadio),
+              matching: find.byType(ColoredBox),
+            )
+            .first,
+      );
+      expect(
+        hoverHalo.color,
+        OrionColors.lightScheme.onSurface.withValues(alpha: 0.05),
+      );
+      expect(
+        _ringBorder(tester).color,
+        Color.lerp(
+          OrionColors.lightScheme.outline,
+          OrionColors.lightScheme.onSurface,
+          0.25,
+        ),
+      );
+
+      await mouse.moveTo(Offset.zero);
+      await tester.pump();
+      expect(_ringBorder(tester).color, OrionColors.lightScheme.outline);
+    });
+
+    testWidgets('stays silent when retapping an already-selected radio', (
+      tester,
+    ) async {
+      final List<String> haptics = <String>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (MethodCall call) async {
+          if (call.method == 'HapticFeedback.vibrate') {
+            haptics.add(call.arguments.toString());
+          }
+          return null;
+        },
+      );
+      addTearDown(() {
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        );
+      });
+
+      bool? reported;
+      await _pumpRadio(
+        tester,
+        value: true,
+        onChanged: (bool value) => reported = value,
+      );
+
+      await tester.tap(find.byType(OrionRadio));
+      await tester.pump();
+
+      expect(reported, isTrue);
+      expect(haptics, isEmpty);
+    });
+
+    testWidgets('supports clickable label and subtitle rows', (tester) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      bool? reported;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: Scaffold(
+            body: Center(
+              child: OrionRadio(
+                value: false,
+                label: 'Annual billing',
+                subtitle: 'Save 20% every year',
+                onChanged: (bool value) => reported = value,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Annual billing'), findsOneWidget);
+      expect(find.text('Save 20% every year'), findsOneWidget);
+
+      final SemanticsNode node = tester.getSemantics(find.byType(OrionRadio));
+      expect(node.label, 'Annual billing');
+
+      await tester.tap(find.text('Annual billing'));
+      await tester.pump();
+      expect(reported, isTrue);
+
+      reported = null;
+      await tester.tap(find.text('Save 20% every year'));
+      await tester.pump();
+      expect(reported, isTrue);
+      handle.dispose();
     });
   });
 }

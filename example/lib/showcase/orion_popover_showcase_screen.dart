@@ -27,13 +27,24 @@ enum _PopoverSkinChoice { standard, frosted, bordered }
 
 class _OrionPopoverShowcaseScreenState
     extends State<OrionPopoverShowcaseScreen> {
+  final GlobalKey _imperativeBtnKey = GlobalKey();
+  final OrionPopoverController _profileController = OrionPopoverController();
+
   _PopoverPlacementChoice _placement = _PopoverPlacementChoice.bottomStart;
   _TriggerAlignChoice _triggerAlign = _TriggerAlignChoice.center;
   _PopoverSkinChoice _skin = _PopoverSkinChoice.standard;
   bool _showArrow = false;
   bool _frosted = false;
+  bool _cascade = true;
 
   String _selectedAction = 'None';
+  String _sortBy = 'Recent';
+
+  @override
+  void dispose() {
+    _profileController.dispose();
+    super.dispose();
+  }
 
   OrionPopoverPlacement get _activePlacement => switch (_placement) {
     _PopoverPlacementChoice.bottomStart => OrionPopoverPlacement.bottomStart,
@@ -50,7 +61,7 @@ class _OrionPopoverShowcaseScreenState
     _TriggerAlignChoice.end => Alignment.centerRight,
   };
 
-  OrionPopoverStyle? _resolveSkinStyle(ColorScheme scheme) {
+  OrionPopoverStyle _resolveSkinStyle(ColorScheme scheme) {
     final OrionPopoverStyle base = switch (_skin) {
       _PopoverSkinChoice.standard => const OrionPopoverStyle(),
       _PopoverSkinChoice.frosted => OrionPopoverStyle.from(frosted: true),
@@ -72,59 +83,84 @@ class _OrionPopoverShowcaseScreenState
     if (_showArrow) {
       lines.add('  showArrow: true,');
     }
+    if (_cascade) {
+      lines.add('  cascade: true,');
+    }
     if (_frosted || _skin == _PopoverSkinChoice.frosted) {
       lines.add('  style: OrionPopoverStyle.from(frosted: true),');
+    } else if (_skin == _PopoverSkinChoice.bordered) {
+      lines.add(
+        '  style: OrionPopoverStyle.from(borderWidth: 2, borderColor: scheme.primary),',
+      );
     }
     lines.addAll(<String>[
       '  triggerBuilder: (context, controller) => OrionButton(',
       '    variant: OrionButtonVariant.solid,',
       '    onPressed: controller.toggle,',
-      '    child: const Text("Actions"),',
+      '    child: const Text("Options Menu"),',
       '  ),',
       '  items: [',
-      '    OrionMenuItem(title: "Edit", leading: Icon(Icons.edit_rounded)),',
-      '    OrionMenuItem(title: "Share", leading: Icon(Icons.share_rounded)),',
+      '    const OrionMenuItem.header("ACTIONS"),',
+      '    OrionMenuItem(title: "Copy Link", leading: Icon(Icons.link_rounded)),',
+      '    OrionMenuItem(title: "Share File", subtitle: "Invite team members"),',
       '    const OrionMenuItem.divider(),',
-      '    OrionMenuItem(title: "Delete", destructive: true),',
+      '    OrionMenuItem(title: "Delete Item", destructive: true),',
       '  ],',
       ');',
     ]);
     return lines.join('\n');
   }
 
-  void _openImperativeMenu(BuildContext context, GlobalKey buttonKey) {
+  Future<void> _openImperativeMenu(BuildContext context) async {
     final RenderBox? box =
-        buttonKey.currentContext?.findRenderObject() as RenderBox?;
+        _imperativeBtnKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null) return;
     final Offset origin = box.localToGlobal(Offset.zero);
     final Rect rect = origin & box.size;
 
-    showOrionMenu<void>(
+    final String? result = await showOrionMenu<String>(
       context: context,
       anchorRect: rect,
       placement: _activePlacement,
       showArrow: _showArrow,
+      cascade: _cascade,
       style: _resolveSkinStyle(Theme.of(context).colorScheme),
-      items: [
+      items: <OrionMenuItem>[
+        const OrionMenuItem.header('SORT BY'),
+        OrionMenuItem(
+          title: 'Recent',
+          value: 'Recent',
+          selected: _sortBy == 'Recent',
+          onTap: () => setState(() => _sortBy = 'Recent'),
+        ),
+        OrionMenuItem(
+          title: 'Name (A–Z)',
+          value: 'Name (A–Z)',
+          selected: _sortBy == 'Name (A–Z)',
+          onTap: () => setState(() => _sortBy = 'Name (A–Z)'),
+        ),
+        const OrionMenuItem.divider(),
         OrionMenuItem(
           title: 'Quick Preview',
+          value: 'Quick Preview',
           leading: const Icon(Icons.visibility_rounded),
-          onTap: () => setState(() => _selectedAction = 'Quick Preview'),
         ),
         OrionMenuItem(
           title: 'Download Copy',
+          value: 'Download Copy',
           leading: const Icon(Icons.download_rounded),
-          onTap: () => setState(() => _selectedAction = 'Download Copy'),
         ),
         const OrionMenuItem.divider(),
         OrionMenuItem(
           title: 'Trash Item',
+          value: 'Trash Item',
           leading: const Icon(Icons.delete_outline_rounded),
           destructive: true,
-          onTap: () => setState(() => _selectedAction = 'Trash Item'),
         ),
       ],
     );
+    if (!mounted || result == null) return;
+    setState(() => _selectedAction = result);
   }
 
   @override
@@ -132,7 +168,6 @@ class _OrionPopoverShowcaseScreenState
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
-    final GlobalKey imperativeBtnKey = GlobalKey();
 
     return OrionThemedScaffold(
       title: 'Orion Popover & Menu',
@@ -175,7 +210,7 @@ class _OrionPopoverShowcaseScreenState
                   ),
                   const SizedBox(height: OrionSpacing.space8),
                   Text(
-                    'Origin-aware floating menus and contextual popovers scaling directly from trigger anchors with collision auto-flipping.',
+                    'Origin-aware floating menus and popovers with reactive skins, hover/press row highlights, seamless arrows, section headers, checkmarks, and keyboard navigation.',
                     style: TextStyle(
                       fontSize: 13,
                       height: 1.45,
@@ -190,7 +225,7 @@ class _OrionPopoverShowcaseScreenState
             OrionShowcaseSection(
               title: 'Interactive Playground',
               subtitle:
-                  'Tap the trigger button to blossom the popover outward from its anchor',
+                  'Switch skins, toggle arrow/frosted/cascade, or use arrow keys + Enter inside the menu',
               card: true,
               child: OrionShowcasePanel(
                 key: const ValueKey<String>('showcase-panel-playground'),
@@ -203,21 +238,17 @@ class _OrionPopoverShowcaseScreenState
                       padding: const EdgeInsets.all(OrionSpacing.space20),
                       decoration: BoxDecoration(
                         color: isDark
-                            ? scheme.surfaceContainerLowest
+                            ? scheme.surface
                             : scheme.surfaceContainerLowest,
                         borderRadius: BorderRadius.circular(OrionRadii.radius12),
-                        border: Border.all(
-                          color: isDark
-                              ? scheme.outlineVariant.withValues(alpha: 0.15)
-                              : scheme.outlineVariant.withValues(alpha: 0.30),
-                          width: 1,
-                        ),
+                        border: Border.all(color: scheme.outlineVariant),
                       ),
                       child: Align(
                         alignment: _stageAlignment,
                         child: OrionMenu(
                           placement: _activePlacement,
                           showArrow: _showArrow,
+                          cascade: _cascade,
                           style: _resolveSkinStyle(scheme),
                           triggerBuilder: (context, controller) => OrionButton(
                             variant: OrionButtonVariant.solid,
@@ -229,7 +260,8 @@ class _OrionPopoverShowcaseScreenState
                             ),
                             child: const Text('Options Menu'),
                           ),
-                          items: [
+                          items: <OrionMenuItem>[
+                            const OrionMenuItem.header('ACTIONS'),
                             OrionMenuItem(
                               title: 'Copy Link',
                               leading: const Icon(Icons.link_rounded),
@@ -246,10 +278,21 @@ class _OrionPopoverShowcaseScreenState
                               ),
                             ),
                             OrionMenuItem(
-                              title: 'Archive',
-                              leading: const Icon(Icons.archive_outlined),
-                              onTap: () =>
-                                  setState(() => _selectedAction = 'Archive'),
+                              title: 'Sort: $_sortBy',
+                              leading: const Icon(Icons.sort_rounded),
+                              selected: true,
+                              closeOnTap: false,
+                              onTap: () => setState(() {
+                                _sortBy = _sortBy == 'Recent'
+                                    ? 'Name (A–Z)'
+                                    : 'Recent';
+                                _selectedAction = 'Sort: $_sortBy';
+                              }),
+                            ),
+                            const OrionMenuItem(
+                              title: 'Export PDF',
+                              leading: Icon(Icons.picture_as_pdf_outlined),
+                              enabled: false,
                             ),
                             const OrionMenuItem.divider(),
                             OrionMenuItem(
@@ -319,6 +362,12 @@ class _OrionPopoverShowcaseScreenState
                         ),
                       ],
                     ),
+                    const SizedBox(height: OrionSpacing.space12),
+                    OrionShowcaseToggle(
+                      label: 'Cascade reveal',
+                      value: _cascade,
+                      onChanged: (val) => setState(() => _cascade = val),
+                    ),
                     Padding(
                       padding: const EdgeInsets.only(top: OrionSpacing.space12),
                       child: Text(
@@ -341,7 +390,7 @@ class _OrionPopoverShowcaseScreenState
             OrionShowcaseSection(
               title: 'Frosted Glass Surface',
               subtitle:
-                  'Static blur isolation filters colorful backgrounds behind the popover without per-frame GPU re-sampling',
+                  'Static blur isolation filters rich color behind the popover without re-sampling the full screen',
               card: true,
               child: Container(
                 width: double.infinity,
@@ -349,7 +398,17 @@ class _OrionPopoverShowcaseScreenState
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(OrionRadii.radius12),
                   gradient: LinearGradient(
-                    colors: [scheme.primaryContainer, scheme.tertiaryContainer],
+                    colors: isDark
+                        ? const <Color>[
+                            Color(0xFF1E293B),
+                            Color(0xFF312E81),
+                            Color(0xFF0F766E),
+                          ]
+                        : const <Color>[
+                            Color(0xFFE0E7FF),
+                            Color(0xFFFCE7F3),
+                            Color(0xFFCCFBF1),
+                          ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -365,7 +424,9 @@ class _OrionPopoverShowcaseScreenState
                             vertical: 3,
                           ),
                           decoration: BoxDecoration(
-                            color: scheme.surface.withValues(alpha: 0.85),
+                            color: scheme.surfaceContainer.withValues(
+                              alpha: 0.85,
+                            ),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
@@ -394,7 +455,7 @@ class _OrionPopoverShowcaseScreenState
                       'Tap below to open the frosted popover menu directly over this colorful gradient to verify the blur.',
                       style: TextStyle(
                         fontSize: 12,
-                        color: scheme.onSurfaceVariant,
+                        color: scheme.onSurface.withValues(alpha: 0.72),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -410,7 +471,7 @@ class _OrionPopoverShowcaseScreenState
                           leading: const Icon(Icons.blur_on_rounded, size: 18),
                           child: const Text('Open Frosted Menu'),
                         ),
-                        items: [
+                        items: <OrionMenuItem>[
                           OrionMenuItem(
                             title: 'View Analytics',
                             leading: const Icon(Icons.insights_rounded),
@@ -446,13 +507,13 @@ class _OrionPopoverShowcaseScreenState
             OrionShowcaseSection(
               title: 'Imperative `showOrionMenu`',
               subtitle:
-                  'Present a contextual floating menu on the navigator from anywhere using an anchor rect',
+                  'Present a typed modal menu from any anchor rect with section headers, checkmarks, and keyboard nav',
               card: true,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Tap the button below to trigger the imperative modal route menu. The route anchors to the button bounds and supports tap-outside / hardware back dismiss.',
+                    'Tap the button below to trigger the imperative route menu. Returns the selected value cleanly and dismisses with zero close cooldown.',
                     style: TextStyle(
                       fontSize: 13,
                       color: scheme.onSurfaceVariant,
@@ -460,10 +521,9 @@ class _OrionPopoverShowcaseScreenState
                   ),
                   const SizedBox(height: OrionSpacing.space16),
                   OrionButton(
-                    key: imperativeBtnKey,
+                    key: _imperativeBtnKey,
                     variant: OrionButtonVariant.bordered,
-                    onPressed: () =>
-                        _openImperativeMenu(context, imperativeBtnKey),
+                    onPressed: () => _openImperativeMenu(context),
                     leading: const Icon(Icons.open_in_new_rounded, size: 18),
                     child: const Text('Open Imperative Menu'),
                   ),
@@ -476,10 +536,11 @@ class _OrionPopoverShowcaseScreenState
             OrionShowcaseSection(
               title: 'Custom Popover Content',
               subtitle:
-                  '`OrionPopover` accepts any arbitrary widget subtree for rich tooltips, profile cards, or filters',
+                  '`OrionPopover` accepts any arbitrary widget subtree for rich cards, filters, or forms',
               card: true,
               child: Center(
                 child: OrionPopover(
+                  controller: _profileController,
                   placement: OrionPopoverPlacement.bottomCenter,
                   showArrow: true,
                   style: OrionPopoverStyle.from(
@@ -489,9 +550,9 @@ class _OrionPopoverShowcaseScreenState
                   triggerBuilder: (context, controller) => OrionButton(
                     variant: OrionButtonVariant.flat,
                     onPressed: controller.toggle,
-                    child: Row(
+                    child: const Row(
                       mainAxisSize: MainAxisSize.min,
-                      children: const [
+                      children: <Widget>[
                         Icon(Icons.account_circle_outlined, size: 20),
                         SizedBox(width: 8),
                         Text('Profile Card Popover'),
@@ -526,7 +587,10 @@ class _OrionPopoverShowcaseScreenState
                         child: OrionButton(
                           size: OrionButtonSize.small,
                           variant: OrionButtonVariant.bordered,
-                          onPressed: () {},
+                          onPressed: () {
+                            _profileController.hide();
+                            setState(() => _selectedAction = 'Manage Account');
+                          },
                           child: const Text('Manage Account'),
                         ),
                       ),

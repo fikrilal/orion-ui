@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:orion_ui_example/showcase/orion_showcase_kit.dart';
 import 'package:orion_ui_example/showcase/orion_showcase_scaffold.dart';
 import 'package:orion_ui/orion_ui.dart';
@@ -11,7 +12,7 @@ class OrionOtpShowcaseScreen extends StatefulWidget {
   State<OrionOtpShowcaseScreen> createState() => _OrionOtpShowcaseScreenState();
 }
 
-enum _OtpLengthChoice { four, six }
+enum _OtpLengthChoice { four, six, eight }
 
 enum _OtpStatusChoice { idle, error, success }
 
@@ -21,19 +22,26 @@ class _OrionOtpShowcaseScreenState extends State<OrionOtpShowcaseScreen> {
   final OrionOtpController _playgroundController = OrionOtpController();
   final OrionOtpController _groupedController = OrionOtpController();
   final OrionOtpController _pinController = OrionOtpController();
+  final OrionOtpController _inviteController = OrionOtpController();
 
+  OrionOtpVariant _variant = OrionOtpVariant.outline;
   _OtpLengthChoice _lengthChoice = _OtpLengthChoice.six;
   _OtpStatusChoice _statusChoice = _OtpStatusChoice.idle;
   _OtpGroupChoice _groupChoice = _OtpGroupChoice.none;
   bool _obscureText = false;
   bool _delayedObscure = true;
+  bool _disabled = false;
+  bool _showPlaceholder = false;
 
   String _lastCompletedCode = 'None';
-  String _pinVerificationResult = 'Enter 4-digit PIN (Try 1234)';
+  OrionOtpStatus _pinStatus = OrionOtpStatus.idle;
+  String? _pinError;
+  String _pinHelper = 'Enter 4-digit PIN (Try 1234)';
 
   int get _activeLength => switch (_lengthChoice) {
     _OtpLengthChoice.four => 4,
     _OtpLengthChoice.six => 6,
+    _OtpLengthChoice.eight => 8,
   };
 
   OrionOtpStatus get _activeStatus => switch (_statusChoice) {
@@ -47,6 +55,7 @@ class _OrionOtpShowcaseScreenState extends State<OrionOtpShowcaseScreen> {
     _OtpGroupChoice.grouped => switch (_lengthChoice) {
       _OtpLengthChoice.four => 2,
       _OtpLengthChoice.six => 3,
+      _OtpLengthChoice.eight => 4,
     },
   };
 
@@ -54,16 +63,25 @@ class _OrionOtpShowcaseScreenState extends State<OrionOtpShowcaseScreen> {
     final List<String> lines = <String>[
       'OrionOtpField(',
       '  length: $_activeLength,',
-      '  status: OrionOtpStatus.${_activeStatus.name},',
+      if (_variant != OrionOtpVariant.outline)
+        '  variant: OrionOtpVariant.${_variant.name},',
+      if (_activeStatus != OrionOtpStatus.idle)
+        '  status: OrionOtpStatus.${_activeStatus.name},',
     ];
     if (_obscureText) {
       lines.add('  obscureText: true,');
-      if (_delayedObscure) {
-        lines.add('  delayedObscure: true,');
+      if (!_delayedObscure) {
+        lines.add('  delayedObscure: false,');
       }
     }
     if (_activeGroupLength != null) {
       lines.add('  groupLength: $_activeGroupLength,');
+    }
+    if (_showPlaceholder) {
+      lines.add("  placeholder: '–',");
+    }
+    if (_disabled) {
+      lines.add('  enabled: false,');
     }
     lines.addAll(<String>[
       '  onChanged: (code) => print("OTP changed: \$code"),',
@@ -78,16 +96,24 @@ class _OrionOtpShowcaseScreenState extends State<OrionOtpShowcaseScreen> {
     _playgroundController.dispose();
     _groupedController.dispose();
     _pinController.dispose();
+    _inviteController.dispose();
     super.dispose();
   }
 
   void _verifyPin(String pin) {
     if (pin.length < 4) return;
     if (pin == '1234') {
-      setState(() => _pinVerificationResult = 'PIN Verified Successfully! ✓');
+      setState(() {
+        _pinStatus = OrionOtpStatus.success;
+        _pinError = null;
+        _pinHelper = 'PIN verified successfully';
+      });
     } else {
       _pinController.shake();
-      setState(() => _pinVerificationResult = 'Incorrect PIN! (Try 1234) ✗');
+      setState(() {
+        _pinStatus = OrionOtpStatus.error;
+        _pinError = 'Incorrect PIN. Try 1234.';
+      });
     }
   }
 
@@ -138,7 +164,7 @@ class _OrionOtpShowcaseScreenState extends State<OrionOtpShowcaseScreen> {
                   ),
                   const SizedBox(height: OrionSpacing.space8),
                   Text(
-                    'Physics-driven OTP and PIN code fields with single-input autofill cooperation, slot micro-bounce springs, and delayed secure dot masking.',
+                    'Physics-driven OTP and PIN fields with outline/filled/underline faces, formatted clipboard paste, responsive narrow-width scaling, obscured semantics, and oscillating error shake.',
                     style: TextStyle(
                       fontSize: 13,
                       height: 1.45,
@@ -153,7 +179,7 @@ class _OrionOtpShowcaseScreenState extends State<OrionOtpShowcaseScreen> {
             OrionShowcaseSection(
               title: 'Interactive Playground',
               subtitle:
-                  'Type or paste digits into the field below to experience tactile slot springs and carets',
+                  'Type, long-press to paste formatted codes (e.g. 123-456), or switch variants below',
               card: true,
               child: OrionShowcasePanel(
                 key: const ValueKey<String>('showcase-panel-playground'),
@@ -163,31 +189,33 @@ class _OrionOtpShowcaseScreenState extends State<OrionOtpShowcaseScreen> {
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(
-                        horizontal: OrionSpacing.space16,
+                        horizontal: OrionSpacing.space12,
                         vertical: OrionSpacing.space24,
                       ),
                       decoration: BoxDecoration(
                         color: isDark
-                            ? scheme.surfaceContainerLowest
+                            ? scheme.surface
                             : scheme.surfaceContainerLowest,
                         borderRadius: BorderRadius.circular(OrionRadii.radius12),
-                        border: Border.all(
-                          color: isDark
-                              ? scheme.outlineVariant.withValues(alpha: 0.15)
-                              : scheme.outlineVariant.withValues(alpha: 0.30),
-                        ),
+                        border: Border.all(color: scheme.outlineVariant),
                       ),
                       child: Center(
                         child: OrionOtpField(
-                          key: ValueKey(
-                            'otp-field-$_activeLength-$_activeGroupLength',
-                          ),
                           controller: _playgroundController,
                           length: _activeLength,
+                          variant: _variant,
                           status: _activeStatus,
+                          enabled: !_disabled,
                           obscureText: _obscureText,
                           delayedObscure: _delayedObscure,
                           groupLength: _activeGroupLength,
+                          placeholder: _showPlaceholder ? '–' : null,
+                          error: _activeStatus == OrionOtpStatus.error
+                              ? 'Invalid verification code'
+                              : null,
+                          helper: _activeStatus == OrionOtpStatus.success
+                              ? 'Code verified'
+                              : 'Long-press any slot to paste from clipboard',
                           onCompleted: (code) {
                             setState(() => _lastCompletedCode = code);
                           },
@@ -215,9 +243,11 @@ class _OrionOtpShowcaseScreenState extends State<OrionOtpShowcaseScreen> {
                           size: OrionButtonSize.small,
                           variant: OrionButtonVariant.bordered,
                           onPressed: () {
-                            _playgroundController.value = _activeLength == 4
-                                ? '1234'
-                                : '123456';
+                            _playgroundController.value = switch (_activeLength) {
+                              4 => '1234',
+                              6 => '123-456',
+                              _ => '1234-5678',
+                            };
                           },
                           leading: const Icon(
                             Icons.auto_fix_high_rounded,
@@ -240,6 +270,19 @@ class _OrionOtpShowcaseScreenState extends State<OrionOtpShowcaseScreen> {
                     const SizedBox(height: OrionSpacing.space20),
 
                     // Controls
+                    OrionShowcaseChoice<OrionOtpVariant>(
+                      label: 'Variant',
+                      values: OrionOtpVariant.values,
+                      selected: _variant,
+                      labelOf: (v) => switch (v) {
+                        OrionOtpVariant.outline => 'Outline',
+                        OrionOtpVariant.filled => 'Filled',
+                        OrionOtpVariant.underline => 'Underline',
+                      },
+                      onChanged: (v) => setState(() => _variant = v),
+                    ),
+                    const SizedBox(height: OrionSpacing.space16),
+
                     OrionShowcaseChoice<_OtpLengthChoice>(
                       label: 'Length',
                       values: _OtpLengthChoice.values,
@@ -247,10 +290,10 @@ class _OrionOtpShowcaseScreenState extends State<OrionOtpShowcaseScreen> {
                       labelOf: (l) => switch (l) {
                         _OtpLengthChoice.four => '4 digits',
                         _OtpLengthChoice.six => '6 digits',
+                        _OtpLengthChoice.eight => '8 digits',
                       },
                       onChanged: (l) => setState(() {
                         _lengthChoice = l;
-                        _playgroundController.clear();
                       }),
                     ),
                     const SizedBox(height: OrionSpacing.space16),
@@ -259,7 +302,11 @@ class _OrionOtpShowcaseScreenState extends State<OrionOtpShowcaseScreen> {
                       label: 'Status',
                       values: _OtpStatusChoice.values,
                       selected: _statusChoice,
-                      labelOf: (s) => s.name,
+                      labelOf: (s) => switch (s) {
+                        _OtpStatusChoice.idle => 'Idle',
+                        _OtpStatusChoice.error => 'Error',
+                        _OtpStatusChoice.success => 'Success',
+                      },
                       onChanged: (s) => setState(() => _statusChoice = s),
                     ),
                     const SizedBox(height: OrionSpacing.space16),
@@ -270,7 +317,7 @@ class _OrionOtpShowcaseScreenState extends State<OrionOtpShowcaseScreen> {
                       selected: _groupChoice,
                       labelOf: (g) => switch (g) {
                         _OtpGroupChoice.none => 'Continuous',
-                        _OtpGroupChoice.grouped => 'Grouped (e.g. 3 + 3)',
+                        _OtpGroupChoice.grouped => 'Grouped',
                       },
                       onChanged: (g) => setState(() => _groupChoice = g),
                     ),
@@ -293,6 +340,27 @@ class _OrionOtpShowcaseScreenState extends State<OrionOtpShowcaseScreen> {
                             value: _delayedObscure,
                             onChanged: (val) =>
                                 setState(() => _delayedObscure = val),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: OrionSpacing.space12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OrionShowcaseToggle(
+                            label: 'Placeholder',
+                            value: _showPlaceholder,
+                            onChanged: (val) =>
+                                setState(() => _showPlaceholder = val),
+                          ),
+                        ),
+                        const SizedBox(width: OrionSpacing.space16),
+                        Expanded(
+                          child: OrionShowcaseToggle(
+                            label: 'Disabled',
+                            value: _disabled,
+                            onChanged: (val) => setState(() => _disabled = val),
                           ),
                         ),
                       ],
@@ -320,21 +388,17 @@ class _OrionOtpShowcaseScreenState extends State<OrionOtpShowcaseScreen> {
             OrionShowcaseSection(
               title: 'Grouped SMS Authentication',
               subtitle:
-                  'Dividing 6-digit codes into 3 + 3 clusters with a subtle divider dash reduces verification fatigue',
+                  '3 + 3 cluster with separator dash that scales cleanly to narrow phone widths',
               card: true,
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(OrionSpacing.space20),
+                padding: const EdgeInsets.all(OrionSpacing.space16),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(OrionRadii.radius12),
                   color: isDark
-                      ? scheme.surfaceContainerLow
+                      ? scheme.surface
                       : scheme.surfaceContainerLowest,
-                  border: Border.all(
-                    color: isDark
-                        ? scheme.outlineVariant.withValues(alpha: 0.15)
-                        : scheme.outlineVariant.withValues(alpha: 0.30),
-                  ),
+                  border: Border.all(color: scheme.outlineVariant),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
@@ -350,6 +414,7 @@ class _OrionOtpShowcaseScreenState extends State<OrionOtpShowcaseScreen> {
                     const SizedBox(height: 4),
                     Text(
                       'Enter the 6-digit passcode sent to +1 (555) •••-8920',
+                      textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 12,
                         color: scheme.onSurfaceVariant,
@@ -366,7 +431,7 @@ class _OrionOtpShowcaseScreenState extends State<OrionOtpShowcaseScreen> {
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w400,
-                            color: scheme.outlineVariant,
+                            color: scheme.onSurfaceVariant,
                           ),
                         ),
                         onCompleted: (code) {
@@ -385,25 +450,21 @@ class _OrionOtpShowcaseScreenState extends State<OrionOtpShowcaseScreen> {
             ),
             const SizedBox(height: OrionSpacing.space24),
 
-            // Secure 4-Digit Transaction PIN Specimen Card
+            // Secure 4-Digit Transaction PIN Specimen Card (Filled variant)
             OrionShowcaseSection(
-              title: 'Secure Transaction PIN',
+              title: 'Secure Transaction PIN (Filled)',
               subtitle:
-                  'Briefly reveals entered numbers for 400 ms before securely rolling into bullet dots (●)',
+                  'Filled tiles with 400 ms peek mask, live error caption, and semantic green success state',
               card: true,
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(OrionSpacing.space20),
+                padding: const EdgeInsets.all(OrionSpacing.space16),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(OrionRadii.radius12),
                   color: isDark
-                      ? scheme.surfaceContainerLow
+                      ? scheme.surface
                       : scheme.surfaceContainerLowest,
-                  border: Border.all(
-                    color: isDark
-                        ? scheme.outlineVariant.withValues(alpha: 0.15)
-                        : scheme.outlineVariant.withValues(alpha: 0.30),
-                  ),
+                  border: Border.all(color: scheme.outlineVariant),
                 ),
                 child: Column(
                   children: [
@@ -439,33 +500,71 @@ class _OrionOtpShowcaseScreenState extends State<OrionOtpShowcaseScreen> {
                       child: OrionOtpField(
                         controller: _pinController,
                         length: 4,
+                        variant: OrionOtpVariant.filled,
+                        status: _pinStatus,
                         obscureText: true,
                         delayedObscure: true,
+                        error: _pinError,
+                        helper: _pinHelper,
                         onChanged: (val) {
-                          if (val.length < 4) {
-                            setState(
-                              () => _pinVerificationResult =
-                                  'Enter 4-digit PIN (Try 1234)',
-                            );
+                          if (val.length < 4 &&
+                              (_pinStatus != OrionOtpStatus.idle ||
+                                  _pinError != null)) {
+                            setState(() {
+                              _pinStatus = OrionOtpStatus.idle;
+                              _pinError = null;
+                              _pinHelper = 'Enter 4-digit PIN (Try 1234)';
+                            });
                           }
                         },
                         onCompleted: _verifyPin,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      _pinVerificationResult,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: _pinVerificationResult.contains('Successfully')
-                            ? scheme.primary
-                            : _pinVerificationResult.contains('Incorrect')
-                            ? scheme.error
-                            : scheme.onSurfaceVariant,
-                      ),
-                    ),
                   ],
+                ),
+              ),
+            ),
+            const SizedBox(height: OrionSpacing.space24),
+
+            // Alphanumeric Invite Code Specimen Card (Underline variant)
+            OrionShowcaseSection(
+              title: 'Alphanumeric Invite Code (Underline)',
+              subtitle:
+                  'Underline slots with digitsOnly: false, uppercase formatter, and placeholder glyph',
+              card: true,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(OrionSpacing.space16),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(OrionRadii.radius12),
+                  color: isDark
+                      ? scheme.surface
+                      : scheme.surfaceContainerLowest,
+                  border: Border.all(color: scheme.outlineVariant),
+                ),
+                child: Center(
+                  child: OrionOtpField(
+                    controller: _inviteController,
+                    length: 6,
+                    groupLength: 3,
+                    variant: OrionOtpVariant.underline,
+                    digitsOnly: false,
+                    textCapitalization: TextCapitalization.characters,
+                    inputFormatters: <TextInputFormatter>[
+                      FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9]')),
+                      TextInputFormatter.withFunction(
+                        (
+                          TextEditingValue oldValue,
+                          TextEditingValue newValue,
+                        ) => newValue.copyWith(
+                          text: newValue.text.toUpperCase(),
+                        ),
+                      ),
+                    ],
+                    label: 'Workspace Invite Code',
+                    placeholder: '–',
+                    helper: '6-character alphanumeric code',
+                  ),
                 ),
               ),
             ),

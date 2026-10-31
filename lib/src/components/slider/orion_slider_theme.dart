@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:orion_ui/src/components/slider/orion_slider_style.dart';
 
-/// Theme-level defaults for every slider.
+/// Theme-level defaults for every [OrionSlider] and `OrionRangeSlider`.
 ///
 /// Installed through the theme's extension list - typically
 /// `OrionTheme.apply(base, extensions: [OrionSliderTheme(...)])` - so a project
@@ -26,14 +26,14 @@ class OrionSliderTheme extends ThemeExtension<OrionSliderTheme> {
     return OrionSliderTheme(defaultStyle: defaultStyle ?? this.defaultStyle);
   }
 
-  /// Styles are discrete specs, not interpolable numbers; the theme animation
-  /// swaps at the midpoint, the same way the kit's springs do.
   @override
   OrionSliderTheme lerp(ThemeExtension<OrionSliderTheme>? other, double t) {
     if (other is! OrionSliderTheme) {
       return this;
     }
-    return t < 0.5 ? this : other;
+    return OrionSliderTheme(
+      defaultStyle: OrionSliderStyle.lerp(defaultStyle, other.defaultStyle, t),
+    );
   }
 
   @override

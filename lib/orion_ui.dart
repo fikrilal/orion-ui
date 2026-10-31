@@ -72,6 +72,7 @@ export 'src/components/sheet/orion_bottom_sheet_presets.dart';
 export 'src/components/sheet/orion_bottom_sheet_style.dart';
 export 'src/components/sheet/orion_bottom_sheet_theme.dart';
 export 'src/components/sheet/orion_sheet_controller.dart';
+export 'src/components/slider/orion_range_slider.dart';
 export 'src/components/slider/orion_slider.dart';
 export 'src/components/slider/orion_slider_presets.dart';
 export 'src/components/slider/orion_slider_style.dart';

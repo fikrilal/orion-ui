@@ -1,4 +1,4 @@
-import 'dart:ui' show Tristate;
+import 'dart:ui' show PointerDeviceKind, Tristate;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -1000,6 +1000,282 @@ void main() {
         style.thumbColor?.resolve(const <WidgetState>{WidgetState.disabled}),
         OrionColors.lightScheme.onSurfaceVariant,
       );
+    });
+
+    test('lerp interpolates slider style and theme extension smoothly', () {
+      final OrionSliderStyle a = OrionSliderStyle.from(
+        trackColor: const Color(0xFF000000),
+        fillColor: const Color(0xFF000000),
+        thumbColor: const Color(0xFF000000),
+        trackHeight: 2,
+        thumbSize: 16,
+        liftScale: 1.1,
+        focusOverlayColor: const Color(0x00000000),
+        hoverOverlayColor: const Color(0x00000000),
+      );
+      final OrionSliderStyle b = OrionSliderStyle.from(
+        trackColor: const Color(0xFFFFFFFF),
+        fillColor: const Color(0xFFFFFFFF),
+        thumbColor: const Color(0xFFFFFFFF),
+        trackHeight: 6,
+        thumbSize: 24,
+        liftScale: 1.3,
+        focusOverlayColor: const Color(0xFF000000),
+        hoverOverlayColor: const Color(0xFF000000),
+      );
+
+      final OrionSliderTheme lerped = OrionSliderTheme(
+        defaultStyle: a,
+      ).lerp(OrionSliderTheme(defaultStyle: b), 0.5);
+      final OrionSliderStyle mid = lerped.defaultStyle!;
+
+      expect(mid.trackHeight, closeTo(4, 0.001));
+      expect(mid.thumbSize, closeTo(20, 0.001));
+      expect(mid.liftScale, closeTo(1.2, 0.001));
+      expect(
+        mid.fillColor?.resolve(const <WidgetState>{}),
+        Color.lerp(const Color(0xFF000000), const Color(0xFFFFFFFF), 0.5),
+      );
+      expect(
+        mid.hoverOverlayColor,
+        Color.lerp(const Color(0x00000000), const Color(0xFF000000), 0.5),
+      );
+    });
+  });
+
+  group('OrionSlider upgrades', () {
+    testWidgets('handles NaN values and narrow/oversized geometry safely', (
+      tester,
+    ) async {
+      await _pumpSlider(tester, value: double.nan, onChanged: (_) {});
+      expect(tester.takeException(), isNull);
+      expect(_thumbFraction(tester), 0);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 12,
+                child: OrionSlider(value: 0.5, onChanged: (_) {}),
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+
+      await _pumpSlider(
+        tester,
+        value: 0.5,
+        onChanged: (_) {},
+        style: OrionSliderStyle.from(thumbSize: 52),
+      );
+      expect(tester.getSize(find.byType(OrionSlider)).height, 52);
+    });
+
+    testWidgets(
+      'cleans decimal keyboard stepping and handles repeat + PageUp/PageDown',
+      (tester) async {
+        final List<double> reported = <double>[];
+        await _pumpHost(
+          tester,
+          initial: 0.1,
+          step: 0.1,
+          onChanged: reported.add,
+        );
+        await tester.pumpAndSettle();
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowRight);
+        await tester.pump();
+        await tester.sendKeyRepeatEvent(LogicalKeyboardKey.arrowRight);
+        await tester.pump();
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowRight);
+        await tester.pump();
+        expect(_value(tester), 0.3);
+        expect(reported.last, 0.3);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.pageUp);
+        await tester.pump();
+        expect(_value(tester), 0.8);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.pageDown);
+        await tester.pump();
+        expect(_value(tester), 0.3);
+      },
+    );
+
+    testWidgets('paints hover overlay on pointer hover', (tester) async {
+      await _pumpSlider(tester, value: 0.5, onChanged: (_) {});
+
+      final TestGesture mouse = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+      );
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await tester.pump();
+
+      await mouse.moveTo(tester.getCenter(find.byType(OrionSlider)));
+      await tester.pump();
+
+      final ColoredBox halo = tester.widget<ColoredBox>(
+        find.descendant(
+          of: find.byType(OrionSlider),
+          matching: find.byType(ColoredBox),
+        ),
+      );
+      expect(
+        halo.color,
+        OrionColors.lightScheme.onSurface.withValues(alpha: 0.06),
+      );
+
+      await mouse.moveTo(Offset.zero);
+      await tester.pump();
+      expect(
+        find.descendant(
+          of: find.byType(OrionSlider),
+          matching: find.byType(ColoredBox),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets(
+      'fires onChangeStart/onChangeEnd and emits detent haptics during drag',
+      (tester) async {
+        final List<String> haptics = <String>[];
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          (MethodCall call) async {
+            if (call.method == 'HapticFeedback.vibrate') {
+              haptics.add(call.arguments.toString());
+            }
+            return null;
+          },
+        );
+        addTearDown(() {
+          tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SystemChannels.platform,
+            null,
+          );
+        });
+
+        double? startedAt;
+        double? endedAt;
+        double current = 0.0;
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: Center(
+                child: SizedBox(
+                  width: _sliderWidth,
+                  child: StatefulBuilder(
+                    builder: (BuildContext context, StateSetter setState) {
+                      return OrionSlider(
+                        value: current,
+                        step: 0.25,
+                        showTicks: true,
+                        onChangeStart: (double v) => startedAt = v,
+                        onChanged: (double v) => setState(() => current = v),
+                        onChangeEnd: (double v) => endedAt = v,
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final TestGesture gesture = await _dragTo(tester, 0.55);
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        expect(startedAt, 0.0);
+        expect(endedAt, 0.5);
+        expect(current, 0.5);
+        expect(haptics, isNotEmpty);
+        expect(find.byType(CustomPaint), findsWidgets);
+      },
+    );
+
+    testWidgets('shows floating value indicator onDrag and always', (
+      tester,
+    ) async {
+      double current = 0.25;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: _sliderWidth,
+                child: StatefulBuilder(
+                  builder: (BuildContext context, StateSetter setState) {
+                    return OrionSlider(
+                      value: current,
+                      showValueIndicator: OrionSliderValueIndicator.onDrag,
+                      valueLabelBuilder: (double v) => '${(v * 100).round()}%',
+                      onChanged: (double v) => setState(() => current = v),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      // Hidden at rest.
+      expect(find.text('25%'), findsNothing);
+
+      final TestGesture gesture = await _dragTo(tester, 0.5, from: 0.25);
+      await tester.pumpAndSettle();
+      expect(find.text('50%'), findsOneWidget);
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(find.text('50%'), findsNothing);
+    });
+
+    testWidgets('opt-in allowTrackTap jumps smoothly on tap', (tester) async {
+      double? started;
+      double? ended;
+      double current = 0.0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: _sliderWidth,
+                child: StatefulBuilder(
+                  builder: (BuildContext context, StateSetter setState) {
+                    return OrionSlider(
+                      value: current,
+                      allowTrackTap: true,
+                      onChangeStart: (double v) => started = v,
+                      onChanged: (double v) => setState(() => current = v),
+                      onChangeEnd: (double v) => ended = v,
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tapAt(tester.getCenter(find.byType(OrionSlider)));
+      await tester.pumpAndSettle();
+
+      expect(started, 0.0);
+      expect(current, closeTo(0.5, 0.02));
+      expect(ended, closeTo(0.5, 0.02));
     });
   });
 }

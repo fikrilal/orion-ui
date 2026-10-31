@@ -3,13 +3,12 @@ import 'package:orion_ui_example/showcase/orion_showcase_kit.dart';
 import 'package:orion_ui_example/showcase/orion_showcase_scaffold.dart';
 import 'package:orion_ui/orion_ui.dart';
 
-/// Playground for [OrionRadio].
+/// Playground for [OrionRadio] and [OrionRadioGroup].
 ///
 /// The `Disabled` and `Error` flags in the top controls card drive every
-/// sample; the sections below are the reference matrices - a plan group, the
-/// size group, the radio beside a checkbox, the customization skins - and the
-/// playground last selects within its own group with the generated call behind
-/// the Code tab.
+/// sample; the sections below showcase card groups, plain & horizontal groups,
+/// size steps, side-by-side comparison with [OrionCheckbox], state-aware
+/// customization skins, and an interactive playground with live code output.
 class OrionRadioShowcaseScreen extends StatefulWidget {
   const OrionRadioShowcaseScreen({super.key});
 
@@ -18,69 +17,90 @@ class OrionRadioShowcaseScreen extends StatefulWidget {
       _OrionRadioShowcaseScreenState();
 }
 
+enum _BillingPlan { monthly, yearly, lifetime }
+
+enum _Density { compact, balanced, spacious }
+
+enum _ThemeOption { light, system, dark }
+
 /// The instance-level skins the customization section demonstrates.
-enum _RadioSkin { standard, filled, thick }
+enum _RadioSkin { standard, filled, tinted, thick }
 
 class _OrionRadioShowcaseScreenState extends State<OrionRadioShowcaseScreen> {
-  static const List<(String, String)> _plans = <(String, String)>[
-    ('Monthly', r'$12 per month'),
-    ('Yearly', r'$99 per year'),
-    ('Lifetime', r'$249 once'),
-  ];
-
-  static const List<String> _playgroundOptions = <String>[
-    'Light',
-    'System',
-    'Dark',
-  ];
-
   // Flags: shared by every sample on the page.
   bool _disabled = false;
   bool _error = false;
 
-  // Samples: the groups the flags do not own.
-  int _plan = 0;
-  int _sizeChoice = 1;
-  bool _shared = false;
-  bool _skinned = false;
+  // Samples: groups and interactive states.
+  _BillingPlan _plan = _BillingPlan.yearly;
+  _Density _density = _Density.balanced;
+  OrionRadioSize _sizeChoice = OrionRadioSize.medium;
+  int _compareRadio = 0;
+  bool _compareCheckbox = true;
+  int _skinChoice = 0;
 
-  // Customization and playground: the focused choices.
+  // Customization and playground controls.
   _RadioSkin _skin = _RadioSkin.standard;
-  OrionRadioSize _size = OrionRadioSize.medium;
-  int _playgroundChoice = 1;
+  OrionRadioGroupVariant _playgroundVariant = OrionRadioGroupVariant.plain;
+  Axis _playgroundDirection = Axis.vertical;
+  OrionRadioSize _playgroundSize = OrionRadioSize.medium;
+  _ThemeOption _playgroundChoice = _ThemeOption.system;
 
-  /// One sample under the shared flags.
-  ///
-  /// `Error` repaints every circle and `Disabled` takes the tap away.
-  OrionRadio _sample({
-    required bool value,
-    required String semanticLabel,
-    ValueChanged<bool>? onChanged,
-    OrionRadioSize size = OrionRadioSize.medium,
-    OrionRadioStyle? style,
-  }) {
-    return OrionRadio(
-      value: value,
-      semanticLabel: semanticLabel,
-      error: _error,
-      size: size,
-      onChanged: _disabled ? null : (onChanged ?? (_) {}),
-      style: style,
-    );
+  OrionRadioStyle? _skinStyle(ColorScheme scheme) {
+    final Color muted = scheme.onSurface.withValues(alpha: 0.12);
+    final Color mutedDot = scheme.onSurface.withValues(alpha: 0.38);
+
+    return switch (_skin) {
+      _RadioSkin.standard => null,
+      _RadioSkin.filled => OrionRadioStyle(
+        fillColor: WidgetStateProperty.resolveWith<Color?>((
+          Set<WidgetState> states,
+        ) {
+          if (!states.contains(WidgetState.selected)) {
+            return Colors.transparent;
+          }
+          if (states.contains(WidgetState.disabled)) {
+            return muted;
+          }
+          return states.contains(WidgetState.error)
+              ? scheme.error
+              : scheme.primary;
+        }),
+        dotColor: WidgetStateProperty.resolveWith<Color?>((
+          Set<WidgetState> states,
+        ) {
+          if (states.contains(WidgetState.disabled)) {
+            return mutedDot;
+          }
+          return states.contains(WidgetState.error)
+              ? scheme.onError
+              : scheme.onPrimary;
+        }),
+      ),
+      _RadioSkin.tinted => OrionRadioStyle(
+        fillColor: WidgetStateProperty.resolveWith<Color?>((
+          Set<WidgetState> states,
+        ) {
+          if (states.contains(WidgetState.disabled)) {
+            return scheme.onSurface.withValues(alpha: 0.04);
+          }
+          if (states.contains(WidgetState.selected)) {
+            return (states.contains(WidgetState.error)
+                    ? scheme.error
+                    : scheme.primary)
+                .withValues(alpha: 0.12);
+          }
+          return scheme.surfaceContainerHighest;
+        }),
+      ),
+      _RadioSkin.thick => OrionRadioStyle.from(borderWidth: 3.5),
+    };
   }
-
-  OrionRadioStyle? _skinStyle(ColorScheme scheme) => switch (_skin) {
-    _RadioSkin.standard => null,
-    _RadioSkin.filled => OrionRadioStyle.from(
-      fillColor: scheme.primary,
-      dotColor: scheme.onPrimary,
-    ),
-    _RadioSkin.thick => OrionRadioStyle.from(borderWidth: 4),
-  };
 
   String _skinLabel(_RadioSkin skin) => switch (skin) {
     _RadioSkin.standard => 'Standard',
     _RadioSkin.filled => 'Filled',
+    _RadioSkin.tinted => 'Tinted',
     _RadioSkin.thick => 'Thick',
   };
 
@@ -90,47 +110,70 @@ class _OrionRadioShowcaseScreenState extends State<OrionRadioShowcaseScreen> {
     OrionRadioSize.large => 'Large',
   };
 
-  /// The exact call the current controls produce.
+  String _variantLabel(OrionRadioGroupVariant variant) => switch (variant) {
+    OrionRadioGroupVariant.plain => 'Plain',
+    OrionRadioGroupVariant.card => 'Card',
+  };
+
+  String _directionLabel(Axis direction) => switch (direction) {
+    Axis.vertical => 'Vertical',
+    Axis.horizontal => 'Horizontal',
+  };
+
+  /// The exact call the current playground controls produce.
   String get _snippet {
-    final int index = _playgroundChoice;
-    final String label = _playgroundOptions[index];
     final List<String> lines = <String>[
-      'OrionRadio(',
-      '  value: _selected == $index,',
-      "  semanticLabel: '$label',",
+      'OrionRadioGroup<ThemeMode>(',
+      '  value: ThemeMode.${_playgroundChoice.name},',
     ];
-    if (_size != OrionRadioSize.medium) {
-      lines.add('  size: OrionRadioSize.${_size.name},');
+    if (_playgroundVariant != OrionRadioGroupVariant.plain) {
+      lines.add(
+        '  variant: OrionRadioGroupVariant.${_playgroundVariant.name},',
+      );
+    }
+    if (_playgroundDirection != Axis.vertical) {
+      lines.add('  direction: Axis.${_playgroundDirection.name},');
+    }
+    if (_playgroundSize != OrionRadioSize.medium) {
+      lines.add('  size: OrionRadioSize.${_playgroundSize.name},');
     }
     if (_error) {
-      lines.add('  error: true,');
+      lines.add("  error: 'Please pick a theme',");
     }
     if (_disabled) {
       lines.add('  onChanged: null, // disabled');
     } else {
-      lines.add('  onChanged: (_) => setState(() => _selected = $index),');
+      lines.add('  onChanged: (value) => setState(() => _theme = value),');
     }
+    lines.add('  options: const [');
+    lines.add("    OrionRadioOption(value: ThemeMode.light, label: 'Light'),");
+    lines.add(
+      "    OrionRadioOption(value: ThemeMode.system, label: 'System'),",
+    );
+    lines.add("    OrionRadioOption(value: ThemeMode.dark, label: 'Dark'),");
+    lines.add('  ],');
     lines.add(');');
     return lines.join('\n');
   }
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
-    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme scheme = theme.colorScheme;
+    final bool isDark = theme.brightness == Brightness.dark;
 
     return OrionThemedScaffold(
       title: 'Orion Radio',
-      builder: (context) {
+      builder: (BuildContext context) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+          children: <Widget>[
             // Top Intro Header
             Padding(
               padding: const EdgeInsets.only(bottom: OrionSpacing.space20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+                children: <Widget>[
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: OrionSpacing.space8,
@@ -140,7 +183,9 @@ class _OrionRadioShowcaseScreenState extends State<OrionRadioShowcaseScreen> {
                       color: isDark
                           ? scheme.onSurface.withValues(alpha: 0.10)
                           : scheme.onSurface.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(OrionRadii.radiusPill),
+                      borderRadius: BorderRadius.circular(
+                        OrionRadii.radiusPill,
+                      ),
                       border: Border.all(
                         color: isDark
                             ? scheme.outlineVariant.withValues(alpha: 0.20)
@@ -149,7 +194,7 @@ class _OrionRadioShowcaseScreenState extends State<OrionRadioShowcaseScreen> {
                       ),
                     ),
                     child: Text(
-                      'SELECTION • GENTLE TRAVEL',
+                      'SELECTION • CRISP SPRING',
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
@@ -160,7 +205,7 @@ class _OrionRadioShowcaseScreenState extends State<OrionRadioShowcaseScreen> {
                   ),
                   const SizedBox(height: OrionSpacing.space8),
                   Text(
-                    'Tap-only circular radio marking the chosen choice in an exclusive group. Inner dot pops on gentle travel spring; transparent interior by default.',
+                    'Exclusive single-choice radio and typed radio group. Clickable labels, selectable cards, crisp spring travel, pointer hover halos, and WAI-ARIA arrow-key navigation.',
                     style: TextStyle(
                       fontSize: 13.5,
                       height: 1.4,
@@ -172,22 +217,24 @@ class _OrionRadioShowcaseScreenState extends State<OrionRadioShowcaseScreen> {
             ),
 
             OrionShowcaseControls(
-              children: [
+              children: <Widget>[
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                  children: <Widget>[
                     Expanded(
                       child: OrionShowcaseToggle(
                         label: 'Disabled',
                         value: _disabled,
-                        onChanged: (value) => setState(() => _disabled = value),
+                        onChanged: (bool value) =>
+                            setState(() => _disabled = value),
                       ),
                     ),
                     Expanded(
                       child: OrionShowcaseToggle(
                         label: 'Error',
                         value: _error,
-                        onChanged: (value) => setState(() => _error = value),
+                        onChanged: (bool value) =>
+                            setState(() => _error = value),
                       ),
                     ),
                   ],
@@ -196,28 +243,88 @@ class _OrionRadioShowcaseScreenState extends State<OrionRadioShowcaseScreen> {
             ),
             const SizedBox(height: OrionSpacing.space24),
 
-            // Group Card
+            // Card Group
             OrionShowcaseSection(
-              title: 'Group',
+              title: 'Radio Group — Cards',
               subtitle:
-                  'Exclusive single choice option group; parent manages selected index',
+                  'Typed OrionRadioGroup with selectable cards, captions, and trailing prices',
               card: true,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  for (var index = 0; index < _plans.length; index++) ...[
-                    _RadioRow(
-                      label: _plans[index].$1,
-                      caption: _plans[index].$2,
-                      child: _sample(
-                        value: _plan == index,
-                        semanticLabel: _plans[index].$1,
-                        onChanged: (_) => setState(() => _plan = index),
+              child: OrionRadioGroup<_BillingPlan>(
+                label: 'Billing cycle',
+                helper: 'Switch or cancel anytime',
+                error: _error ? 'Please select an active plan' : null,
+                variant: OrionRadioGroupVariant.card,
+                value: _plan,
+                enabled: !_disabled,
+                onChanged: (_BillingPlan next) => setState(() => _plan = next),
+                options: <OrionRadioOption<_BillingPlan>>[
+                  OrionRadioOption<_BillingPlan>(
+                    value: _BillingPlan.monthly,
+                    label: 'Monthly',
+                    subtitle: 'Flexible month-to-month billing',
+                    trailing: Text(
+                      r'$12/mo',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: scheme.onSurface,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    if (index != _plans.length - 1)
-                      const SizedBox(height: OrionSpacing.space12),
-                  ],
+                  ),
+                  OrionRadioOption<_BillingPlan>(
+                    value: _BillingPlan.yearly,
+                    label: 'Yearly',
+                    subtitle: 'Billed annually — save 31%',
+                    trailing: Text(
+                      r'$99/yr',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: scheme.onSurface,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  OrionRadioOption<_BillingPlan>(
+                    value: _BillingPlan.lifetime,
+                    label: 'Lifetime',
+                    subtitle: 'One-time payment, all updates included',
+                    trailing: Text(
+                      r'$249',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: scheme.onSurface,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: OrionSpacing.space20),
+
+            // Horizontal Plain Group
+            OrionShowcaseSection(
+              title: 'Horizontal Group',
+              subtitle:
+                  'Wrapping horizontal strip with clickable labels and arrow-key navigation',
+              card: true,
+              child: OrionRadioGroup<_Density>(
+                label: 'Interface density',
+                direction: Axis.horizontal,
+                value: _density,
+                enabled: !_disabled,
+                hasError: _error,
+                onChanged: (_Density next) => setState(() => _density = next),
+                options: const <OrionRadioOption<_Density>>[
+                  OrionRadioOption<_Density>(
+                    value: _Density.compact,
+                    label: 'Compact',
+                  ),
+                  OrionRadioOption<_Density>(
+                    value: _Density.balanced,
+                    label: 'Balanced',
+                  ),
+                  OrionRadioOption<_Density>(
+                    value: _Density.spacious,
+                    label: 'Spacious',
+                  ),
                 ],
               ),
             ),
@@ -231,23 +338,20 @@ class _OrionRadioShowcaseScreenState extends State<OrionRadioShowcaseScreen> {
               card: true,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  for (
-                    var index = 0;
-                    index < OrionRadioSize.values.length;
-                    index++
-                  ) ...[
-                    _RadioRow(
-                      label: _sizeLabel(OrionRadioSize.values[index]),
-                      child: _sample(
-                        value: _sizeChoice == index,
-                        semanticLabel: _sizeLabel(OrionRadioSize.values[index]),
-                        size: OrionRadioSize.values[index],
-                        onChanged: (_) => setState(() => _sizeChoice = index),
-                      ),
+                children: <Widget>[
+                  for (final OrionRadioSize size
+                      in OrionRadioSize.values) ...<Widget>[
+                    OrionRadio(
+                      value: _sizeChoice == size,
+                      label: _sizeLabel(size),
+                      size: size,
+                      error: _error,
+                      onChanged: _disabled
+                          ? null
+                          : (_) => setState(() => _sizeChoice = size),
                     ),
-                    if (index != OrionRadioSize.values.length - 1)
-                      const SizedBox(height: OrionSpacing.space12),
+                    if (size != OrionRadioSize.values.last)
+                      const SizedBox(height: OrionSpacing.space4),
                   ],
                 ],
               ),
@@ -256,28 +360,45 @@ class _OrionRadioShowcaseScreenState extends State<OrionRadioShowcaseScreen> {
 
             // Next to a checkbox Card
             OrionShowcaseSection(
-              title: 'Next to a checkbox',
+              title: 'Next to a Checkbox',
               subtitle:
-                  'Distinguishable side-by-side: filled box vs transparent ring-plus-dot',
+                  'Shared crisp spring (520 / 0.80) and 0.90 tactile dip across sibling controls',
               card: true,
-              child: Row(
-                children: [
-                  _RadioRow(
-                    label: 'Radio',
-                    child: _sample(
-                      value: _shared,
-                      semanticLabel: 'Radio sample',
-                      onChanged: (_) => setState(() => _shared = true),
-                    ),
+              child: Wrap(
+                spacing: OrionSpacing.space24,
+                runSpacing: OrionSpacing.space8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: <Widget>[
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      OrionRadio(
+                        value: _compareRadio == 0,
+                        label: 'Choice A',
+                        error: _error,
+                        onChanged: _disabled
+                            ? null
+                            : (_) => setState(() => _compareRadio = 0),
+                      ),
+                      const SizedBox(width: OrionSpacing.space12),
+                      OrionRadio(
+                        value: _compareRadio == 1,
+                        label: 'Choice B',
+                        error: _error,
+                        onChanged: _disabled
+                            ? null
+                            : (_) => setState(() => _compareRadio = 1),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: OrionSpacing.space24),
-                  _RadioRow(
+                  OrionCheckbox(
+                    value: _compareCheckbox,
                     label: 'Checkbox',
-                    child: OrionCheckbox(
-                      value: true,
-                      semanticLabel: 'Checkbox sample',
-                      onChanged: null,
-                    ),
+                    error: _error,
+                    onChanged: _disabled
+                        ? null
+                        : (bool? value) =>
+                              setState(() => _compareCheckbox = value ?? false),
                   ),
                 ],
               ),
@@ -288,26 +409,31 @@ class _OrionRadioShowcaseScreenState extends State<OrionRadioShowcaseScreen> {
             OrionShowcaseSection(
               title: 'Customization',
               subtitle:
-                  'Three-layer style contract: Presets -> OrionRadioTheme -> Instance OrionRadioStyle',
+                  'State-aware OrionRadioStyle skins honoring disabled, hover, and error states',
               card: true,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+                children: <Widget>[
                   OrionShowcaseChoice<_RadioSkin>(
                     label: 'Skin',
                     values: _RadioSkin.values,
                     selected: _skin,
                     labelOf: _skinLabel,
-                    onChanged: (value) => setState(() => _skin = value),
+                    onChanged: (_RadioSkin value) =>
+                        setState(() => _skin = value),
                   ),
-                  const SizedBox(height: OrionSpacing.space24),
-                  Center(
-                    child: _sample(
-                      value: _skinned,
-                      semanticLabel: 'Radio sample',
-                      onChanged: (_) => setState(() => _skinned = true),
-                      style: _skinStyle(scheme),
-                    ),
+                  const SizedBox(height: OrionSpacing.space20),
+                  OrionRadioGroup<int>(
+                    direction: Axis.horizontal,
+                    value: _skinChoice,
+                    enabled: !_disabled,
+                    hasError: _error,
+                    radioStyle: _skinStyle(scheme),
+                    onChanged: (int next) => setState(() => _skinChoice = next),
+                    options: const <OrionRadioOption<int>>[
+                      OrionRadioOption<int>(value: 0, label: 'Alpha'),
+                      OrionRadioOption<int>(value: 1, label: 'Beta'),
+                    ],
                   ),
                 ],
               ),
@@ -317,38 +443,64 @@ class _OrionRadioShowcaseScreenState extends State<OrionRadioShowcaseScreen> {
             // Playground Card
             OrionShowcaseSection(
               title: 'Playground',
-              subtitle: 'Interactive group selection with live code generator',
+              subtitle:
+                  'Interactive OrionRadioGroup with live generated usage snippet',
               child: OrionShowcasePanel(
                 key: const ValueKey<String>('showcase-panel-playground'),
                 preview: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                  children: <Widget>[
+                    OrionShowcaseChoice<OrionRadioGroupVariant>(
+                      label: 'Variant',
+                      values: OrionRadioGroupVariant.values,
+                      selected: _playgroundVariant,
+                      labelOf: _variantLabel,
+                      onChanged: (OrionRadioGroupVariant value) =>
+                          setState(() => _playgroundVariant = value),
+                    ),
+                    const SizedBox(height: OrionSpacing.space12),
+                    OrionShowcaseChoice<Axis>(
+                      label: 'Direction',
+                      values: Axis.values,
+                      selected: _playgroundDirection,
+                      labelOf: _directionLabel,
+                      onChanged: (Axis value) =>
+                          setState(() => _playgroundDirection = value),
+                    ),
+                    const SizedBox(height: OrionSpacing.space12),
                     OrionShowcaseChoice<OrionRadioSize>(
                       label: 'Size',
                       values: OrionRadioSize.values,
-                      selected: _size,
+                      selected: _playgroundSize,
                       labelOf: _sizeLabel,
-                      onChanged: (value) => setState(() => _size = value),
+                      onChanged: (OrionRadioSize value) =>
+                          setState(() => _playgroundSize = value),
                     ),
                     const SizedBox(height: OrionSpacing.space20),
-                    for (
-                      var index = 0;
-                      index < _playgroundOptions.length;
-                      index++
-                    ) ...[
-                      _RadioRow(
-                        label: _playgroundOptions[index],
-                        child: _sample(
-                          value: _playgroundChoice == index,
-                          semanticLabel: _playgroundOptions[index],
-                          size: _size,
-                          onChanged: (_) =>
-                              setState(() => _playgroundChoice = index),
+                    OrionRadioGroup<_ThemeOption>(
+                      variant: _playgroundVariant,
+                      direction: _playgroundDirection,
+                      size: _playgroundSize,
+                      value: _playgroundChoice,
+                      enabled: !_disabled,
+                      error: _error ? 'Please pick a theme' : null,
+                      onChanged: (_ThemeOption next) =>
+                          setState(() => _playgroundChoice = next),
+                      options: const <OrionRadioOption<_ThemeOption>>[
+                        OrionRadioOption<_ThemeOption>(
+                          value: _ThemeOption.light,
+                          label: 'Light',
                         ),
-                      ),
-                      if (index != _playgroundOptions.length - 1)
-                        const SizedBox(height: OrionSpacing.space8),
-                    ],
+                        OrionRadioOption<_ThemeOption>(
+                          value: _ThemeOption.system,
+                          label: 'System',
+                        ),
+                        OrionRadioOption<_ThemeOption>(
+                          value: _ThemeOption.dark,
+                          label: 'Dark',
+                        ),
+                      ],
+                    ),
                   ],
                 ),
                 code: _snippet,
@@ -357,43 +509,6 @@ class _OrionRadioShowcaseScreenState extends State<OrionRadioShowcaseScreen> {
           ],
         );
       },
-    );
-  }
-}
-
-/// The circle owns no label, so the page composes the row the way a screen
-/// would.
-///
-/// The circle carries the spoken name, so the visible label stays out of the
-/// semantics tree and is not announced twice.
-class _RadioRow extends StatelessWidget {
-  const _RadioRow({required this.label, required this.child, this.caption});
-
-  final String label;
-  final String? caption;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        child,
-        const SizedBox(width: OrionSpacing.space4),
-        ExcludeSemantics(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(label, style: theme.textTheme.bodyMedium),
-              if (caption != null)
-                Text(caption!, style: theme.textTheme.bodySmall),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }

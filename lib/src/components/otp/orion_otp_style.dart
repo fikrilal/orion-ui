@@ -22,12 +22,22 @@ class OrionOtpStyle {
     this.backgroundColor,
     this.activeBackgroundColor,
     this.filledBackgroundColor,
+    this.errorBackgroundColor,
+    this.successBackgroundColor,
+    this.disabledBackgroundColor,
+    this.hoverBackgroundColor,
     this.borderColor,
     this.activeBorderColor,
     this.filledBorderColor,
     this.errorBorderColor,
     this.successBorderColor,
+    this.disabledBorderColor,
+    this.hoverBorderColor,
     this.textStyle,
+    this.disabledTextColor,
+    this.placeholderTextStyle,
+    this.labelStyle,
+    this.captionStyle,
     this.caretColor,
     this.caretWidth,
     this.caretHeight,
@@ -44,10 +54,10 @@ class OrionOtpStyle {
   /// Corner radius of each slot tile.
   final BorderRadius? slotBorderRadius;
 
-  /// Inactive/resting outline border width.
+  /// Inactive/resting outline or underline width. Set to `0` to omit borders.
   final double? slotBorderWidth;
 
-  /// Focused/active outline border width.
+  /// Focused/active, error, or success border width.
   final double? activeBorderWidth;
 
   /// Horizontal spacing between consecutive slots within the same group.
@@ -65,25 +75,55 @@ class OrionOtpStyle {
   /// Background color of a filled slot.
   final Color? filledBackgroundColor;
 
-  /// Outline border color of an empty, unfocused slot.
+  /// Background color of slots when in an error state.
+  final Color? errorBackgroundColor;
+
+  /// Background color of slots when in a success state.
+  final Color? successBackgroundColor;
+
+  /// Background color of slots when the field is disabled.
+  final Color? disabledBackgroundColor;
+
+  /// Subtle overlay or fill tint when a pointer hovers over an enabled field.
+  final Color? hoverBackgroundColor;
+
+  /// Outline or underline color of an empty, unfocused slot.
   final Color? borderColor;
 
-  /// Outline border color of the active slot.
+  /// Outline or underline color of the active slot.
   final Color? activeBorderColor;
 
-  /// Outline border color of an already filled slot.
+  /// Outline or underline color of an already filled slot.
   final Color? filledBorderColor;
 
-  /// Outline border color when status is error.
+  /// Outline or underline color when in an error state.
   final Color? errorBorderColor;
 
-  /// Outline border color when status is success.
+  /// Outline or underline color when in a success state.
   final Color? successBorderColor;
+
+  /// Outline or underline color when disabled.
+  final Color? disabledBorderColor;
+
+  /// Outline or underline color of empty slots when pointer-hovered.
+  final Color? hoverBorderColor;
 
   /// Typography styling for the displayed digits or bullet marks.
   final TextStyle? textStyle;
 
-  /// Color of the pulsing caret bar in the active slot.
+  /// Foreground color for digits when disabled.
+  final Color? disabledTextColor;
+
+  /// Typography styling for optional empty-slot placeholder glyphs.
+  final TextStyle? placeholderTextStyle;
+
+  /// Typography styling for the optional field label.
+  final TextStyle? labelStyle;
+
+  /// Typography styling for the optional helper or error caption.
+  final TextStyle? captionStyle;
+
+  /// Color of the breathing caret bar in the active slot.
   final Color? caretColor;
 
   /// Width of the caret bar.
@@ -110,12 +150,22 @@ class OrionOtpStyle {
     Color? backgroundColor,
     Color? activeBackgroundColor,
     Color? filledBackgroundColor,
+    Color? errorBackgroundColor,
+    Color? successBackgroundColor,
+    Color? disabledBackgroundColor,
+    Color? hoverBackgroundColor,
     Color? borderColor,
     Color? activeBorderColor,
     Color? filledBorderColor,
     Color? errorBorderColor,
     Color? successBorderColor,
+    Color? disabledBorderColor,
+    Color? hoverBorderColor,
     TextStyle? textStyle,
+    Color? disabledTextColor,
+    TextStyle? placeholderTextStyle,
+    TextStyle? labelStyle,
+    TextStyle? captionStyle,
     Color? caretColor,
     double? caretWidth,
     double? caretHeight,
@@ -133,12 +183,22 @@ class OrionOtpStyle {
       backgroundColor: backgroundColor,
       activeBackgroundColor: activeBackgroundColor,
       filledBackgroundColor: filledBackgroundColor,
+      errorBackgroundColor: errorBackgroundColor,
+      successBackgroundColor: successBackgroundColor,
+      disabledBackgroundColor: disabledBackgroundColor,
+      hoverBackgroundColor: hoverBackgroundColor,
       borderColor: borderColor,
       activeBorderColor: activeBorderColor,
       filledBorderColor: filledBorderColor,
       errorBorderColor: errorBorderColor,
       successBorderColor: successBorderColor,
+      disabledBorderColor: disabledBorderColor,
+      hoverBorderColor: hoverBorderColor,
       textStyle: textStyle,
+      disabledTextColor: disabledTextColor,
+      placeholderTextStyle: placeholderTextStyle,
+      labelStyle: labelStyle,
+      captionStyle: captionStyle,
       caretColor: caretColor,
       caretWidth: caretWidth,
       caretHeight: caretHeight,
@@ -159,12 +219,22 @@ class OrionOtpStyle {
     Color? backgroundColor,
     Color? activeBackgroundColor,
     Color? filledBackgroundColor,
+    Color? errorBackgroundColor,
+    Color? successBackgroundColor,
+    Color? disabledBackgroundColor,
+    Color? hoverBackgroundColor,
     Color? borderColor,
     Color? activeBorderColor,
     Color? filledBorderColor,
     Color? errorBorderColor,
     Color? successBorderColor,
+    Color? disabledBorderColor,
+    Color? hoverBorderColor,
     TextStyle? textStyle,
+    Color? disabledTextColor,
+    TextStyle? placeholderTextStyle,
+    TextStyle? labelStyle,
+    TextStyle? captionStyle,
     Color? caretColor,
     double? caretWidth,
     double? caretHeight,
@@ -184,12 +254,24 @@ class OrionOtpStyle {
           activeBackgroundColor ?? this.activeBackgroundColor,
       filledBackgroundColor:
           filledBackgroundColor ?? this.filledBackgroundColor,
+      errorBackgroundColor: errorBackgroundColor ?? this.errorBackgroundColor,
+      successBackgroundColor:
+          successBackgroundColor ?? this.successBackgroundColor,
+      disabledBackgroundColor:
+          disabledBackgroundColor ?? this.disabledBackgroundColor,
+      hoverBackgroundColor: hoverBackgroundColor ?? this.hoverBackgroundColor,
       borderColor: borderColor ?? this.borderColor,
       activeBorderColor: activeBorderColor ?? this.activeBorderColor,
       filledBorderColor: filledBorderColor ?? this.filledBorderColor,
       errorBorderColor: errorBorderColor ?? this.errorBorderColor,
       successBorderColor: successBorderColor ?? this.successBorderColor,
+      disabledBorderColor: disabledBorderColor ?? this.disabledBorderColor,
+      hoverBorderColor: hoverBorderColor ?? this.hoverBorderColor,
       textStyle: textStyle ?? this.textStyle,
+      disabledTextColor: disabledTextColor ?? this.disabledTextColor,
+      placeholderTextStyle: placeholderTextStyle ?? this.placeholderTextStyle,
+      labelStyle: labelStyle ?? this.labelStyle,
+      captionStyle: captionStyle ?? this.captionStyle,
       caretColor: caretColor ?? this.caretColor,
       caretWidth: caretWidth ?? this.caretWidth,
       caretHeight: caretHeight ?? this.caretHeight,
@@ -198,7 +280,9 @@ class OrionOtpStyle {
     );
   }
 
-  /// Merges this style with [other], where [other]'s non-null fields take precedence.
+  /// Merges this style with [other], where [other]'s non-null fields take
+  /// precedence. [TextStyle] fields merge via [TextStyle.merge] so partial
+  /// overrides preserve inherited font color and metrics.
   OrionOtpStyle merge(OrionOtpStyle? other) {
     if (other == null) return this;
     return OrionOtpStyle(
@@ -214,12 +298,32 @@ class OrionOtpStyle {
           other.activeBackgroundColor ?? activeBackgroundColor,
       filledBackgroundColor:
           other.filledBackgroundColor ?? filledBackgroundColor,
+      errorBackgroundColor: other.errorBackgroundColor ?? errorBackgroundColor,
+      successBackgroundColor:
+          other.successBackgroundColor ?? successBackgroundColor,
+      disabledBackgroundColor:
+          other.disabledBackgroundColor ?? disabledBackgroundColor,
+      hoverBackgroundColor: other.hoverBackgroundColor ?? hoverBackgroundColor,
       borderColor: other.borderColor ?? borderColor,
       activeBorderColor: other.activeBorderColor ?? activeBorderColor,
       filledBorderColor: other.filledBorderColor ?? filledBorderColor,
       errorBorderColor: other.errorBorderColor ?? errorBorderColor,
       successBorderColor: other.successBorderColor ?? successBorderColor,
-      textStyle: other.textStyle ?? textStyle,
+      disabledBorderColor: other.disabledBorderColor ?? disabledBorderColor,
+      hoverBorderColor: other.hoverBorderColor ?? hoverBorderColor,
+      textStyle: textStyle == null
+          ? other.textStyle
+          : textStyle!.merge(other.textStyle),
+      disabledTextColor: other.disabledTextColor ?? disabledTextColor,
+      placeholderTextStyle: placeholderTextStyle == null
+          ? other.placeholderTextStyle
+          : placeholderTextStyle!.merge(other.placeholderTextStyle),
+      labelStyle: labelStyle == null
+          ? other.labelStyle
+          : labelStyle!.merge(other.labelStyle),
+      captionStyle: captionStyle == null
+          ? other.captionStyle
+          : captionStyle!.merge(other.captionStyle),
       caretColor: other.caretColor ?? caretColor,
       caretWidth: other.caretWidth ?? caretWidth,
       caretHeight: other.caretHeight ?? caretHeight,
@@ -260,6 +364,26 @@ class OrionOtpStyle {
         b.filledBackgroundColor,
         t,
       ),
+      errorBackgroundColor: Color.lerp(
+        a.errorBackgroundColor,
+        b.errorBackgroundColor,
+        t,
+      ),
+      successBackgroundColor: Color.lerp(
+        a.successBackgroundColor,
+        b.successBackgroundColor,
+        t,
+      ),
+      disabledBackgroundColor: Color.lerp(
+        a.disabledBackgroundColor,
+        b.disabledBackgroundColor,
+        t,
+      ),
+      hoverBackgroundColor: Color.lerp(
+        a.hoverBackgroundColor,
+        b.hoverBackgroundColor,
+        t,
+      ),
       borderColor: Color.lerp(a.borderColor, b.borderColor, t),
       activeBorderColor: Color.lerp(
         a.activeBorderColor,
@@ -277,7 +401,25 @@ class OrionOtpStyle {
         b.successBorderColor,
         t,
       ),
+      disabledBorderColor: Color.lerp(
+        a.disabledBorderColor,
+        b.disabledBorderColor,
+        t,
+      ),
+      hoverBorderColor: Color.lerp(a.hoverBorderColor, b.hoverBorderColor, t),
       textStyle: TextStyle.lerp(a.textStyle, b.textStyle, t),
+      disabledTextColor: Color.lerp(
+        a.disabledTextColor,
+        b.disabledTextColor,
+        t,
+      ),
+      placeholderTextStyle: TextStyle.lerp(
+        a.placeholderTextStyle,
+        b.placeholderTextStyle,
+        t,
+      ),
+      labelStyle: TextStyle.lerp(a.labelStyle, b.labelStyle, t),
+      captionStyle: TextStyle.lerp(a.captionStyle, b.captionStyle, t),
       caretColor: Color.lerp(a.caretColor, b.caretColor, t),
       caretWidth: lerpDouble(a.caretWidth, b.caretWidth, t),
       caretHeight: lerpDouble(a.caretHeight, b.caretHeight, t),
@@ -301,12 +443,22 @@ class OrionOtpStyle {
           backgroundColor == other.backgroundColor &&
           activeBackgroundColor == other.activeBackgroundColor &&
           filledBackgroundColor == other.filledBackgroundColor &&
+          errorBackgroundColor == other.errorBackgroundColor &&
+          successBackgroundColor == other.successBackgroundColor &&
+          disabledBackgroundColor == other.disabledBackgroundColor &&
+          hoverBackgroundColor == other.hoverBackgroundColor &&
           borderColor == other.borderColor &&
           activeBorderColor == other.activeBorderColor &&
           filledBorderColor == other.filledBorderColor &&
           errorBorderColor == other.errorBorderColor &&
           successBorderColor == other.successBorderColor &&
+          disabledBorderColor == other.disabledBorderColor &&
+          hoverBorderColor == other.hoverBorderColor &&
           textStyle == other.textStyle &&
+          disabledTextColor == other.disabledTextColor &&
+          placeholderTextStyle == other.placeholderTextStyle &&
+          labelStyle == other.labelStyle &&
+          captionStyle == other.captionStyle &&
           caretColor == other.caretColor &&
           caretWidth == other.caretWidth &&
           caretHeight == other.caretHeight &&
@@ -314,7 +466,7 @@ class OrionOtpStyle {
           slotSpringSpec == other.slotSpringSpec;
 
   @override
-  int get hashCode => Object.hashAll([
+  int get hashCode => Object.hashAll(<Object?>[
     slotWidth,
     slotHeight,
     slotBorderRadius,
@@ -325,12 +477,22 @@ class OrionOtpStyle {
     backgroundColor,
     activeBackgroundColor,
     filledBackgroundColor,
+    errorBackgroundColor,
+    successBackgroundColor,
+    disabledBackgroundColor,
+    hoverBackgroundColor,
     borderColor,
     activeBorderColor,
     filledBorderColor,
     errorBorderColor,
     successBorderColor,
+    disabledBorderColor,
+    hoverBorderColor,
     textStyle,
+    disabledTextColor,
+    placeholderTextStyle,
+    labelStyle,
+    captionStyle,
     caretColor,
     caretWidth,
     caretHeight,

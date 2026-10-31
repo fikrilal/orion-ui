@@ -1,4 +1,4 @@
-import 'dart:ui' show Tristate;
+import 'dart:ui' show PointerDeviceKind, Tristate;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -658,5 +658,456 @@ void main() {
       expect(pillWith(const Color(0xFFAA0000)), findsOneWidget);
       expect(pillWith(const Color(0xFF00AA00)), findsNothing);
     });
+
+    test('lerp interpolates segmented control and badge styles smoothly', () {
+      final OrionSegmentedControlStyle a = OrionSegmentedControlStyle.from(
+        trackColor: const Color(0xFF000000),
+        pillColor: const Color(0xFF000000),
+        labelColor: const Color(0xFF000000),
+        hoverColor: const Color(0x00000000),
+        height: 36,
+        inset: 2,
+        iconSize: 14,
+        radius: BorderRadius.circular(8),
+        badge: OrionSegmentBadgeStyle.from(
+          fill: const Color(0xFF000000),
+          ink: const Color(0xFFFFFFFF),
+          height: 16,
+          minWidth: 16,
+          gap: 2,
+        ),
+      );
+      final OrionSegmentedControlStyle b = OrionSegmentedControlStyle.from(
+        trackColor: const Color(0xFFFFFFFF),
+        pillColor: const Color(0xFFFFFFFF),
+        labelColor: const Color(0xFFFFFFFF),
+        hoverColor: const Color(0xFF000000),
+        height: 52,
+        inset: 6,
+        iconSize: 22,
+        radius: BorderRadius.circular(24),
+        badge: OrionSegmentBadgeStyle.from(
+          fill: const Color(0xFFFFFFFF),
+          ink: const Color(0xFF000000),
+          height: 24,
+          minWidth: 24,
+          gap: 6,
+        ),
+      );
+
+      final OrionSegmentedControlTheme lerped = OrionSegmentedControlTheme(
+        defaultStyle: a,
+      ).lerp(OrionSegmentedControlTheme(defaultStyle: b), 0.5);
+      final OrionSegmentedControlStyle mid = lerped.defaultStyle!;
+
+      expect(mid.height, closeTo(44, 0.001));
+      expect(mid.inset, closeTo(4, 0.001));
+      expect(mid.iconSize, closeTo(18, 0.001));
+      expect(mid.radius, BorderRadius.circular(16));
+      expect(
+        mid.pillColor?.resolve(const <WidgetState>{}),
+        Color.lerp(const Color(0xFF000000), const Color(0xFFFFFFFF), 0.5),
+      );
+      expect(mid.badge?.height, closeTo(20, 0.001));
+      expect(mid.badge?.gap, closeTo(4, 0.001));
+      expect(
+        mid.badge?.fill?.resolve(const <WidgetState>{}),
+        Color.lerp(const Color(0xFF000000), const Color(0xFFFFFFFF), 0.5),
+      );
+    });
+  });
+
+  group('OrionSegmentedControl upgrades', () {
+    testWidgets('derives a concentric inner radius for rounded-rect tracks', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 300,
+                child: OrionSegmentedControl<String>(
+                  value: 'overview',
+                  onChanged: (_) {},
+                  style: OrionSegmentedControlStyle.from(
+                    inset: 4,
+                    radius: BorderRadius.circular(12),
+                  ),
+                  segments: _trips,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final DecoratedBox pillBox = tester.widget<DecoratedBox>(_pill);
+      final BoxDecoration pillDec = pillBox.decoration as BoxDecoration;
+      expect(pillDec.borderRadius, BorderRadius.circular(8));
+    });
+
+    testWidgets('uses directional start padding for badges in RTL locales', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: Scaffold(
+            body: Directionality(
+              textDirection: TextDirection.rtl,
+              child: Center(
+                child: SizedBox(
+                  width: 300,
+                  child: OrionSegmentedControl<String>(
+                    value: 'live',
+                    onChanged: (_) {},
+                    segments: const <OrionSegment<String>>[
+                      OrionSegment(value: 'overview', label: Text('Overview')),
+                      OrionSegment(
+                        value: 'live',
+                        label: Text('Live'),
+                        badge: Text('9'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final Rect labelRect = tester.getRect(find.text('Live'));
+      final Rect badgeRect = tester.getRect(find.text('9'));
+      // In RTL, the badge sits to the left of the label with positive gap.
+      expect(badgeRect.right, lessThan(labelRect.left));
+      expect(labelRect.left - badgeRect.right, greaterThanOrEqualTo(4));
+    });
+
+    testWidgets('interpolates label color continuously as the pill travels', (
+      tester,
+    ) async {
+      String value = 'overview';
+      await _pumpControl(tester, value: value, onChanged: (v) => value = v);
+      await tester.pumpAndSettle();
+
+      value = 'tickets';
+      await _pumpControl(tester, value: value, onChanged: (v) => value = v);
+      await tester.pump(const Duration(milliseconds: 16));
+
+      final Color? midTicketsColor = DefaultTextStyle.of(
+        tester.element(find.text('Tickets')),
+      ).style.color;
+      expect(midTicketsColor, isNot(OrionColors.lightScheme.onSurface));
+
+      await tester.pumpAndSettle();
+      final Color? settledTicketsColor = DefaultTextStyle.of(
+        tester.element(find.text('Tickets')),
+      ).style.color;
+      expect(settledTicketsColor, OrionColors.lightScheme.onSurface);
+    });
+
+    testWidgets('supports horizontal pill drag-to-scrub with detent haptics', (
+      tester,
+    ) async {
+      final List<String> haptics = <String>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (MethodCall call) async {
+          if (call.method == 'HapticFeedback.vibrate') {
+            haptics.add(call.arguments.toString());
+          }
+          return null;
+        },
+      );
+      addTearDown(() {
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        );
+      });
+
+      String value = 'overview';
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 300,
+                child: StatefulBuilder(
+                  builder: (BuildContext context, StateSetter setState) {
+                    return OrionSegmentedControl<String>(
+                      value: value,
+                      segments: _trips,
+                      onChanged: (String next) => setState(() => value = next),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final Offset start = tester.getCenter(find.text('Overview'));
+      final Offset end = tester.getCenter(find.text('Tickets'));
+      await tester.dragFrom(start, end - start);
+      await tester.pumpAndSettle();
+
+      expect(value, 'tickets');
+      expect(haptics, isNotEmpty);
+      expect(_pillInset(tester), closeTo(_slotInset(2), 0.5));
+    });
+
+    testWidgets('supports pointer hover highlight on unselected segments', (
+      tester,
+    ) async {
+      await _pumpControl(tester, value: 'overview', onChanged: (_) {});
+
+      final TestGesture mouse = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+      );
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await tester.pump();
+
+      await mouse.moveTo(tester.getCenter(find.text('Live')));
+      await tester.pump();
+
+      final Color? hoveredColor = DefaultTextStyle.of(
+        tester.element(find.text('Live')),
+      ).style.color;
+      expect(
+        hoveredColor,
+        Color.lerp(
+          OrionColors.lightScheme.onSurfaceVariant,
+          OrionColors.lightScheme.onSurface,
+          0.5,
+        ),
+      );
+
+      await mouse.moveTo(Offset.zero);
+      await tester.pump();
+      expect(
+        DefaultTextStyle.of(tester.element(find.text('Live'))).style.color,
+        OrionColors.lightScheme.onSurfaceVariant,
+      );
+    });
+
+    testWidgets(
+      'supports per-segment disabled, Home/End keys, icon, semanticLabel, and tooltip',
+      (tester) async {
+        final SemanticsHandle handle = tester.ensureSemantics();
+        String value = 'overview';
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: Center(
+                child: SizedBox(
+                  width: 320,
+                  child: StatefulBuilder(
+                    builder: (BuildContext context, StateSetter setState) {
+                      return OrionSegmentedControl<String>(
+                        autofocus: true,
+                        value: value,
+                        onChanged: (String next) =>
+                            setState(() => value = next),
+                        segments: const <OrionSegment<String>>[
+                          OrionSegment(
+                            value: 'overview',
+                            icon: Icon(Icons.grid_view_rounded),
+                            label: Text('Overview'),
+                            semanticLabel: 'Overview tab',
+                            tooltip: 'Show overview',
+                          ),
+                          OrionSegment(
+                            value: 'live',
+                            label: Text('Live'),
+                            enabled: false,
+                          ),
+                          OrionSegment(
+                            value: 'tickets',
+                            label: Text('Tickets'),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        // Tapping disabled segment does nothing.
+        await tester.tap(find.text('Live'));
+        await tester.pump();
+        expect(value, 'overview');
+
+        // ArrowRight skips disabled 'live' and selects 'tickets'.
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+        await tester.pump();
+        expect(value, 'tickets');
+
+        // Home jumps to first enabled segment ('overview').
+        await tester.sendKeyEvent(LogicalKeyboardKey.home);
+        await tester.pump();
+        expect(value, 'overview');
+
+        // End jumps to last enabled segment ('tickets').
+        await tester.sendKeyEvent(LogicalKeyboardKey.end);
+        await tester.pump();
+        expect(value, 'tickets');
+
+        expect(find.byType(Tooltip), findsOneWidget);
+        expect(find.byIcon(Icons.grid_view_rounded), findsOneWidget);
+        final SemanticsNode disabledNode = tester.getSemantics(
+          find.text('Live'),
+        );
+        expect(disabledNode.flagsCollection.isEnabled, Tristate.isFalse);
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'supports intrinsic sizing (expand: false) inside an unbounded Row and size presets',
+      (tester) async {
+        String value = 'a';
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: Row(
+                children: <Widget>[
+                  OrionSegmentedControl<String>(
+                    expand: false,
+                    size: OrionSegmentedControlSize.small,
+                    value: value,
+                    onChanged: (String next) => value = next,
+                    segments: const <OrionSegment<String>>[
+                      OrionSegment(
+                        value: 'a',
+                        icon: Icon(Icons.list_rounded),
+                        label: Text('List'),
+                      ),
+                      OrionSegment(
+                        value: 'b',
+                        icon: Icon(Icons.grid_view_rounded),
+                        label: Text('Grid'),
+                        badge: Text('4'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        expect(tester.takeException(), isNull);
+        final Size controlSize = tester.getSize(
+          find.byType(OrionSegmentedControl<String>),
+        );
+        expect(controlSize.height, 36);
+        expect(controlSize.width, greaterThan(72));
+        expect(controlSize.width, lessThan(300));
+      },
+    );
+
+    testWidgets('lifted pill and hairline borders render cleanly in dark mode', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.dark(),
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 300,
+                child: OrionSegmentedControl<String>(
+                  value: 'overview',
+                  onChanged: (_) {},
+                  segments: _trips,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final OrionSegmentedControlStyle darkDefaults =
+          OrionSegmentedControlStyle.defaults(scheme: OrionColors.darkScheme);
+      final Color track = darkDefaults.trackColor!.resolve(
+        const <WidgetState>{},
+      )!;
+      final Color pill = darkDefaults.pillColor!.resolve(const <WidgetState>{
+        WidgetState.selected,
+      })!;
+      // In dark mode the active pill is lighter (lifted) than the recessed track.
+      expect(pill.computeLuminance(), greaterThan(track.computeLuminance()));
+      expect(darkDefaults.pillBorder, isNot(BorderSide.none));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+      'drag-to-scrub respects RTL direction and skips disabled slots',
+      (tester) async {
+        String value = 'overview';
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: Directionality(
+                textDirection: TextDirection.rtl,
+                child: Center(
+                  child: SizedBox(
+                    width: 300,
+                    child: StatefulBuilder(
+                      builder: (BuildContext context, StateSetter setState) {
+                        return OrionSegmentedControl<String>(
+                          value: value,
+                          onChanged: (String next) =>
+                              setState(() => value = next),
+                          segments: const <OrionSegment<String>>[
+                            OrionSegment(
+                              value: 'overview',
+                              label: Text('Overview'),
+                            ),
+                            OrionSegment(
+                              value: 'live',
+                              label: Text('Live'),
+                              enabled: false,
+                            ),
+                            OrionSegment(
+                              value: 'tickets',
+                              label: Text('Tickets'),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        // In RTL, 'overview' is on the right and 'tickets' is on the left.
+        final Offset start = tester.getCenter(find.text('Overview'));
+        final Offset end = tester.getCenter(find.text('Tickets'));
+        expect(end.dx, lessThan(start.dx));
+
+        await tester.dragFrom(start, end - start);
+        await tester.pumpAndSettle();
+        expect(value, 'tickets');
+      },
+    );
   });
 }

@@ -33,8 +33,6 @@ class OrionSegmentedControlTheme
     );
   }
 
-  /// Styles are discrete specs, not interpolable numbers; the theme animation
-  /// swaps at the midpoint, the same way the kit's springs do.
   @override
   OrionSegmentedControlTheme lerp(
     ThemeExtension<OrionSegmentedControlTheme>? other,
@@ -43,7 +41,13 @@ class OrionSegmentedControlTheme
     if (other is! OrionSegmentedControlTheme) {
       return this;
     }
-    return t < 0.5 ? this : other;
+    return OrionSegmentedControlTheme(
+      defaultStyle: OrionSegmentedControlStyle.lerp(
+        defaultStyle,
+        other.defaultStyle,
+        t,
+      ),
+    );
   }
 
   @override

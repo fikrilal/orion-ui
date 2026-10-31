@@ -5,10 +5,10 @@ import 'package:orion_ui/orion_ui.dart';
 
 /// Playground for [OrionSegmentedControl].
 ///
-/// The `Disabled` flag in the top controls card gates every sample, the
-/// sections below are the reference matrices, and the playground last is the
-/// control itself: its selection state drives the generated call behind the
-/// Code tab.
+/// The `Disabled` flag in the top controls card gates every sample; the
+/// sections below showcase drag-to-scrub, size steps, intrinsic width &
+/// icon-only toolbars, animated badges, per-segment disabled options,
+/// state-aware skins, and an interactive playground with live code output.
 class OrionSegmentedShowcaseScreen extends StatefulWidget {
   const OrionSegmentedShowcaseScreen({super.key});
 
@@ -18,83 +18,91 @@ class OrionSegmentedShowcaseScreen extends StatefulWidget {
 }
 
 /// The instance-level skins the customization section demonstrates.
-enum _SegmentSkin { standard, brand, compact }
+enum _SegmentSkin { standard, brand, rounded, outline }
+
+enum _ViewMode { list, grid, map }
 
 class _OrionSegmentedShowcaseScreenState
     extends State<OrionSegmentedShowcaseScreen> {
   static const List<OrionSegment<String>> _tripSegments =
       <OrionSegment<String>>[
-        OrionSegment(value: 'overview', label: Text('Overview')),
-        OrionSegment(value: 'live', label: Text('Live')),
-        OrionSegment(value: 'tickets', label: Text('Tickets')),
+        OrionSegment<String>(value: 'overview', label: Text('Overview')),
+        OrionSegment<String>(value: 'live', label: Text('Live')),
+        OrionSegment<String>(value: 'tickets', label: Text('Tickets')),
       ];
 
   static const List<OrionSegment<String>> _rangeSegments =
       <OrionSegment<String>>[
-        OrionSegment(value: 'today', label: Text('Today')),
-        OrionSegment(value: 'week', label: Text('This week')),
-      ];
-
-  static const List<OrionSegment<String>> _iconSegments =
-      <OrionSegment<String>>[
-        OrionSegment(
-          value: 'overview',
-          label: _IconLabel(icon: Icons.grid_view_rounded, label: 'Overview'),
-        ),
-        OrionSegment(
-          value: 'live',
-          label: _IconLabel(icon: Icons.podcasts_rounded, label: 'Live'),
-        ),
-        OrionSegment(
-          value: 'tickets',
-          label: _IconLabel(
-            icon: Icons.confirmation_number_outlined,
-            label: 'Tickets',
-          ),
-        ),
-      ];
-
-  static const List<OrionSegment<String>> _countSegments =
-      <OrionSegment<String>>[
-        OrionSegment(value: 'overview', label: Text('Overview')),
-        OrionSegment(value: 'live', label: Text('Live'), badge: Text('3')),
-        OrionSegment(
-          value: 'tickets',
-          label: Text('Tickets'),
-          badge: Text('12'),
-        ),
+        OrionSegment<String>(value: 'today', label: Text('Today')),
+        OrionSegment<String>(value: 'week', label: Text('Week')),
       ];
 
   // Flag: shared by every sample on the page.
   bool _disabled = false;
 
+  // Samples.
   String _trip = 'live';
+  String _smallChoice = 'overview';
+  String _mediumChoice = 'live';
+  String _largeChoice = 'tickets';
+  _ViewMode _viewMode = _ViewMode.grid;
   String _range = 'today';
-  String _iconTrip = 'overview';
-  String _countTrip = 'live';
+  String _badgeChoice = 'live';
+  bool _showCounts = true;
+  String _tierChoice = 'pro';
 
-  // Customization: the focused skin choice.
+  // Customization.
   _SegmentSkin _skin = _SegmentSkin.standard;
   String _skinTrip = 'live';
 
-  // Playground: the focused specimen's own selection.
+  // Playground.
+  OrionSegmentedControlSize _playgroundSize = OrionSegmentedControlSize.medium;
+  bool _playgroundExpand = true;
+  bool _playgroundIcons = false;
+  bool _playgroundBadges = false;
   String _playground = 'overview';
 
-  void _selectPlayground(String value) => setState(() => _playground = value);
-
-  /// One sample under the shared flag.
-  OrionSegmentedControl<String> _sample({
-    required String value,
-    required ValueChanged<String> onChanged,
-    required List<OrionSegment<String>> segments,
+  OrionSegmentedControl<T> _sample<T>({
+    required T value,
+    required ValueChanged<T> onChanged,
+    required List<OrionSegment<T>> segments,
+    OrionSegmentedControlSize size = OrionSegmentedControlSize.medium,
+    bool expand = true,
     OrionSegmentedControlStyle? style,
   }) {
-    return OrionSegmentedControl<String>(
+    return OrionSegmentedControl<T>(
       value: value,
       onChanged: _disabled ? null : onChanged,
+      size: size,
+      expand: expand,
       style: style,
       segments: segments,
     );
+  }
+
+  List<OrionSegment<String>> _richSegments({
+    required bool icons,
+    required bool badges,
+  }) {
+    return <OrionSegment<String>>[
+      OrionSegment<String>(
+        value: 'overview',
+        icon: icons ? const Icon(Icons.grid_view_rounded) : null,
+        label: const Text('Overview'),
+      ),
+      OrionSegment<String>(
+        value: 'live',
+        icon: icons ? const Icon(Icons.podcasts_rounded) : null,
+        label: const Text('Live'),
+        badge: badges ? const Text('3') : null,
+      ),
+      OrionSegment<String>(
+        value: 'tickets',
+        icon: icons ? const Icon(Icons.confirmation_number_outlined) : null,
+        label: const Text('Tickets'),
+        badge: badges ? const Text('12') : null,
+      ),
+    ];
   }
 
   OrionSegmentedControlStyle? _skinStyle(BuildContext context) {
@@ -108,22 +116,34 @@ class _OrionSegmentedShowcaseScreenState
               ? scheme.onSurface.withValues(alpha: 0.12)
               : scheme.primary,
         ),
-        pillColor: WidgetStatePropertyAll<Color?>(scheme.onPrimary),
+        pillColor: WidgetStateProperty.resolveWith<Color?>(
+          (Set<WidgetState> states) => states.contains(WidgetState.disabled)
+              ? scheme.surface.withValues(alpha: 0.65)
+              : scheme.onPrimary,
+        ),
+        pillBorder: BorderSide.none,
+        trackBorder: BorderSide.none,
         labelColor: WidgetStateProperty.resolveWith<Color?>((
           Set<WidgetState> states,
         ) {
           if (states.contains(WidgetState.disabled)) {
             return scheme.onSurface.withValues(alpha: 0.38);
           }
-          return states.contains(WidgetState.selected)
-              ? scheme.primary
-              : scheme.onPrimary;
+          if (states.contains(WidgetState.selected)) {
+            return scheme.primary;
+          }
+          return scheme.onPrimary.withValues(
+            alpha: states.contains(WidgetState.hovered) ? 1.0 : 0.80,
+          );
         }),
       ),
-      _SegmentSkin.compact => OrionSegmentedControlStyle.from(
-        height: 36,
+      _SegmentSkin.rounded => OrionSegmentedControlStyle.from(
         radius: BorderRadius.circular(OrionRadii.radius12),
-        labelStyle: theme.textTheme.labelSmall,
+      ),
+      _SegmentSkin.outline => OrionSegmentedControlStyle(
+        trackColor: const WidgetStatePropertyAll<Color?>(Colors.transparent),
+        trackBorder: BorderSide(color: scheme.outlineVariant, width: 1),
+        radius: BorderRadius.circular(OrionRadii.radius12),
       ),
     };
   }
@@ -131,24 +151,59 @@ class _OrionSegmentedShowcaseScreenState
   String _skinLabel(_SegmentSkin skin) => switch (skin) {
     _SegmentSkin.standard => 'Standard',
     _SegmentSkin.brand => 'Brand',
-    _SegmentSkin.compact => 'Compact',
+    _SegmentSkin.rounded => 'Rounded',
+    _SegmentSkin.outline => 'Outline',
   };
 
-  /// The exact call the current controls produce.
+  String _sizeLabel(OrionSegmentedControlSize size) => switch (size) {
+    OrionSegmentedControlSize.small => 'Small',
+    OrionSegmentedControlSize.medium => 'Medium',
+    OrionSegmentedControlSize.large => 'Large',
+  };
+
+  /// The exact call the current playground controls produce.
   String get _snippet {
     final List<String> lines = <String>[
       'OrionSegmentedControl<String>(',
       "  value: '$_playground',",
+    ];
+    if (_playgroundSize != OrionSegmentedControlSize.medium) {
+      lines.add('  size: OrionSegmentedControlSize.${_playgroundSize.name},');
+    }
+    if (!_playgroundExpand) {
+      lines.add('  expand: false,');
+    }
+    lines.add(
       _disabled
           ? '  onChanged: null, // disabled'
-          : '  onChanged: _selectPlayground,',
-      '  segments: const [',
-      "    OrionSegment(value: 'overview', label: Text('Overview')),",
-      "    OrionSegment(value: 'live', label: Text('Live')),",
-      "    OrionSegment(value: 'tickets', label: Text('Tickets')),",
-      '  ],',
-      ')',
-    ];
+          : '  onChanged: (value) => setState(() => _tab = value),',
+    );
+    lines.add('  segments: const [');
+    lines.add(
+      _playgroundIcons
+          ? "    OrionSegment(value: 'overview', icon: Icon(Icons.grid_view_rounded), label: Text('Overview')),"
+          : "    OrionSegment(value: 'overview', label: Text('Overview')),",
+    );
+    final String liveExtras = <String>[
+      if (_playgroundIcons) 'icon: Icon(Icons.podcasts_rounded)',
+      if (_playgroundBadges) "badge: Text('3')",
+    ].join(', ');
+    lines.add(
+      liveExtras.isEmpty
+          ? "    OrionSegment(value: 'live', label: Text('Live')),"
+          : "    OrionSegment(value: 'live', $liveExtras, label: Text('Live')),",
+    );
+    final String ticketExtras = <String>[
+      if (_playgroundIcons) 'icon: Icon(Icons.confirmation_number_outlined)',
+      if (_playgroundBadges) "badge: Text('12')",
+    ].join(', ');
+    lines.add(
+      ticketExtras.isEmpty
+          ? "    OrionSegment(value: 'tickets', label: Text('Tickets')),"
+          : "    OrionSegment(value: 'tickets', $ticketExtras, label: Text('Tickets')),",
+    );
+    lines.add('  ],');
+    lines.add(');');
     return lines.join('\n');
   }
 
@@ -160,16 +215,16 @@ class _OrionSegmentedShowcaseScreenState
 
     return OrionThemedScaffold(
       title: 'Orion Segments',
-      builder: (context) {
+      builder: (BuildContext context) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+          children: <Widget>[
             // Top Intro Header
             Padding(
               padding: const EdgeInsets.only(bottom: OrionSpacing.space20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+                children: <Widget>[
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: OrionSpacing.space8,
@@ -179,7 +234,9 @@ class _OrionSegmentedShowcaseScreenState
                       color: isDark
                           ? scheme.onSurface.withValues(alpha: 0.10)
                           : scheme.onSurface.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(OrionRadii.radiusPill),
+                      borderRadius: BorderRadius.circular(
+                        OrionRadii.radiusPill,
+                      ),
                       border: Border.all(
                         color: isDark
                             ? scheme.outlineVariant.withValues(alpha: 0.20)
@@ -188,7 +245,7 @@ class _OrionSegmentedShowcaseScreenState
                       ),
                     ),
                     child: Text(
-                      'SELECTION • IMMEDIATE SPRING',
+                      'SELECTION • DRAG & IMMEDIATE SPRING',
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
@@ -199,7 +256,7 @@ class _OrionSegmentedShowcaseScreenState
                   ),
                   const SizedBox(height: OrionSpacing.space8),
                   Text(
-                    'Single-select pill track. Selection pill slides on the immediate travel spec without lateral overshoot. Arrow keys follow text direction.',
+                    'Single-select pill track with tap or horizontal drag-to-scrub, pill-synced ink transitions, concentric corners, hover halos, and arrow/Home/End keyboard nav.',
                     style: TextStyle(
                       fontSize: 13.5,
                       height: 1.4,
@@ -211,15 +268,16 @@ class _OrionSegmentedShowcaseScreenState
             ),
 
             OrionShowcaseControls(
-              children: [
+              children: <Widget>[
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                  children: <Widget>[
                     Expanded(
                       child: OrionShowcaseToggle(
                         label: 'Disabled',
                         value: _disabled,
-                        onChanged: (value) => setState(() => _disabled = value),
+                        onChanged: (bool value) =>
+                            setState(() => _disabled = value),
                       ),
                     ),
                   ],
@@ -228,57 +286,175 @@ class _OrionSegmentedShowcaseScreenState
             ),
             const SizedBox(height: OrionSpacing.space24),
 
-            // Trip Card
+            // Primary Drag or Tap Card
             OrionShowcaseSection(
-              title: 'Trip',
+              title: 'Drag or Tap',
               subtitle:
-                  'Equal segment distribution with sliding active selection indicator pill',
+                  'Tap any slot or drag the active pill horizontally across segments',
               card: true,
-              child: _sample(
+              child: _sample<String>(
                 value: _trip,
-                onChanged: (value) => setState(() => _trip = value),
+                onChanged: (String value) => setState(() => _trip = value),
                 segments: _tripSegments,
               ),
             ),
             const SizedBox(height: OrionSpacing.space20),
 
-            // Two options Card
+            // Sizes Card
             OrionShowcaseSection(
-              title: 'Two options',
-              subtitle: 'Binary switch-style pill track for quick mode swaps',
+              title: 'Sizes',
+              subtitle:
+                  'Small (36 pt), Medium (44 pt), and Large (52 pt) built-in height presets',
               card: true,
-              child: _sample(
-                value: _range,
-                onChanged: (value) => setState(() => _range = value),
-                segments: _rangeSegments,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    'Small',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: OrionSpacing.space8),
+                  _sample<String>(
+                    size: OrionSegmentedControlSize.small,
+                    value: _smallChoice,
+                    onChanged: (String value) =>
+                        setState(() => _smallChoice = value),
+                    segments: _tripSegments,
+                  ),
+                  const SizedBox(height: OrionSpacing.space16),
+                  Text(
+                    'Medium (Default)',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: OrionSpacing.space8),
+                  _sample<String>(
+                    size: OrionSegmentedControlSize.medium,
+                    value: _mediumChoice,
+                    onChanged: (String value) =>
+                        setState(() => _mediumChoice = value),
+                    segments: _tripSegments,
+                  ),
+                  const SizedBox(height: OrionSpacing.space16),
+                  Text(
+                    'Large',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: OrionSpacing.space8),
+                  _sample<String>(
+                    size: OrionSegmentedControlSize.large,
+                    value: _largeChoice,
+                    onChanged: (String value) =>
+                        setState(() => _largeChoice = value),
+                    segments: _tripSegments,
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: OrionSpacing.space20),
 
-            // Icon and text Card
+            // Intrinsic Width & Icon-Only Card
             OrionShowcaseSection(
-              title: 'Icon and text',
+              title: 'Intrinsic & Icon-Only',
               subtitle:
-                  'Rich labels composing icon and text; icons inherit segment state colors',
+                  'expand: false sizes equal slots cleanly inside toolbars, Rows, or Wraps',
               card: true,
-              child: _sample(
-                value: _iconTrip,
-                onChanged: (value) => setState(() => _iconTrip = value),
-                segments: _iconSegments,
+              child: Wrap(
+                spacing: OrionSpacing.space12,
+                runSpacing: OrionSpacing.space12,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: <Widget>[
+                  _sample<_ViewMode>(
+                    expand: false,
+                    size: OrionSegmentedControlSize.small,
+                    value: _viewMode,
+                    onChanged: (_ViewMode value) =>
+                        setState(() => _viewMode = value),
+                    segments: const <OrionSegment<_ViewMode>>[
+                      OrionSegment<_ViewMode>(
+                        value: _ViewMode.list,
+                        label: Icon(Icons.view_list_rounded),
+                        semanticLabel: 'List view',
+                        tooltip: 'List view',
+                      ),
+                      OrionSegment<_ViewMode>(
+                        value: _ViewMode.grid,
+                        label: Icon(Icons.grid_view_rounded),
+                        semanticLabel: 'Grid view',
+                        tooltip: 'Grid view',
+                      ),
+                      OrionSegment<_ViewMode>(
+                        value: _ViewMode.map,
+                        label: Icon(Icons.map_outlined),
+                        semanticLabel: 'Map view',
+                        tooltip: 'Map view',
+                      ),
+                    ],
+                  ),
+                  _sample<String>(
+                    expand: false,
+                    size: OrionSegmentedControlSize.small,
+                    value: _range,
+                    onChanged: (String value) => setState(() => _range = value),
+                    segments: _rangeSegments,
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: OrionSpacing.space20),
 
-            // With counts Card
+            // Icons & Animated Badges Card
             OrionShowcaseSection(
-              title: 'With counts',
+              title: 'Icons & Animated Badges',
               subtitle:
-                  'Segments carrying optional badge counter chips beside their labels',
+                  'Built-in segment icon slot and AnimatedSize counter chips that collapse in place',
               card: true,
-              child: _sample(
-                value: _countTrip,
-                onChanged: (value) => setState(() => _countTrip = value),
-                segments: _countSegments,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  OrionShowcaseToggle(
+                    label: 'Show badge counts',
+                    value: _showCounts,
+                    onChanged: (bool value) =>
+                        setState(() => _showCounts = value),
+                  ),
+                  const SizedBox(height: OrionSpacing.space16),
+                  _sample<String>(
+                    value: _badgeChoice,
+                    onChanged: (String value) =>
+                        setState(() => _badgeChoice = value),
+                    segments: _richSegments(icons: true, badges: _showCounts),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: OrionSpacing.space20),
+
+            // Per-Segment Disabled Card
+            OrionShowcaseSection(
+              title: 'Per-Segment Disabled',
+              subtitle:
+                  'Locked options stay muted and are skipped by taps, dragging, and arrow keys',
+              card: true,
+              child: _sample<String>(
+                value: _tierChoice,
+                onChanged: (String value) =>
+                    setState(() => _tierChoice = value),
+                segments: const <OrionSegment<String>>[
+                  OrionSegment<String>(value: 'free', label: Text('Free')),
+                  OrionSegment<String>(value: 'pro', label: Text('Pro')),
+                  OrionSegment<String>(
+                    value: 'enterprise',
+                    label: Text('Enterprise'),
+                    enabled: false,
+                    tooltip: 'Contact sales to unlock',
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: OrionSpacing.space20),
@@ -287,22 +463,24 @@ class _OrionSegmentedShowcaseScreenState
             OrionShowcaseSection(
               title: 'Customization',
               subtitle:
-                  'Three-layer style contract: Presets -> OrionSegmentedControlTheme -> Instance OrionSegmentedControlStyle',
+                  'Concentric rounded corners, state-aware brand skins, and outline tracks',
               card: true,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+                children: <Widget>[
                   OrionShowcaseChoice<_SegmentSkin>(
                     label: 'Skin',
                     values: _SegmentSkin.values,
                     selected: _skin,
                     labelOf: _skinLabel,
-                    onChanged: (value) => setState(() => _skin = value),
+                    onChanged: (_SegmentSkin value) =>
+                        setState(() => _skin = value),
                   ),
-                  const SizedBox(height: OrionSpacing.space24),
-                  _sample(
+                  const SizedBox(height: OrionSpacing.space20),
+                  _sample<String>(
                     value: _skinTrip,
-                    onChanged: (value) => setState(() => _skinTrip = value),
+                    onChanged: (String value) =>
+                        setState(() => _skinTrip = value),
                     segments: _tripSegments,
                     style: _skinStyle(context),
                   ),
@@ -314,12 +492,51 @@ class _OrionSegmentedShowcaseScreenState
             // Playground Card
             OrionShowcaseSection(
               title: 'Playground',
-              subtitle: 'Interactive segment specimen with live code generator',
+              subtitle:
+                  'Configure size, width mode, icons, and badges with live code output',
               child: OrionShowcasePanel(
                 key: const ValueKey<String>('showcase-panel-playground'),
                 preview: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                  children: <Widget>[
+                    OrionShowcaseChoice<OrionSegmentedControlSize>(
+                      label: 'Size',
+                      values: OrionSegmentedControlSize.values,
+                      selected: _playgroundSize,
+                      labelOf: _sizeLabel,
+                      onChanged: (OrionSegmentedControlSize value) =>
+                          setState(() => _playgroundSize = value),
+                    ),
+                    const SizedBox(height: OrionSpacing.space12),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: OrionShowcaseToggle(
+                            label: 'Expand',
+                            value: _playgroundExpand,
+                            onChanged: (bool value) =>
+                                setState(() => _playgroundExpand = value),
+                          ),
+                        ),
+                        Expanded(
+                          child: OrionShowcaseToggle(
+                            label: 'Icons',
+                            value: _playgroundIcons,
+                            onChanged: (bool value) =>
+                                setState(() => _playgroundIcons = value),
+                          ),
+                        ),
+                        Expanded(
+                          child: OrionShowcaseToggle(
+                            label: 'Badges',
+                            value: _playgroundBadges,
+                            onChanged: (bool value) =>
+                                setState(() => _playgroundBadges = value),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: OrionSpacing.space20),
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(
@@ -329,8 +546,10 @@ class _OrionSegmentedShowcaseScreenState
                       decoration: BoxDecoration(
                         color: isDark
                             ? scheme.surfaceContainerLowest
-                            : scheme.surfaceContainerLowest,
-                        borderRadius: BorderRadius.circular(OrionRadii.radius12),
+                            : scheme.surfaceContainer,
+                        borderRadius: BorderRadius.circular(
+                          OrionRadii.radius12,
+                        ),
                         border: Border.all(
                           color: isDark
                               ? scheme.outlineVariant.withValues(alpha: 0.15)
@@ -339,10 +558,16 @@ class _OrionSegmentedShowcaseScreenState
                         ),
                       ),
                       child: Center(
-                        child: _sample(
+                        child: _sample<String>(
+                          size: _playgroundSize,
+                          expand: _playgroundExpand,
                           value: _playground,
-                          onChanged: _selectPlayground,
-                          segments: _tripSegments,
+                          onChanged: (String value) =>
+                              setState(() => _playground = value),
+                          segments: _richSegments(
+                            icons: _playgroundIcons,
+                            badges: _playgroundBadges,
+                          ),
                         ),
                       ),
                     ),
@@ -354,25 +579,6 @@ class _OrionSegmentedShowcaseScreenState
           ],
         );
       },
-    );
-  }
-}
-
-class _IconLabel extends StatelessWidget {
-  const _IconLabel({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon),
-        const SizedBox(width: OrionSpacing.space4),
-        Flexible(child: Text(label)),
-      ],
     );
   }
 }

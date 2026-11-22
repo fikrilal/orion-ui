@@ -770,6 +770,272 @@ void main() {
         expect(controller.currentDetentIndex, 1);
       },
     );
+
+    testWidgets(
+      'fitContent sizes sheet to intrinsic content height and stays draggable',
+      (tester) async {
+        final controller = OrionSheetController();
+        var dismissed = false;
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: OrionBottomSheet(
+                controller: controller,
+                fitContent: true,
+                title: 'Quick Actions',
+                subtitle: 'Choose an option below',
+                onDismiss: () => dismissed = true,
+                builder: (context, scroll) => const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: SizedBox(height: 100, child: Text('Compact Body')),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.pumpAndSettle();
+
+        expect(find.text('Quick Actions'), findsOneWidget);
+        expect(find.text('Choose an option below'), findsOneWidget);
+        expect(find.text('Compact Body'), findsOneWidget);
+        // Should fit tightly around handle + header + 132px body, well below 600px viewport.
+        expect(controller.currentHeight, greaterThan(180));
+        expect(controller.currentHeight, lessThan(340));
+
+        await tester.drag(find.text('Compact Body'), const Offset(0, 220));
+        await tester.pumpAndSettle();
+        expect(dismissed, isTrue);
+      },
+    );
+
+    testWidgets(
+      'floating variant applies outer inset margin and all-round border radius',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: OrionBottomSheet(
+                fitContent: true,
+                variant: OrionBottomSheetVariant.floating,
+                builder: (context, scroll) => const SizedBox(
+                  height: 120,
+                  child: Center(child: Text('Floating Sheet')),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.pumpAndSettle();
+
+        final Rect screen = tester.getRect(find.byType(Scaffold));
+        final Rect card = tester.getRect(find.byType(ClipRRect));
+        expect(card.left - screen.left, closeTo(OrionSpacing.space16, 1.5));
+        expect(screen.right - card.right, closeTo(OrionSpacing.space16, 1.5));
+        expect(screen.bottom - card.bottom, closeTo(OrionSpacing.space16, 1.5));
+      },
+    );
+
+    testWidgets(
+      'showOrionBottomSheet returns typed result via OrionBottomSheet.dismissOf',
+      (tester) async {
+        String? picked;
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => ElevatedButton(
+                  onPressed: () async {
+                    picked = await showOrionBottomSheet<String>(
+                      context: context,
+                      fitContent: true,
+                      variant: OrionBottomSheetVariant.floating,
+                      title: 'Pick Theme',
+                      showCloseButton: true,
+                      builder: (ctx, scroll) => Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: OrionButton(
+                          label: 'Select Dark',
+                          onPressed: () =>
+                              OrionBottomSheet.dismissOf(ctx, 'dark'),
+                        ),
+                      ),
+                    );
+                  },
+                  child: const Text('Open Picker'),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.text('Open Picker'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Select Dark'));
+        await tester.pumpAndSettle();
+
+        expect(picked, 'dark');
+        expect(find.text('Pick Theme'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'bottom of sheet content stays reachable at lower detent without clipping off-screen',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: OrionBottomSheet(
+                detents: const [0.4, 0.85],
+                initialDetentIndex: 0,
+                builder: (context, scroll) => Column(
+                  children: <Widget>[
+                    const Expanded(child: Center(child: Text('Top Area'))),
+                    Container(
+                      height: 44,
+                      alignment: Alignment.center,
+                      child: const Text('Pinned Footer'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.pumpAndSettle();
+
+        final Rect screen = tester.getRect(find.byType(Scaffold));
+        final Rect footer = tester.getRect(find.text('Pinned Footer'));
+        expect(footer.bottom, lessThanOrEqualTo(screen.bottom));
+      },
+    );
+
+    testWidgets(
+      'rubber-banding above max detent keeps bottom anchored without leaving a gap',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: OrionBottomSheet(
+                detents: const [0.5, 0.8],
+                initialDetentIndex: 1,
+                builder: (context, scroll) => const Text('Anchored Sheet'),
+              ),
+            ),
+          ),
+        );
+
+        await tester.pumpAndSettle();
+        final Rect screen = tester.getRect(find.byType(Scaffold));
+
+        final TestGesture gesture = await tester.startGesture(
+          tester.getTopLeft(find.byType(ClipRRect)) + const Offset(50, 10),
+        );
+        await gesture.moveBy(const Offset(0, -120));
+        await tester.pump();
+
+        final Rect sheet = tester.getRect(find.byType(ClipRRect));
+        expect(sheet.bottom, closeTo(screen.bottom, 1.5));
+
+        await gesture.up();
+        await tester.pumpAndSettle();
+      },
+    );
+
+    testWidgets(
+      'continuous downward scroll past top hands off seamlessly to sheet drag',
+      (tester) async {
+        final controller = OrionSheetController();
+        late ScrollController innerScroll;
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: OrionBottomSheet(
+                controller: controller,
+                detents: const [0.4, 0.8],
+                initialDetentIndex: 1,
+                builder: (context, scroll) {
+                  innerScroll = scroll;
+                  return ListView.builder(
+                    controller: scroll,
+                    itemCount: 40,
+                    itemBuilder: (context, index) =>
+                        SizedBox(height: 48, child: Text('Row $index')),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+
+        await tester.pumpAndSettle();
+        final double maxH = controller.currentHeight;
+
+        // Scroll slightly into list first.
+        await tester.drag(find.text('Row 2'), const Offset(0, -40));
+        await tester.pumpAndSettle();
+        expect(innerScroll.offset, greaterThan(0));
+
+        // Now drag down in ONE continuous gesture (stepped like a real finger)
+        // far enough to hit 0 AND pull sheet down.
+        final TestGesture gesture = await tester.startGesture(
+          tester.getCenter(find.text('Row 2')),
+        );
+        for (int i = 0; i < 6; i++) {
+          await gesture.moveBy(const Offset(0, 30));
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+
+        expect(innerScroll.offset, 0.0);
+        expect(controller.currentHeight, lessThan(maxH));
+
+        await gesture.up();
+        await tester.pumpAndSettle();
+      },
+    );
+
+    testWidgets('modal sheet lifts cleanly above soft keyboard viewInsets', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: MediaQuery(
+            data: const MediaQueryData(
+              size: Size(800, 600),
+              viewInsets: EdgeInsets.only(bottom: 200),
+            ),
+            child: Scaffold(
+              body: OrionBottomSheet(
+                hasBarrier: true,
+                fitContent: true,
+                builder: (context, scroll) => const SizedBox(
+                  height: 120,
+                  child: Center(child: Text('Keyboard Aware')),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      final Rect card = tester.getRect(find.byType(ClipRRect));
+      expect(card.bottom, closeTo(400.0, 2.0));
+    });
   });
 
   group('OrionBottomSheetStyle & Themes', () {
@@ -778,11 +1044,22 @@ void main() {
         scheme: OrionColors.lightScheme,
       );
 
-      expect(style.borderWidth, 1.0);
+      expect(style.borderWidth, 0.0);
+      expect(style.borderColor, isNull);
       expect(style.rubberBandFactor, 0.15);
       expect(style.dismissThreshold, 96.0);
-      expect(style.detentSpring, OrionSpringSpec.gentle);
+      expect(style.detentSpring, OrionBottomSheetPresets.defaultDetentSpring);
+      expect(style.dismissSpring, OrionBottomSheetPresets.defaultDismissSpring);
       expect(style.dismissSpring?.clampOvershoot, isTrue);
+
+      final floating = OrionBottomSheetPresets.resolve(
+        scheme: OrionColors.lightScheme,
+        variant: OrionBottomSheetVariant.floating,
+      );
+      expect(
+        floating.borderRadius,
+        BorderRadius.circular(OrionRadii.radius24),
+      );
     });
 
     test('style merge overrides only named fields', () {

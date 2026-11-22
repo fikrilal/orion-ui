@@ -12,7 +12,7 @@ class OrionSheetController extends ChangeNotifier {
 
   void Function(int index)? _snapToDetentHandler;
   void Function(double fraction)? _snapToFractionHandler;
-  void Function()? _dismissHandler;
+  void Function(Object? result)? _dismissHandler;
 
   /// Current visual height of the sheet in logical pixels.
   double get currentHeight => _currentHeight;
@@ -52,7 +52,7 @@ class OrionSheetController extends ChangeNotifier {
   void attach({
     required void Function(int index) onSnapToDetent,
     required void Function(double fraction) onSnapToFraction,
-    required void Function() onDismiss,
+    required void Function(Object? result) onDismiss,
   }) {
     _snapToDetentHandler = onSnapToDetent;
     _snapToFractionHandler = onSnapToFraction;
@@ -87,8 +87,9 @@ class OrionSheetController extends ChangeNotifier {
     snapToDetent(0);
   }
 
-  /// Smoothly animates the sheet downward and dismisses it.
-  void dismiss() {
-    _dismissHandler?.call();
+  /// Smoothly animates the sheet downward and dismisses it, optionally
+  /// passing [result] to the modal route's returned [Future].
+  void dismiss([Object? result]) {
+    _dismissHandler?.call(result);
   }
 }

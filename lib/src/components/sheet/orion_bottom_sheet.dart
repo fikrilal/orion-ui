@@ -1,5 +1,8 @@
+import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 import 'package:orion_ui/src/components/sheet/orion_bottom_sheet_presets.dart';
 import 'package:orion_ui/src/components/sheet/orion_bottom_sheet_style.dart';
@@ -7,7 +10,6 @@ import 'package:orion_ui/src/components/sheet/orion_bottom_sheet_theme.dart';
 import 'package:orion_ui/src/components/sheet/orion_sheet_controller.dart';
 import 'package:orion_ui/src/core/orion_haptics.dart';
 import 'package:orion_ui/src/motion/orion_spring_driver.dart';
-import 'package:orion_ui/src/motion/orion_spring_spec.dart';
 import 'package:orion_ui/src/theme/orion_colors.dart';
 import 'package:orion_ui/src/theme/orion_theme.dart';
 import 'package:orion_ui/src/theme/orion_theme_data.dart';
@@ -57,6 +59,7 @@ abstract interface class _OrionSheetScrollDelegate {
   double get minDetentHeight;
   bool get isDismissible;
   bool get enableDrag;
+  void beginSheetDrag();
   void addPixelDelta(double delta);
   void goBallistic(double velocity);
 }
@@ -81,12 +84,21 @@ class _OrionSheetScrollPosition extends ScrollPositionWithSingleContext {
       return;
     }
 
-    // delta > 0: user dragging finger DOWN (pulling top downward).
-    // delta < 0: user dragging finger UP (pulling content upward).
+    // delta > 0: user dragging finger DOWN (scrolling toward offset 0 / pulling sheet down).
+    // delta < 0: user dragging finger UP (scrolling further into list / expanding sheet).
     final double sheetH = delegate.currentHeight;
     final double maxH = delegate.maxDetentHeight;
 
     if (_listShouldScroll) {
+      if (delta > 0 && delta > pixels) {
+        // Seamless mid-gesture handoff: consume remaining scroll offset to 0,
+        // then carry leftover downward delta directly into sheet drag.
+        final double overflow = delta - pixels;
+        super.applyUserOffset(pixels);
+        delegate.beginSheetDrag();
+        delegate.addPixelDelta(-overflow);
+        return;
+      }
       super.applyUserOffset(delta);
       return;
     }
@@ -94,11 +106,13 @@ class _OrionSheetScrollPosition extends ScrollPositionWithSingleContext {
     // Here pixels <= 0.0 (list is resting at the very top).
     if (delta > 0) {
       // Pulling downward at top: delegate moves sheet downward.
+      delegate.beginSheetDrag();
       delegate.addPixelDelta(-delta);
     } else if (delta < 0) {
       // Pulling upward at top:
       if (sheetH < maxH - 0.5) {
         // Sheet has not reached top detent yet -> expand sheet first.
+        delegate.beginSheetDrag();
         delegate.addPixelDelta(-delta);
       } else {
         // Sheet is at top detent -> scroll the inner list into content.
@@ -143,25 +157,37 @@ class _OrionSheetScrollPosition extends ScrollPositionWithSingleContext {
   }
 }
 
-/// A tactile, physics-driven bottom sheet with multi-snap detents, rubber-banding,
-/// and cooperative nested scrolling.
+/// A tactile, physics-driven bottom sheet supporting both intrinsic
+/// content-sized presentation and multi-snap detents, edge-to-edge or floating
+/// card layouts, keyboard avoidance, rubber-banding, and cooperative nested
+/// scrolling.
 ///
-/// Features:
-/// - **Kinetic Detents:** Snaps between fractional viewport heights (e.g. `[0.4, 0.85]`).
-/// - **Top Rubber-Banding:** Elastic resistance when pulled above the highest detent.
-/// - **Nested Scroll Cooperation:** Pulling the handle moves the sheet; dragging inner list
-///   cooperates via [OrionSheetScrollController], moving the sheet when at top rest ($offset \le 0$).
-/// - **Static Scrim Blur Isolation:** Frosted backdrops isolate Gaussian blurs on the static scrim,
-///   protecting 60/120 FPS frame budgets from GPU raster stalls.
-/// - **Zero-Snap Physics:** Continuous single-scalar simulation powered by [OrionSpringDriver].
+/// Sizing modes:
+/// - **Multi-detent mode** (`fitContent: false`, default when [detents] is
+///   provided): snaps between fractional viewport heights (e.g. `[0.4, 0.85]`).
+/// - **Intrinsic fit-content mode** (`fitContent: true`): automatically measures
+///   its child height up to [maxHeightFraction] of the available viewport while
+///   preserving drag-to-dismiss, top rubber-banding, and keyboard avoidance.
+///
+/// Look and feel resolve in three layers, each overriding the last: the
+/// built-in [OrionBottomSheetPresets] for the [variant], the ambient
+/// [OrionBottomSheetTheme], and the instance [style].
 class OrionBottomSheet extends StatefulWidget {
   const OrionBottomSheet({
     super.key,
     required this.builder,
     this.detents = const <double>[0.4, 0.85],
     this.initialDetentIndex = 0,
+    this.fitContent = false,
+    this.maxHeightFraction = 0.9,
+    this.variant = OrionBottomSheetVariant.edgeToEdge,
+    this.title,
+    this.subtitle,
+    this.header,
+    this.showCloseButton = false,
     this.enableDrag = true,
     this.showDragHandle = true,
+    this.useSafeArea = true,
     this.controller,
     this.style,
     this.onDetentChanged,
@@ -169,22 +195,62 @@ class OrionBottomSheet extends StatefulWidget {
     this.hasBarrier = false,
     this.barrierDismissible = true,
     this.isDismissible = true,
-  }) : assert(detents.length > 0, 'detents must not be empty');
+  }) : assert(
+         fitContent || detents.length > 0,
+         'detents must not be empty when fitContent is false',
+       ),
+       assert(
+         maxHeightFraction > 0.0 && maxHeightFraction <= 1.0,
+         'maxHeightFraction must be between 0.0 and 1.0',
+       ),
+       assert(
+         header == null || (title == null && subtitle == null),
+         'Provide either header or title/subtitle, not both.',
+       );
 
   /// Content builder receiving the sheet's cooperating [ScrollController].
   final OrionSheetContentBuilder builder;
 
-  /// Snap detents expressed as fractions (0.1 to 1.0) of available viewport height.
+  /// Snap detents expressed as fractions (0.1 to 1.0) of available viewport
+  /// height. Ignored when [fitContent] is true.
   final List<double> detents;
 
   /// Index of the initial detent to mount at.
   final int initialDetentIndex;
+
+  /// When true, the sheet sizes itself to its intrinsic content height (capped
+  /// at [maxHeightFraction] of available height) instead of fixed [detents].
+  final bool fitContent;
+
+  /// Upper height cap as a fraction of available viewport when [fitContent] is true.
+  final double maxHeightFraction;
+
+  /// Visual layout variant: [OrionBottomSheetVariant.edgeToEdge] or
+  /// [OrionBottomSheetVariant.floating].
+  final OrionBottomSheetVariant variant;
+
+  /// Optional plain-text sheet title rendered in the built-in header bar.
+  final String? title;
+
+  /// Optional subtitle displayed beneath [title].
+  final String? subtitle;
+
+  /// Optional custom header widget rendered between the drag handle and body.
+  final Widget? header;
+
+  /// Whether to show a trailing close icon button in the built-in header bar
+  /// (requires [title] or [subtitle] and [isDismissible]).
+  final bool showCloseButton;
 
   /// Whether user pointer drags can move the sheet.
   final bool enableDrag;
 
   /// Whether to display the top rounded pill drag handle.
   final bool showDragHandle;
+
+  /// Whether to apply bottom safe-area insets inside the sheet (and top safe
+  /// area clearance for modal presentations).
+  final bool useSafeArea;
 
   /// Optional programmatic controller.
   final OrionSheetController? controller;
@@ -207,6 +273,22 @@ class OrionBottomSheet extends StatefulWidget {
   /// Whether the sheet can be dismissed via downward gestures or barrier taps.
   final bool isDismissible;
 
+  /// Locates the nearest enclosing [OrionBottomSheetState], if any.
+  static OrionBottomSheetState? maybeOf(BuildContext context) {
+    return context.findAncestorStateOfType<OrionBottomSheetState>();
+  }
+
+  /// Dismisses the nearest enclosing modal or inline [OrionBottomSheet] with an
+  /// optional typed [result], playing the spring exit animation cleanly.
+  static void dismissOf<T>(BuildContext context, [T? result]) {
+    final OrionBottomSheetState? state = maybeOf(context);
+    if (state != null) {
+      state.dismiss(result: result);
+    } else {
+      Navigator.maybePop<T>(context, result);
+    }
+  }
+
   @override
   State<OrionBottomSheet> createState() => OrionBottomSheetState();
 }
@@ -219,11 +301,15 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
 
   List<double> _sortedDetents = const <double>[];
   double _availableHeight = 0.0;
+  double _measuredContentHeight = 0.0;
   bool _handleDragging = false;
   bool _contentDragging = false;
+  bool _scrollDragging = false;
   int _activeDetentIndex = 0;
   bool _mountedArrival = false;
   bool _isClosing = false;
+  Object? _pendingDismissResult;
+  void Function(Object? result)? _routeDismissCallback;
 
   OrionBottomSheetStyle _resolvedStyle = const OrionBottomSheetStyle();
   OrionThemeData _orionTheme = OrionThemeData.fallback;
@@ -233,14 +319,37 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
   OrionSheetController get _effectiveController =>
       widget.controller ?? (_internalController ??= OrionSheetController());
 
+  bool get _isDragging =>
+      _handleDragging || _contentDragging || _scrollDragging;
+
   @override
   double get currentHeight => _driver.value;
 
   @override
-  double get maxDetentHeight => _heightForDetent(_sortedDetents.length - 1);
+  double get maxDetentHeight {
+    if (widget.fitContent) {
+      return _fitTargetHeight;
+    }
+    return _heightForDetent(_sortedDetents.length - 1);
+  }
 
   @override
-  double get minDetentHeight => _heightForDetent(0);
+  double get minDetentHeight {
+    if (widget.fitContent) {
+      return _fitTargetHeight;
+    }
+    return _heightForDetent(0);
+  }
+
+  double get _fitMaxHeight => _availableHeight * widget.maxHeightFraction;
+
+  double get _fitTargetHeight {
+    if (_availableHeight <= 0) return 0.0;
+    if (_measuredContentHeight <= 0) {
+      return math.min(_availableHeight * 0.4, _fitMaxHeight);
+    }
+    return _measuredContentHeight.clamp(0.0, _fitMaxHeight);
+  }
 
   @override
   bool get isDismissible => widget.isDismissible;
@@ -254,15 +363,14 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
     _scrollController = OrionSheetScrollController();
     _scrollController._attachDelegate(this);
     _normalizeDetents();
-    _activeDetentIndex = widget.initialDetentIndex.clamp(
-      0,
-      _sortedDetents.length - 1,
-    );
+    _activeDetentIndex = widget.fitContent
+        ? 0
+        : widget.initialDetentIndex.clamp(0, _sortedDetents.length - 1);
 
     _driver = OrionSpringDriver(
       vsync: this,
       initialValue: 0.0,
-      springSpec: OrionSpringSpec.gentle,
+      springSpec: OrionBottomSheetPresets.defaultDetentSpring,
     );
 
     _driver.addListener(_onDriverTick);
@@ -273,7 +381,7 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final theme = Theme.of(context);
+    final ThemeData theme = Theme.of(context);
     _scheme = theme.colorScheme;
     _orionTheme = OrionTheme.of(context);
     _resolvedStyle = _resolveStyle(theme);
@@ -288,10 +396,21 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
       oldWidget.controller?.detach();
       _attachController();
     }
+    if (widget.variant != oldWidget.variant ||
+        widget.style != oldWidget.style) {
+      _resolvedStyle = _resolveStyle(Theme.of(context));
+    }
     _normalizeDetents();
-    final int clamped = _activeDetentIndex.clamp(0, _sortedDetents.length - 1);
-    if (clamped != _activeDetentIndex) {
-      _snapToDetentIndex(clamped);
+    if (!widget.fitContent) {
+      final int clamped = _activeDetentIndex.clamp(
+        0,
+        _sortedDetents.length - 1,
+      );
+      if (clamped != _activeDetentIndex) {
+        _snapToDetentIndex(clamped);
+      } else {
+        _onDriverTick();
+      }
     } else {
       _onDriverTick();
     }
@@ -317,15 +436,19 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
 
   void _attachController() {
     _effectiveController.attach(
-      onSnapToDetent: (index) {
+      onSnapToDetent: (int index) {
+        if (widget.fitContent) {
+          _snapToFitHeight();
+          return;
+        }
         final int targetIdx = index.clamp(0, _sortedDetents.length - 1);
         _snapToDetentIndex(targetIdx);
       },
-      onSnapToFraction: (fraction) {
+      onSnapToFraction: (double fraction) {
         final double targetH = _availableHeight * fraction.clamp(0.0, 1.0);
         _snapToPixelHeight(targetH);
       },
-      onDismiss: dismiss,
+      onDismiss: (Object? result) => dismiss(result: result),
     );
   }
 
@@ -347,6 +470,16 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
     if (status == AnimationStatus.completed &&
         _isClosing &&
         _driver.value <= 0.01) {
+      _completeDismissal();
+    }
+  }
+
+  void _completeDismissal() {
+    final Object? result = _pendingDismissResult;
+    _pendingDismissResult = null;
+    if (_routeDismissCallback != null) {
+      _routeDismissCallback!(result);
+    } else {
       widget.onDismiss?.call();
     }
   }
@@ -357,14 +490,29 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
     return _availableHeight * _sortedDetents[idx];
   }
 
+  void _snapToFitHeight({double? velocity}) {
+    if (_availableHeight <= 0) return;
+    _isClosing = false;
+    _driver.springSpec =
+        _resolvedStyle.detentSpring ??
+        OrionBottomSheetPresets.defaultDetentSpring;
+    _driver.retarget(_fitTargetHeight, velocity: velocity);
+  }
+
   void _snapToDetentIndex(int index, {double? velocity}) {
     if (_availableHeight <= 0) return;
+    if (widget.fitContent) {
+      _snapToFitHeight(velocity: velocity);
+      return;
+    }
     _isClosing = false;
     final int idx = index.clamp(0, _sortedDetents.length - 1);
     final int previousIdx = _activeDetentIndex;
     _activeDetentIndex = idx;
     final double targetH = _heightForDetent(idx);
-    _driver.springSpec = _resolvedStyle.detentSpring ?? OrionSpringSpec.gentle;
+    _driver.springSpec =
+        _resolvedStyle.detentSpring ??
+        OrionBottomSheetPresets.defaultDetentSpring;
     _driver.retarget(targetH, velocity: velocity);
     if (previousIdx != idx) {
       widget.onDetentChanged?.call(idx);
@@ -374,14 +522,19 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
   void _snapToPixelHeight(double height, {double? velocity}) {
     if (_availableHeight <= 0) return;
     _isClosing = false;
-    _driver.springSpec = _resolvedStyle.detentSpring ?? OrionSpringSpec.gentle;
+    _driver.springSpec =
+        _resolvedStyle.detentSpring ??
+        OrionBottomSheetPresets.defaultDetentSpring;
     _driver.retarget(height, velocity: velocity);
 
-    // Find nearest detent for state reporting
+    if (widget.fitContent) {
+      return;
+    }
+
     int nearest = 0;
     double bestDiff = double.infinity;
     for (int i = 0; i < _sortedDetents.length; i++) {
-      final diff = (_heightForDetent(i) - height).abs();
+      final double diff = (_heightForDetent(i) - height).abs();
       if (diff < bestDiff) {
         bestDiff = diff;
         nearest = i;
@@ -394,21 +547,20 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
     }
   }
 
-  /// Triggers smooth downward dismissal of the sheet.
-  void dismiss({double? velocity}) {
+  /// Triggers smooth downward dismissal of the sheet, optionally returning
+  /// [result] when presented via [showOrionBottomSheet].
+  void dismiss({double? velocity, Object? result}) {
+    if (_isClosing) return;
     _isClosing = true;
+    _pendingDismissResult = result;
     if (_driver.reducedMotion) {
       _driver.jumpTo(0.0);
-      widget.onDismiss?.call();
+      _completeDismissal();
       return;
     }
     _driver.springSpec =
         _resolvedStyle.dismissSpring ??
-        const OrionSpringSpec(
-          stiffness: 300,
-          dampingRatio: 1.0,
-          clampOvershoot: true,
-        );
+        OrionBottomSheetPresets.defaultDismissSpring;
     _driver.retarget(0.0, velocity: velocity);
   }
 
@@ -418,20 +570,29 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
         OrionBottomSheetTheme.fallback;
     return OrionBottomSheetPresets.resolve(
       scheme: theme.colorScheme,
+      variant: widget.variant,
     ).merge(sheetTheme.defaultStyle).merge(widget.style);
+  }
+
+  @override
+  void beginSheetDrag() {
+    _scrollDragging = true;
   }
 
   @override
   void addPixelDelta(double delta) => _addPixelDelta(delta);
 
   @override
-  void goBallistic(double velocity) => _settleOnDetent(velocity: velocity);
+  void goBallistic(double velocity) {
+    _scrollDragging = false;
+    _settleOnDetent(velocity: velocity);
+  }
 
   void _addPixelDelta(double deltaH) {
     if (!widget.enableDrag || _availableHeight <= 0) return;
     final double currentH = _driver.value;
-    final double maxH = _heightForDetent(_sortedDetents.length - 1);
-    final double minH = _heightForDetent(0);
+    final double maxH = maxDetentHeight;
+    final double minH = minDetentHeight;
     final double rubberBand = _resolvedStyle.rubberBandFactor ?? 0.15;
 
     double effectiveDelta = deltaH;
@@ -442,11 +603,15 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
     }
 
     final double candidate = currentH + effectiveDelta;
+    final double maxRubberH = maxH + (_availableHeight * 0.16);
     final double clamped;
     if (widget.isDismissible) {
-      clamped = candidate.clamp(0.0, maxH + (_availableHeight * 0.2));
+      clamped = candidate.clamp(0.0, maxRubberH);
     } else {
-      clamped = candidate.clamp(minH - 40.0, maxH + (_availableHeight * 0.2));
+      clamped = candidate.clamp(
+        math.max(0.0, minH - 40.0),
+        maxRubberH,
+      );
     }
     _driver.jumpTo(clamped);
   }
@@ -454,16 +619,17 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
   void _settleOnDetent({required double velocity}) {
     if (_availableHeight <= 0) return;
     final double currentH = _driver.value;
-    final double minH = _heightForDetent(0);
+    final double minH = minDetentHeight;
     final double dismissThresh = _resolvedStyle.dismissThreshold ?? 96.0;
 
-    // velocity > 0 is upward, velocity < 0 is downward
+    // velocity > 0 is upward, velocity < 0 is downward.
     final double hProj = currentH + (velocity * 0.08);
 
-    // 1. Dismiss Check (only if dismissible)
+    // 1. Dismiss check (only if dismissible).
     if (widget.isDismissible) {
+      final double effectiveThreshold = math.min(dismissThresh, minH * 0.45);
       if (velocity < -650.0 ||
-          (currentH < minH - dismissThresh) ||
+          (currentH < minH - effectiveThreshold) ||
           (hProj < minH * 0.5 && velocity < -150.0)) {
         dismiss(velocity: velocity);
         OrionHaptics.trigger(OrionHapticType.lightImpact);
@@ -471,21 +637,26 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
       }
     }
 
-    // 2. Fling upward -> step to higher detent
+    if (widget.fitContent) {
+      _snapToFitHeight(velocity: velocity);
+      return;
+    }
+
+    // 2. Fling upward -> step to higher detent.
     if (velocity > 500.0 && _activeDetentIndex < _sortedDetents.length - 1) {
       _snapToDetentIndex(_activeDetentIndex + 1, velocity: velocity);
       OrionHaptics.trigger(OrionHapticType.selectionClick);
       return;
     }
 
-    // 3. Fling downward -> step to lower detent
+    // 3. Fling downward -> step to lower detent.
     if (velocity < -500.0 && _activeDetentIndex > 0) {
       _snapToDetentIndex(_activeDetentIndex - 1, velocity: velocity);
       OrionHaptics.trigger(OrionHapticType.selectionClick);
       return;
     }
 
-    // 4. Settle on nearest detent to projected height
+    // 4. Settle on nearest detent to projected height.
     int bestIdx = 0;
     double bestDistance = double.infinity;
     for (int i = 0; i < _sortedDetents.length; i++) {
@@ -500,13 +671,33 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
     _snapToDetentIndex(bestIdx, velocity: velocity);
   }
 
+  void _onMeasuredContentSize(Size size) {
+    if (!widget.fitContent || !mounted) return;
+    if ((_measuredContentHeight - size.height).abs() < 0.5) return;
+    _measuredContentHeight = size.height;
+    if (_availableHeight <= 0 || _isDragging || _isClosing) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _isDragging || _isClosing) return;
+      if (!_mountedArrival) {
+        _mountedArrival = true;
+        _snapToFitHeight();
+      } else if (_driver.reducedMotion) {
+        _driver.jumpTo(_fitTargetHeight);
+      } else {
+        _snapToFitHeight();
+      }
+    });
+  }
+
   Widget _buildDragHandle(OrionBottomSheetStyle style) {
     if (!widget.showDragHandle) {
-      return const SizedBox(height: 12.0);
+      return const SizedBox(height: OrionSpacing.space12);
     }
 
     final Size size = style.handleSize ?? const Size(36.0, 5.0);
-    final Color color = style.handleColor ?? Colors.grey;
+    final Color color =
+        style.handleColor ?? _scheme.onSurfaceVariant.withValues(alpha: 0.35);
 
     return MouseRegion(
       cursor: widget.enableDrag
@@ -515,19 +706,17 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onVerticalDragStart: widget.enableDrag
-            ? (_) {
-                _handleDragging = true;
-              }
+            ? (_) => _handleDragging = true
             : null,
         onVerticalDragUpdate: widget.enableDrag
-            ? (details) {
+            ? (DragUpdateDetails details) {
                 if (!_handleDragging) return;
                 final double dy = details.primaryDelta ?? details.delta.dy;
                 _addPixelDelta(-dy);
               }
             : null,
         onVerticalDragEnd: widget.enableDrag
-            ? (details) {
+            ? (DragEndDetails details) {
                 if (!_handleDragging) return;
                 _handleDragging = false;
                 final double vy =
@@ -542,7 +731,7 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
         },
         child: Container(
           width: double.infinity,
-          constraints: const BoxConstraints(minHeight: 44.0),
+          constraints: const BoxConstraints(minHeight: OrionSizing.minHitTarget),
           alignment: Alignment.center,
           child: Container(
             width: size.width,
@@ -557,42 +746,129 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
     );
   }
 
+  Widget? _buildHeader(ThemeData theme) {
+    if (widget.header != null) {
+      return widget.header;
+    }
+    if (widget.title == null && widget.subtitle == null) {
+      return null;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        OrionSpacing.space16,
+        0,
+        OrionSpacing.space16,
+        OrionSpacing.space12,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: <Widget>[
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                if (widget.title != null)
+                  Text(
+                    widget.title!,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: _scheme.onSurface,
+                    ),
+                  ),
+                if (widget.subtitle != null) ...<Widget>[
+                  const SizedBox(height: 2.0),
+                  Text(
+                    widget.subtitle!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: _scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (widget.showCloseButton && widget.isDismissible)
+            IconButton(
+              tooltip: 'Close',
+              onPressed: () => dismiss(),
+              icon: Icon(
+                Icons.close_rounded,
+                size: 20,
+                color: _scheme.onSurfaceVariant,
+              ),
+              visualDensity: VisualDensity.compact,
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
     final MediaQueryData media = MediaQuery.of(context);
+    final bool isFloating = widget.variant == OrionBottomSheetVariant.floating;
+    final EdgeInsets resolvedMargin = isFloating
+        ? (_resolvedStyle.floatingMargin ??
+                  const EdgeInsets.fromLTRB(
+                    OrionSpacing.space16,
+                    0,
+                    OrionSpacing.space16,
+                    OrionSpacing.space16,
+                  ))
+              .resolve(Directionality.of(context))
+        : EdgeInsets.zero;
+
+    final double keyboardInset = widget.hasBarrier ? media.viewInsets.bottom : 0.0;
+    final double bottomSafeInset =
+        widget.useSafeArea && widget.hasBarrier ? media.padding.bottom : 0.0;
+    final double topClearance =
+        widget.useSafeArea && widget.hasBarrier ? media.padding.top : 0.0;
 
     return LayoutBuilder(
-      builder: (context, constraints) {
-        final double maxAvailable = constraints.maxHeight - media.padding.top;
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double verticalMargins =
+            resolvedMargin.top +
+            resolvedMargin.bottom +
+            (isFloating ? bottomSafeInset : 0.0);
+        final double maxAvailable = math.max(
+          0.0,
+          constraints.maxHeight - topClearance - keyboardInset - verticalMargins,
+        );
+
         if (_availableHeight != maxAvailable && maxAvailable > 0) {
           final bool wasMounted = _mountedArrival;
           _availableHeight = maxAvailable;
           if (!wasMounted) {
-            _mountedArrival = true;
+            if (!widget.fitContent) {
+              _mountedArrival = true;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) {
+                  _snapToDetentIndex(_activeDetentIndex);
+                }
+              });
+            }
+          } else if (!_isDragging && !_isClosing) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) {
-                _snapToDetentIndex(_activeDetentIndex);
-              }
-            });
-          } else if (!_handleDragging && !_contentDragging && !_isClosing) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted &&
-                  !_handleDragging &&
-                  !_contentDragging &&
-                  !_isClosing) {
-                _driver.jumpTo(_heightForDetent(_activeDetentIndex));
+              if (mounted && !_isDragging && !_isClosing) {
+                final double target = widget.fitContent
+                    ? _fitTargetHeight
+                    : _heightForDetent(_activeDetentIndex);
+                _driver.jumpTo(target);
               }
             });
           }
         }
 
-        final double maxH = _heightForDetent(_sortedDetents.length - 1);
-
         final BorderRadius radius =
             _resolvedStyle.borderRadius ??
-            const BorderRadius.vertical(
-              top: Radius.circular(OrionRadii.radius24),
-            );
+            (isFloating
+                ? BorderRadius.circular(OrionRadii.radius24)
+                : const BorderRadius.vertical(
+                    top: Radius.circular(OrionRadii.radius24),
+                  ));
         final Color bg = _resolvedStyle.backgroundColor ?? _scheme.surface;
         final bool frosted = _resolvedStyle.frosted ?? false;
 
@@ -602,29 +878,30 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
                   sigmaX: _orionTheme.blurSigma,
                   sigmaY: _orionTheme.blurSigma,
                 ),
-                child: ColoredBox(color: bg.withValues(alpha: 0.70)),
+                child: ColoredBox(color: bg.withValues(alpha: 0.72)),
               )
             : ColoredBox(color: bg);
 
         final Widget innerContent = widget.builder(context, _scrollController);
+        final Widget? headerWidget = _buildHeader(theme);
 
         final Widget contentInteractiveWrapper = GestureDetector(
           behavior: HitTestBehavior.translucent,
           onVerticalDragStart: widget.enableDrag
-              ? (details) {
+              ? (_) {
                   if (_scrollController.hasClients) return;
                   _contentDragging = true;
                 }
               : null,
           onVerticalDragUpdate: widget.enableDrag
-              ? (details) {
+              ? (DragUpdateDetails details) {
                   if (!_contentDragging || _scrollController.hasClients) return;
                   final double dy = details.primaryDelta ?? details.delta.dy;
                   _addPixelDelta(-dy);
                 }
               : null,
           onVerticalDragEnd: widget.enableDrag
-              ? (details) {
+              ? (DragEndDetails details) {
                   if (!_contentDragging || _scrollController.hasClients) return;
                   _contentDragging = false;
                   final double vy =
@@ -637,16 +914,28 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
           child: innerContent,
         );
 
-        final Widget sheetContent = SizedBox(
-          height: maxH,
-          width: double.infinity,
-          child: Container(
+        final Widget handle = _buildDragHandle(_resolvedStyle);
+
+        // Edge-to-edge sheets absorb bottom safe area inside the sheet surface
+        // so the background reaches cleanly to the screen edge.
+        final double innerBottomPad = !isFloating && keyboardInset == 0
+            ? bottomSafeInset
+            : 0.0;
+
+        Widget buildSurfaceShell(Widget bodyChild) {
+          final double effectiveBorderWidth = _resolvedStyle.borderWidth ?? 0.0;
+          final Border? border =
+              (_resolvedStyle.borderColor != null && effectiveBorderWidth > 0)
+              ? Border.all(
+                  color: _resolvedStyle.borderColor!,
+                  width: effectiveBorderWidth,
+                )
+              : null;
+
+          return Container(
             decoration: BoxDecoration(
               borderRadius: radius,
-              border: Border.all(
-                color: _resolvedStyle.borderColor ?? _scheme.outlineVariant,
-                width: _resolvedStyle.borderWidth ?? 1.0,
-              ),
+              border: border,
               boxShadow: _resolvedStyle.shadow ?? OrionThemeData.defaultShadow,
             ),
             child: ClipRRect(
@@ -654,37 +943,62 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
               child: Material(
                 type: MaterialType.transparency,
                 child: Stack(
-                  children: [
+                  children: <Widget>[
                     Positioned.fill(child: sheetBackdrop),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _buildDragHandle(_resolvedStyle),
-                        Expanded(
-                          child: Align(
-                            alignment: Alignment.topCenter,
-                            child: contentInteractiveWrapper,
-                          ),
-                        ),
-                      ],
-                    ),
+                    bodyChild,
                   ],
                 ),
               ),
             ),
-          ),
-        );
+          );
+        }
+
+        // Pre-build the stable sheet content tree outside AnimatedBuilder so
+        // animation ticks never rebuild user widgets.
+        final Widget stableSheetBody;
+        if (widget.fitContent) {
+          stableSheetBody = _MeasureSize(
+            onChange: _onMeasuredContentSize,
+            child: Padding(
+              padding: EdgeInsets.only(bottom: innerBottomPad),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  handle,
+                  ?headerWidget,
+                  Flexible(child: contentInteractiveWrapper),
+                ],
+              ),
+            ),
+          );
+        } else {
+          stableSheetBody = Padding(
+            padding: EdgeInsets.only(bottom: innerBottomPad),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                handle,
+                ?headerWidget,
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: contentInteractiveWrapper,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final Widget sheetSurface = buildSurfaceShell(stableSheetBody);
 
         return AnimatedBuilder(
           animation: _driver,
-          child: sheetContent,
-          builder: (context, child) {
+          child: sheetSurface,
+          builder: (BuildContext context, Widget? child) {
             final double height = _driver.value;
-            final double translateY = (maxH - height).clamp(
-              -_availableHeight * 0.3,
-              maxH + 10.0,
-            );
-            final double minH = _heightForDetent(0);
+            final double minH = minDetentHeight;
             final double barrierFraction = minH > 0
                 ? (height / minH).clamp(0.0, 1.0)
                 : 0.0;
@@ -708,19 +1022,63 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
                   )
                 : null;
 
-            return Stack(
-              children: [
-                ?barrier,
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  height: maxH,
-                  child: Transform.translate(
-                    offset: Offset(0, translateY),
+            final double bottomOffset =
+                keyboardInset +
+                resolvedMargin.bottom +
+                (isFloating ? bottomSafeInset : 0.0);
+
+            Widget positionedSheet;
+            if (widget.fitContent) {
+              // In fitContent mode: translate smoothly when below target height
+              // (entrance / dismiss), and stretch container height smoothly when
+              // rubber-banding above target height so there is never an open gap
+              // beneath the bottom edge.
+              final double targetH = _fitTargetHeight;
+              final double clampedHeight = math.max(height, targetH);
+              final double translateY = height < targetH
+                  ? targetH - height
+                  : 0.0;
+
+              positionedSheet = Positioned(
+                left: resolvedMargin.left,
+                right: resolvedMargin.right,
+                bottom: bottomOffset,
+                child: Transform.translate(
+                  offset: Offset(0, translateY),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: height > targetH ? clampedHeight : 0.0,
+                      maxHeight: math.max(_fitMaxHeight, clampedHeight),
+                    ),
                     child: child,
                   ),
                 ),
+              );
+            } else {
+              // In multi-detent mode: dynamically size the visible sheet box
+              // down to minH (so footers, scroll bottoms, and safe areas stay
+              // reachable at every detent) and translate smoothly when below
+              // minH (entrance / dismiss). Rubber-banding above maxH grows the
+              // box height cleanly while keeping its bottom anchored.
+              final double layoutHeight = math.max(height, minH);
+              final double translateY = height < minH ? minH - height : 0.0;
+
+              positionedSheet = Positioned(
+                left: resolvedMargin.left,
+                right: resolvedMargin.right,
+                bottom: bottomOffset,
+                height: layoutHeight,
+                child: Transform.translate(
+                  offset: Offset(0, translateY),
+                  child: child,
+                ),
+              );
+            }
+
+            return Stack(
+              children: <Widget>[
+                ?barrier,
+                positionedSheet,
               ],
             );
           },
@@ -731,26 +1089,48 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
 }
 
 /// Presents an [OrionBottomSheet] as a modal route on the navigator.
+///
+/// By default, when [detents] is omitted and [fitContent] is not explicitly
+/// set, the sheet uses multi-detent mode `[0.5, 0.9]`. Pass `fitContent: true`
+/// for intrinsic content-sized sheets (menus, forms, confirmations), or
+/// `variant: OrionBottomSheetVariant.floating` for an inset rounded card sheet.
 Future<T?> showOrionBottomSheet<T>({
   required BuildContext context,
   required OrionSheetContentBuilder builder,
   List<double> detents = const <double>[0.5, 0.9],
   int initialDetentIndex = 0,
+  bool fitContent = false,
+  double maxHeightFraction = 0.9,
+  OrionBottomSheetVariant variant = OrionBottomSheetVariant.edgeToEdge,
+  String? title,
+  String? subtitle,
+  Widget? header,
+  bool showCloseButton = false,
   bool isDismissible = true,
   bool enableDrag = true,
   bool showDragHandle = true,
+  bool useSafeArea = true,
+  bool useRootNavigator = true,
   OrionBottomSheetStyle? style,
   OrionSheetController? controller,
   RouteSettings? routeSettings,
 }) {
-  return Navigator.of(context, rootNavigator: true).push<T>(
+  return Navigator.of(context, rootNavigator: useRootNavigator).push<T>(
     _OrionBottomSheetRoute<T>(
       builder: builder,
       detents: detents,
       initialDetentIndex: initialDetentIndex,
+      fitContent: fitContent,
+      maxHeightFraction: maxHeightFraction,
+      variant: variant,
+      title: title,
+      subtitle: subtitle,
+      header: header,
+      showCloseButton: showCloseButton,
       isDismissible: isDismissible,
       enableDrag: enableDrag,
       showDragHandle: showDragHandle,
+      useSafeArea: useSafeArea,
       style: style,
       sheetController: controller,
       settings: routeSettings,
@@ -763,9 +1143,17 @@ class _OrionBottomSheetRoute<T> extends PopupRoute<T> {
     required this.builder,
     required this.detents,
     required this.initialDetentIndex,
+    required this.fitContent,
+    required this.maxHeightFraction,
+    required this.variant,
+    this.title,
+    this.subtitle,
+    this.header,
+    required this.showCloseButton,
     required this.isDismissible,
     required this.enableDrag,
     required this.showDragHandle,
+    required this.useSafeArea,
     this.style,
     this.sheetController,
     super.settings,
@@ -774,9 +1162,17 @@ class _OrionBottomSheetRoute<T> extends PopupRoute<T> {
   final OrionSheetContentBuilder builder;
   final List<double> detents;
   final int initialDetentIndex;
+  final bool fitContent;
+  final double maxHeightFraction;
+  final OrionBottomSheetVariant variant;
+  final String? title;
+  final String? subtitle;
+  final Widget? header;
+  final bool showCloseButton;
   final bool isDismissible;
   final bool enableDrag;
   final bool showDragHandle;
+  final bool useSafeArea;
   final OrionBottomSheetStyle? style;
   final OrionSheetController? sheetController;
 
@@ -813,30 +1209,115 @@ class _OrionBottomSheetRoute<T> extends PopupRoute<T> {
   ) {
     return PopScope(
       canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
+      onPopInvokedWithResult: (bool didPop, Object? result) {
         if (didPop) return;
         if (isDismissible) {
-          _sheetKey.currentState?.dismiss();
+          _sheetKey.currentState?.dismiss(result: result);
         }
       },
-      child: OrionBottomSheet(
-        key: _sheetKey,
-        builder: builder,
-        detents: detents,
-        initialDetentIndex: initialDetentIndex,
-        enableDrag: enableDrag,
-        showDragHandle: showDragHandle,
-        style: style,
-        controller: sheetController,
-        hasBarrier: true,
-        barrierDismissible: isDismissible,
-        isDismissible: isDismissible,
-        onDismiss: () {
+      child: _ModalSheetHost<T>(
+        sheetKey: _sheetKey,
+        onCompleteDismiss: (Object? result) {
           if (navigator?.canPop() ?? false) {
-            navigator?.pop();
+            navigator?.pop<T>(result as T?);
           }
         },
+        child: OrionBottomSheet(
+          key: _sheetKey,
+          builder: builder,
+          detents: detents,
+          initialDetentIndex: initialDetentIndex,
+          fitContent: fitContent,
+          maxHeightFraction: maxHeightFraction,
+          variant: variant,
+          title: title,
+          subtitle: subtitle,
+          header: header,
+          showCloseButton: showCloseButton,
+          enableDrag: enableDrag,
+          showDragHandle: showDragHandle,
+          useSafeArea: useSafeArea,
+          style: style,
+          controller: sheetController,
+          hasBarrier: true,
+          barrierDismissible: isDismissible,
+          isDismissible: isDismissible,
+        ),
       ),
     );
+  }
+}
+
+/// Wires the route's typed pop callback onto [OrionBottomSheetState] after mount.
+class _ModalSheetHost<T> extends StatefulWidget {
+  const _ModalSheetHost({
+    required this.sheetKey,
+    required this.onCompleteDismiss,
+    required this.child,
+  });
+
+  final GlobalKey<OrionBottomSheetState> sheetKey;
+  final void Function(Object? result) onCompleteDismiss;
+  final Widget child;
+
+  @override
+  State<_ModalSheetHost<T>> createState() => _ModalSheetHostState<T>();
+}
+
+class _ModalSheetHostState<T> extends State<_ModalSheetHost<T>> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.sheetKey.currentState?._routeDismissCallback =
+          widget.onCompleteDismiss;
+    });
+  }
+
+  @override
+  void didUpdateWidget(_ModalSheetHost<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    widget.sheetKey.currentState?._routeDismissCallback =
+        widget.onCompleteDismiss;
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
+/// Reports post-layout child [Size] without introducing extra frames when
+/// unchanged.
+class _MeasureSize extends SingleChildRenderObjectWidget {
+  const _MeasureSize({required this.onChange, super.child});
+
+  final ValueChanged<Size> onChange;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderMeasureSize(onChange);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderMeasureSize renderObject,
+  ) {
+    renderObject.onChange = onChange;
+  }
+}
+
+class _RenderMeasureSize extends RenderProxyBox {
+  _RenderMeasureSize(this.onChange);
+
+  ValueChanged<Size> onChange;
+  Size? _lastSize;
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    final Size newSize = child?.size ?? Size.zero;
+    if (_lastSize != newSize) {
+      _lastSize = newSize;
+      onChange(newSize);
+    }
   }
 }

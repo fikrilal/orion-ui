@@ -2,6 +2,15 @@ import 'package:flutter/material.dart';
 
 import 'package:orion_ui/src/motion/orion_spring_spec.dart';
 
+/// Visual presentation layout for [OrionBottomSheet].
+enum OrionBottomSheetVariant {
+  /// Full-width sheet anchored directly to the bottom edge.
+  edgeToEdge,
+
+  /// Inset, rounded card sheet floating slightly above the bottom and side edges.
+  floating,
+}
+
 /// The overridable visual and physical styling contract for [OrionBottomSheet].
 ///
 /// Three layers produce the effective style, each overriding the last: the
@@ -14,6 +23,7 @@ class OrionBottomSheetStyle {
     this.borderColor,
     this.borderWidth,
     this.borderRadius,
+    this.floatingMargin,
     this.handleColor,
     this.handleSize,
     this.barrierColor,
@@ -34,8 +44,11 @@ class OrionBottomSheetStyle {
   /// Sheet container outline border width.
   final double? borderWidth;
 
-  /// Sheet top corners border radius.
+  /// Sheet corner border radius.
   final BorderRadius? borderRadius;
+
+  /// Outer inset margin applied when using [OrionBottomSheetVariant.floating].
+  final EdgeInsetsGeometry? floatingMargin;
 
   /// Pill grab handle color.
   final Color? handleColor;
@@ -70,6 +83,7 @@ class OrionBottomSheetStyle {
     Color? borderColor,
     double? borderWidth,
     BorderRadius? borderRadius,
+    EdgeInsetsGeometry? floatingMargin,
     Color? handleColor,
     Size? handleSize,
     Color? barrierColor,
@@ -85,6 +99,7 @@ class OrionBottomSheetStyle {
       borderColor: borderColor ?? this.borderColor,
       borderWidth: borderWidth ?? this.borderWidth,
       borderRadius: borderRadius ?? this.borderRadius,
+      floatingMargin: floatingMargin ?? this.floatingMargin,
       handleColor: handleColor ?? this.handleColor,
       handleSize: handleSize ?? this.handleSize,
       barrierColor: barrierColor ?? this.barrierColor,
@@ -107,6 +122,7 @@ class OrionBottomSheetStyle {
       borderColor: other.borderColor ?? borderColor,
       borderWidth: other.borderWidth ?? borderWidth,
       borderRadius: other.borderRadius ?? borderRadius,
+      floatingMargin: other.floatingMargin ?? floatingMargin,
       handleColor: other.handleColor ?? handleColor,
       handleSize: other.handleSize ?? handleSize,
       barrierColor: other.barrierColor ?? barrierColor,
@@ -125,6 +141,7 @@ class OrionBottomSheetStyle {
     Color? borderColor,
     double? borderWidth,
     BorderRadius? borderRadius,
+    EdgeInsetsGeometry? floatingMargin,
     Color? handleColor,
     Size? handleSize,
     Color? barrierColor,
@@ -140,6 +157,7 @@ class OrionBottomSheetStyle {
       borderColor: borderColor,
       borderWidth: borderWidth,
       borderRadius: borderRadius,
+      floatingMargin: floatingMargin,
       handleColor: handleColor,
       handleSize: handleSize,
       barrierColor: barrierColor,
@@ -160,6 +178,7 @@ class OrionBottomSheetStyle {
         other.borderColor == borderColor &&
         other.borderWidth == borderWidth &&
         other.borderRadius == borderRadius &&
+        other.floatingMargin == floatingMargin &&
         other.handleColor == handleColor &&
         other.handleSize == handleSize &&
         other.barrierColor == barrierColor &&
@@ -177,6 +196,7 @@ class OrionBottomSheetStyle {
     borderColor,
     borderWidth,
     borderRadius,
+    floatingMargin,
     handleColor,
     handleSize,
     barrierColor,

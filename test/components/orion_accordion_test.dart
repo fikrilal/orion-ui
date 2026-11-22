@@ -89,10 +89,15 @@ Finder _chevronBuilder() =>
 
 double _extent(WidgetTester tester) => tester.getSize(_panelClip()).height;
 
-/// The content's own size, which the clip never changes: it is laid out at its
-/// natural height whether the panel is open, closed, or mid-travel.
+/// The content's own size including the default content padding, which the clip
+/// never changes: it is laid out at its natural height whether the panel is
+/// open, closed, or mid-travel.
 double _naturalHeight(WidgetTester tester) =>
-    tester.getSize(_panelBody()).height;
+    tester
+        .getSize(
+          find.ancestor(of: _panelBody(), matching: find.byType(Padding)).first,
+        )
+        .height;
 
 /// Rotation of the default chevron. Positive is clockwise, matching
 /// `Transform.rotate` around the two states.
@@ -260,30 +265,24 @@ void main() {
       expect(_naturalHeight(tester), greaterThan(0));
     });
 
-    testWidgets('pops once and never stalls at a cap', (tester) async {
+    testWidgets('expands cleanly without overshooting past content height', (
+      tester,
+    ) async {
       await _pumpAccordion(tester, expanded: false, onExpandedChanged: (_) {});
       final double natural = _naturalHeight(tester);
 
       await _pumpAccordion(tester, expanded: true, onExpandedChanged: (_) {});
       final List<double> extents = <double>[];
-      for (var frame = 0; frame < 90; frame++) {
+      for (var frame = 0; frame < 60; frame++) {
         extents.add(_extent(tester) / natural);
         await tester.pump(const Duration(milliseconds: 16));
       }
 
-      // A ceiling would pin the extent at the content height; the spring only
-      // visits its peak, so the panel settles a few points taller first.
+      // Critically damped + clamped expand spring reaches content height cleanly
+      // without pushing sibling rows below past their resting position.
       final double peak = extents.reduce(math.max);
-      expect(peak, greaterThan(1));
-      expect(peak, lessThan(1.1));
-
-      // Once the reveal reaches the content height it never fades back out.
-      final int full = extents.indexWhere((double extent) => extent >= 0.999);
-      expect(full, greaterThanOrEqualTo(0));
-      expect(
-        extents.skip(full).every((double extent) => extent >= 0.98),
-        isTrue,
-      );
+      expect(peak, lessThanOrEqualTo(1.001));
+      expect(peak, closeTo(1.0, 0.001));
 
       await tester.pumpAndSettle();
       expect(_extent(tester), closeTo(natural, 0.01));
@@ -966,7 +965,7 @@ void main() {
     });
 
     testWidgets(
-      'header compresses to calm 0.99 pressed scale on pointer down',
+      'header shows pressed surface wash without shrinking row by default',
       (tester) async {
         await _pumpAccordion(
           tester,
@@ -974,24 +973,65 @@ void main() {
           onExpandedChanged: (_) {},
         );
 
+        final ColoredBox idleWash = tester.widget<ColoredBox>(
+          find
+              .descendant(
+                of: find.byType(OrionPressable),
+                matching: find.byType(ColoredBox),
+              )
+              .first,
+        );
+        expect(idleWash.color, Colors.transparent);
+
         final TestGesture gesture = await tester.startGesture(
           tester.getCenter(find.text(_headerText)),
         );
-        // First tick sets zero elapsed time; second tick advances simulation.
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 50));
 
         final OrionPressableState state = tester.state<OrionPressableState>(
           find.byType(OrionPressable),
         );
-        // The calm 0.99 micro-tactile scale rather than the disruptive 0.96.
-        expect(state.driver.target, 0.99);
-        expect(state.driver.value, lessThan(1.0));
+        expect(state.driver.target, 1.0);
+        expect(state.driver.value, 1.0);
+
+        final ColoredBox pressedWash = tester.widget<ColoredBox>(
+          find
+              .descendant(
+                of: find.byType(OrionPressable),
+                matching: find.byType(ColoredBox),
+              )
+              .first,
+        );
+        expect(pressedWash.color, isNot(Colors.transparent));
 
         await gesture.up();
         await tester.pumpAndSettle();
       },
     );
+
+    testWidgets('supports title string shorthand with semi-bold styling', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: Scaffold(
+            body: OrionAccordion(
+              title: 'Shipping details',
+              expanded: false,
+              onExpandedChanged: (_) {},
+              child: const Text('Arrives tomorrow'),
+            ),
+          ),
+        ),
+      );
+
+      final Text titleWidget = tester.widget<Text>(
+        find.text('Shipping details'),
+      );
+      expect(titleWidget.style?.fontWeight, FontWeight.w600);
+    });
 
     testWidgets('card style paints container border and background', (
       tester,
@@ -1043,15 +1083,17 @@ void main() {
       expect(style.focusRingWidth, 2);
       expect(style.disabledOpacity, 0.38);
       expect(style.iconColor, isNull);
-      expect(style.expandSpring, OrionSpringSpec.gentle);
+      expect(style.pressedScale, 1.0);
       expect(
-        style.collapseSpring,
-        const OrionSpringSpec(
-          stiffness: 260,
-          dampingRatio: 1,
-          clampOvershoot: true,
-        ),
+        style.headerPressedColor,
+        OrionColors.lightScheme.onSurface.withValues(alpha: 0.06),
       );
+      expect(
+        style.headerHoverColor,
+        OrionColors.lightScheme.onSurface.withValues(alpha: 0.03),
+      );
+      expect(style.expandSpring, OrionAccordionPresets.defaultExpandSpring);
+      expect(style.collapseSpring, OrionAccordionPresets.defaultCollapseSpring);
       expect(
         style.headerPadding,
         const EdgeInsets.symmetric(
@@ -1061,9 +1103,13 @@ void main() {
       );
       expect(
         style.contentPadding,
-        const EdgeInsets.symmetric(horizontal: OrionSpacing.space16),
+        const EdgeInsets.fromLTRB(
+          OrionSpacing.space16,
+          0,
+          OrionSpacing.space16,
+          OrionSpacing.space12,
+        ),
       );
-      expect(style.pressedScale, 0.99);
     });
   });
 }

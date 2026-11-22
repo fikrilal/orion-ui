@@ -19,6 +19,8 @@ class OrionAccordionStyle {
     this.headerPadding,
     this.contentPadding,
     this.pressedScale,
+    this.headerPressedColor,
+    this.headerHoverColor,
     this.backgroundColor,
     this.borderColor,
     this.borderWidth,
@@ -35,13 +37,20 @@ class OrionAccordionStyle {
   final EdgeInsetsGeometry? headerPadding;
 
   /// The panel's content padding. Defaults to matching the header's horizontal
-  /// inset so the header text and the expanded content share a single vertical
-  /// alignment axis.
+  /// inset with bottom breathing room so the header text and expanded content
+  /// share a single vertical alignment axis without crowding the bottom edge.
   final EdgeInsetsGeometry? contentPadding;
 
-  /// Scale factor applied during header press. Defaults to 0.99 for subtle,
-  /// calm micro-tactility on wide rows.
+  /// Scale factor applied during header press. Defaults to 1.0 (no text
+  /// shrinking on full-width disclosure rows; press feedback is carried by
+  /// [headerPressedColor]).
   final double? pressedScale;
+
+  /// Subtle wash painted behind the header while pressed.
+  final Color? headerPressedColor;
+
+  /// Subtle wash painted behind the header while hovered.
+  final Color? headerHoverColor;
 
   /// Optional card container background color. Null renders as a quiet
   /// borderless row.
@@ -69,14 +78,13 @@ class OrionAccordionStyle {
   /// The default chevron's colour; null keeps the ambient icon theme.
   final Color? iconColor;
 
-  /// Spring the reveal rides when the panel opens. The gentle default lets the
-  /// panel settle a hair taller than its content for a frame or two, matching
-  /// the chip's check and the checkbox's mark.
+  /// Spring the reveal rides when the panel opens. Critically damped and
+  /// clamped by default so the panel settles cleanly without pushing sibling
+  /// rows past their resting position.
   final OrionSpringSpec? expandSpring;
 
-  /// Spring the collapse rides. Closing is a collapse, not a reveal run
-  /// backwards: the default is critically damped and clamped so a shut panel
-  /// never bounces and the clip never grows past the content it reveals.
+  /// Spring the collapse rides. Critically damped and clamped so a shut panel
+  /// closes crisply without bouncing.
   final OrionSpringSpec? collapseSpring;
 
   /// Returns a copy with the provided fields replaced.
@@ -84,6 +92,8 @@ class OrionAccordionStyle {
     EdgeInsetsGeometry? headerPadding,
     EdgeInsetsGeometry? contentPadding,
     double? pressedScale,
+    Color? headerPressedColor,
+    Color? headerHoverColor,
     Color? backgroundColor,
     Color? borderColor,
     double? borderWidth,
@@ -99,6 +109,8 @@ class OrionAccordionStyle {
       headerPadding: headerPadding ?? this.headerPadding,
       contentPadding: contentPadding ?? this.contentPadding,
       pressedScale: pressedScale ?? this.pressedScale,
+      headerPressedColor: headerPressedColor ?? this.headerPressedColor,
+      headerHoverColor: headerHoverColor ?? this.headerHoverColor,
       backgroundColor: backgroundColor ?? this.backgroundColor,
       borderColor: borderColor ?? this.borderColor,
       borderWidth: borderWidth ?? this.borderWidth,
@@ -121,6 +133,8 @@ class OrionAccordionStyle {
       headerPadding: other.headerPadding ?? headerPadding,
       contentPadding: other.contentPadding ?? contentPadding,
       pressedScale: other.pressedScale ?? pressedScale,
+      headerPressedColor: other.headerPressedColor ?? headerPressedColor,
+      headerHoverColor: other.headerHoverColor ?? headerHoverColor,
       backgroundColor: other.backgroundColor ?? backgroundColor,
       borderColor: other.borderColor ?? borderColor,
       borderWidth: other.borderWidth ?? borderWidth,
@@ -139,6 +153,8 @@ class OrionAccordionStyle {
     EdgeInsetsGeometry? headerPadding,
     EdgeInsetsGeometry? contentPadding,
     double? pressedScale,
+    Color? headerPressedColor,
+    Color? headerHoverColor,
     Color? backgroundColor,
     Color? borderColor,
     double? borderWidth,
@@ -154,6 +170,8 @@ class OrionAccordionStyle {
       headerPadding: headerPadding,
       contentPadding: contentPadding,
       pressedScale: pressedScale,
+      headerPressedColor: headerPressedColor,
+      headerHoverColor: headerHoverColor,
       backgroundColor: backgroundColor,
       borderColor: borderColor,
       borderWidth: borderWidth,
@@ -176,6 +194,8 @@ class OrionAccordionStyle {
         other.headerPadding == headerPadding &&
         other.contentPadding == contentPadding &&
         other.pressedScale == pressedScale &&
+        other.headerPressedColor == headerPressedColor &&
+        other.headerHoverColor == headerHoverColor &&
         other.backgroundColor == backgroundColor &&
         other.borderColor == borderColor &&
         other.borderWidth == borderWidth &&
@@ -193,6 +213,8 @@ class OrionAccordionStyle {
     headerPadding,
     contentPadding,
     pressedScale,
+    headerPressedColor,
+    headerHoverColor,
     backgroundColor,
     borderColor,
     borderWidth,

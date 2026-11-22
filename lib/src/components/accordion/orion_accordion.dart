@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import 'package:orion_ui/src/components/accordion/orion_accordion_presets.dart';
 import 'package:orion_ui/src/components/accordion/orion_accordion_style.dart';
@@ -54,7 +55,8 @@ class OrionAccordion extends StatefulWidget {
   /// Creates a controlled accordion.
   const OrionAccordion({
     super.key,
-    required this.header,
+    this.title,
+    this.header,
     required this.child,
     required this.expanded,
     required this.onExpandedChanged,
@@ -63,11 +65,21 @@ class OrionAccordion extends StatefulWidget {
     this.focusNode,
     this.autofocus = false,
     this.style,
-  });
+  }) : assert(
+         (title != null) != (header != null),
+         'Provide either title or header, not both.',
+       );
 
-  /// Header content. The whole header is the tap target and typography is
+  /// Plain text header rendered with semi-bold title typography.
+  ///
+  /// Mutually exclusive with [header]; use [header] for custom header layouts.
+  final String? title;
+
+  /// Custom header content. The whole header is the tap target and typography is
   /// host-owned, so a plain `Text` keeps the ambient style.
-  final Widget header;
+  ///
+  /// Mutually exclusive with [title].
+  final Widget? header;
 
   /// Panel content, revealed below the header. It is laid out at its natural
   /// height, so it must size itself vertically.
@@ -105,28 +117,16 @@ class OrionAccordion extends StatefulWidget {
 
 class _OrionAccordionState extends State<OrionAccordion>
     with SingleTickerProviderStateMixin {
-  /// Travel spring for the whole 0 to 1 reveal.
-  ///
-  /// [OrionSpringSpec.snappy] is sized for the documented 0.96 to 1.0 press
-  /// release. Over a full travel its ~30% overshoot peaks at 1.297, which would
-  /// stand the panel a third taller than its content, and any cap added to
-  /// contain that would freeze the reveal mid-flight. [OrionSpringSpec.gentle]
-  /// peaks at 1.038. The checkbox mark, the chip check, and the switch thumb ride
-  /// the same spec for the same reason.
-  static const OrionSpringSpec _travel = OrionSpringSpec.gentle;
+  static const OrionSpringSpec _travel =
+      OrionAccordionPresets.defaultExpandSpring;
 
-  /// Closing is a collapse, not a reveal run backwards. The reference pair uses a
-  /// different spring to close than to open; critical damping keeps a shut panel from
-  /// bouncing, and clamping the overshoot keeps the clip from ever growing past the
-  /// content it is revealing.
-  static const OrionSpringSpec _collapse = OrionSpringSpec(
-    stiffness: 260,
-    dampingRatio: 1,
-    clampOvershoot: true,
-  );
+  static const OrionSpringSpec _collapse =
+      OrionAccordionPresets.defaultCollapseSpring;
 
   late final OrionSpringDriver _driver;
   bool _focused = false;
+  bool _hovered = false;
+  bool _pressed = false;
 
   @override
   void initState() {
@@ -203,6 +203,27 @@ class _OrionAccordionState extends State<OrionAccordion>
     widget.onExpandedChanged!(!widget.expanded);
   }
 
+  void _onPressedChanged(bool pressed) {
+    if (!mounted || _pressed == pressed) {
+      return;
+    }
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      SchedulerBinding.instance.addPostFrameCallback((Duration _) {
+        _onPressedChanged(pressed);
+      });
+      return;
+    }
+    setState(() => _pressed = pressed);
+  }
+
+  void _setHovered(bool hovered) {
+    if (!mounted || _hovered == hovered) {
+      return;
+    }
+    setState(() => _hovered = hovered);
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
@@ -220,7 +241,28 @@ class _OrionAccordionState extends State<OrionAccordion>
         );
     final EdgeInsetsGeometry contentPadding =
         style.contentPadding ??
-        const EdgeInsets.symmetric(horizontal: OrionSpacing.space16);
+        const EdgeInsets.fromLTRB(
+          OrionSpacing.space16,
+          0,
+          OrionSpacing.space16,
+          OrionSpacing.space12,
+        );
+    final Color? headerWash = !enabled
+        ? null
+        : _pressed
+        ? style.headerPressedColor
+        : _hovered
+        ? style.headerHoverColor
+        : null;
+    final Widget headerContent =
+        widget.header ??
+        Text(
+          widget.title!,
+          style: (theme.textTheme.titleSmall ?? const TextStyle()).copyWith(
+            fontWeight: FontWeight.w600,
+            color: scheme.onSurface,
+          ),
+        );
 
     final Widget headerFace = DecoratedBox(
       position: DecorationPosition.foreground,
@@ -234,35 +276,38 @@ class _OrionAccordionState extends State<OrionAccordion>
               )
             : null,
       ),
-      child: Padding(
-        padding: headerPadding,
-        child: Row(
-          children: <Widget>[
-            Expanded(
-              // An override replaces the header's own text as the spoken name,
-              // the way the chip does with its label.
-              child: widget.semanticLabel == null
-                  ? widget.header
-                  : ExcludeSemantics(child: widget.header),
-            ),
-            if (widget.trailing != null)
-              widget.trailing!
-            else
-              Padding(
-                padding: const EdgeInsets.only(left: OrionSpacing.space8),
-                child: AnimatedBuilder(
-                  animation: _driver,
-                  // Built once per widget build, so a tick only rotates it.
-                  child: Icon(Icons.expand_more, color: style.iconColor),
-                  builder: (BuildContext context, Widget? child) {
-                    return Transform.rotate(
-                      angle: _reveal(_driver.value) * math.pi,
-                      child: child,
-                    );
-                  },
-                ),
+      child: ColoredBox(
+        color: headerWash ?? Colors.transparent,
+        child: Padding(
+          padding: headerPadding,
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                // An override replaces the header's own text as the spoken name,
+                // the way the chip does with its label.
+                child: widget.semanticLabel == null
+                    ? headerContent
+                    : ExcludeSemantics(child: headerContent),
               ),
-          ],
+              if (widget.trailing != null)
+                widget.trailing!
+              else
+                Padding(
+                  padding: const EdgeInsets.only(left: OrionSpacing.space8),
+                  child: AnimatedBuilder(
+                    animation: _driver,
+                    // Built once per widget build, so a tick only rotates it.
+                    child: Icon(Icons.expand_more, color: style.iconColor),
+                    builder: (BuildContext context, Widget? child) {
+                      return Transform.rotate(
+                        angle: _reveal(_driver.value) * math.pi,
+                        child: child,
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -274,43 +319,48 @@ class _OrionAccordionState extends State<OrionAccordion>
         expanded: widget.expanded,
         enabled: enabled,
         label: widget.semanticLabel,
-        child: FocusableActionDetector(
-          enabled: enabled,
-          focusNode: widget.focusNode,
-          autofocus: widget.autofocus,
-          onShowFocusHighlight: (bool focused) {
-            if (focused != _focused) {
-              setState(() => _focused = focused);
-            }
-          },
-          actions: <Type, Action<Intent>>{
-            ActivateIntent: CallbackAction<ActivateIntent>(
-              onInvoke: (ActivateIntent intent) {
-                _toggle();
-                return null;
-              },
-            ),
-          },
-          child: OrionPressable(
-            onTap: enabled ? _toggle : null,
-            pressedScale: style.pressedScale ?? 0.99,
-            springSpec: orion.pressSpring,
-            releaseSpringSpec: orion.releaseSpring,
-            hapticType: orion.selectionHaptic,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                minWidth: OrionSizing.minHitTarget,
-                minHeight: OrionSizing.minHitTarget,
+        child: MouseRegion(
+          onEnter: (_) => _setHovered(true),
+          onExit: (_) => _setHovered(false),
+          child: FocusableActionDetector(
+            enabled: enabled,
+            focusNode: widget.focusNode,
+            autofocus: widget.autofocus,
+            onShowFocusHighlight: (bool focused) {
+              if (focused != _focused) {
+                setState(() => _focused = focused);
+              }
+            },
+            actions: <Type, Action<Intent>>{
+              ActivateIntent: CallbackAction<ActivateIntent>(
+                onInvoke: (ActivateIntent intent) {
+                  _toggle();
+                  return null;
+                },
               ),
-              child: Center(
-                widthFactor: 1,
-                heightFactor: 1,
-                // Dimming is owned here rather than by the caller: the row is
-                // the thing that is disabled, and the header slot takes
-                // arbitrary content that must not be recoloured.
-                child: Opacity(
-                  opacity: enabled ? 1 : disabledOpacity,
-                  child: headerFace,
+            },
+            child: OrionPressable(
+              onTap: enabled ? _toggle : null,
+              pressedScale: style.pressedScale ?? 1.0,
+              springSpec: orion.pressSpring,
+              releaseSpringSpec: orion.releaseSpring,
+              hapticType: orion.selectionHaptic,
+              onPressedChanged: _onPressedChanged,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  minWidth: OrionSizing.minHitTarget,
+                  minHeight: OrionSizing.minHitTarget,
+                ),
+                child: Center(
+                  widthFactor: 1,
+                  heightFactor: 1,
+                  // Dimming is owned here rather than by the caller: the row is
+                  // the thing that is disabled, and the header slot takes
+                  // arbitrary content that must not be recoloured.
+                  child: Opacity(
+                    opacity: enabled ? 1 : disabledOpacity,
+                    child: headerFace,
+                  ),
                 ),
               ),
             ),
@@ -332,10 +382,14 @@ class _OrionAccordionState extends State<OrionAccordion>
             // The caller's content is wrapped with aligned contentPadding and held stable.
             child: Padding(padding: contentPadding, child: widget.child),
             builder: (BuildContext context, Widget? child) {
+              final double factor = _reveal(_driver.value);
               return Align(
                 alignment: Alignment.topLeft,
-                heightFactor: _reveal(_driver.value),
-                child: child,
+                heightFactor: factor,
+                child: Opacity(
+                  opacity: factor.clamp(0.0, 1.0),
+                  child: child,
+                ),
               );
             },
           ),

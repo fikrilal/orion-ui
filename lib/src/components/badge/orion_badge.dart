@@ -26,16 +26,20 @@ enum OrionBadgeVariant { neutral, primary, secondary, error, outline }
 /// built-in [OrionBadgePresets], the ambient [OrionBadgeTheme], and the
 /// [style] passed here. Anything an override does not name falls through.
 class OrionBadge extends StatefulWidget {
-  /// Creates a badge whose [child] is shown in the pill.
+  /// Creates a badge whose [label] or [child] is shown in the pill.
   const OrionBadge({
     super.key,
-    required this.child,
+    this.label,
+    this.child,
     this.variant = OrionBadgeVariant.neutral,
     this.size = OrionBadgeSize.medium,
     this.style,
   }) : value = null,
        maxCount = null,
-       assert(child != null, 'child must not be null');
+       assert(
+         (label != null) != (child != null),
+         'Provide either label or child, not both.',
+       );
 
   /// Creates a bare status dot: a circle of the variant's background colour,
   /// `dotSize` across, with no content and no semantics.
@@ -44,7 +48,8 @@ class OrionBadge extends StatefulWidget {
     this.variant = OrionBadgeVariant.neutral,
     this.size = OrionBadgeSize.medium,
     this.style,
-  }) : child = null,
+  }) : label = null,
+       child = null,
        value = null,
        maxCount = null;
 
@@ -52,17 +57,21 @@ class OrionBadge extends StatefulWidget {
   /// the display caps at `"99+"` while the semantics name the true value.
   const OrionBadge.count({
     super.key,
-    required int value,
+    required int this.value,
     this.maxCount,
     this.variant = OrionBadgeVariant.neutral,
     this.size = OrionBadgeSize.medium,
     this.style,
-  }) : child = null,
-       value = value,
+  }) : label = null,
+       child = null,
        assert(value >= 0, 'value must not be negative'),
        assert(maxCount == null || maxCount > 0, 'maxCount must be positive');
 
-  /// Badge content; null for [OrionBadge.dot] and [OrionBadge.count].
+  /// Plain text label shorthand; mutually exclusive with [child].
+  final String? label;
+
+  /// Badge content; null for [OrionBadge.dot], [OrionBadge.count], and when
+  /// [label] is provided.
   final Widget? child;
 
   /// Counter value; null for label and dot badges.
@@ -162,7 +171,12 @@ class _OrionBadgeState extends State<OrionBadge>
     final OrionBadgeStyle style = _resolveStyle(theme);
     final Color background = style.background ?? scheme.surfaceContainerHighest;
     final Color foreground = style.foreground ?? scheme.onSurfaceVariant;
-    final bool isDot = widget.child == null && widget.value == null;
+    final BorderSide? border = style.border;
+    final BoxBorder? resolvedBorder = border == null || border.width == 0
+        ? null
+        : Border.fromBorderSide(border);
+    final bool isDot =
+        widget.label == null && widget.child == null && widget.value == null;
 
     if (isDot) {
       return ExcludeSemantics(
@@ -172,6 +186,7 @@ class _OrionBadgeState extends State<OrionBadge>
             decoration: BoxDecoration(
               color: background,
               shape: BoxShape.circle,
+              border: resolvedBorder,
             ),
           ),
         ),
@@ -179,12 +194,22 @@ class _OrionBadgeState extends State<OrionBadge>
     }
 
     final Widget content;
-    if (widget.child != null) {
-      content = DefaultTextStyle(
-        style: (style.textStyle ?? const TextStyle()).copyWith(
-          color: foreground,
+    if (widget.label != null || widget.child != null) {
+      final Widget body =
+          widget.child ??
+          Text(
+            widget.label!,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          );
+      content = IconTheme.merge(
+        data: IconThemeData(color: foreground, size: OrionSizing.iconSmall),
+        child: DefaultTextStyle(
+          style: (style.textStyle ?? const TextStyle()).copyWith(
+            color: foreground,
+          ),
+          child: body,
         ),
-        child: widget.child!,
       );
     } else {
       final int count = widget.value!;
@@ -201,15 +226,12 @@ class _OrionBadgeState extends State<OrionBadge>
       );
     }
 
-    final BorderSide? border = style.border;
     final Widget pill = DecoratedBox(
       decoration: BoxDecoration(
         color: background,
         borderRadius:
             style.radius ?? BorderRadius.circular(OrionRadii.radiusPill),
-        border: border == null || border.width == 0
-            ? null
-            : Border.fromBorderSide(border),
+        border: resolvedBorder,
       ),
       child: Padding(padding: style.padding ?? EdgeInsets.zero, child: content),
     );

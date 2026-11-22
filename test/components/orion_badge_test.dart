@@ -314,6 +314,62 @@ void main() {
       expect(label.left - badge.left, OrionSpacing.space8);
       expect(label.top - badge.top, OrionSpacing.space4);
     });
+
+    testWidgets('supports label string shorthand', (tester) async {
+      await _pumpBadge(
+        tester,
+        const OrionBadge(label: 'Beta', variant: OrionBadgeVariant.primary),
+      );
+
+      final Text text = tester.widget<Text>(find.text('Beta'));
+      expect(text.maxLines, 1);
+      expect(text.overflow, TextOverflow.ellipsis);
+    });
+
+    testWidgets('tints icons inside the badge with the variant foreground', (
+      tester,
+    ) async {
+      final ThemeData theme = OrionTheme.light();
+      await _pumpBadge(
+        tester,
+        const OrionBadge(
+          variant: OrionBadgeVariant.primary,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Icon(Icons.bolt),
+              SizedBox(width: 4),
+              Text('Fast'),
+            ],
+          ),
+        ),
+        theme: theme,
+      );
+
+      expect(
+        IconTheme.of(tester.element(find.byIcon(Icons.bolt))).color,
+        theme.colorScheme.onPrimary,
+      );
+    });
+
+    testWidgets('outline dot draws its border so it remains visible', (
+      tester,
+    ) async {
+      final ThemeData theme = OrionTheme.light();
+      await _pumpBadge(
+        tester,
+        const OrionBadge.dot(variant: OrionBadgeVariant.outline),
+        theme: theme,
+      );
+
+      final BoxDecoration decoration =
+          _badgeDecoration(tester).decoration as BoxDecoration;
+      expect(decoration.shape, BoxShape.circle);
+      expect(
+        decoration.border,
+        Border.fromBorderSide(BorderSide(color: theme.colorScheme.outline)),
+      );
+    });
   });
 
   group('OrionBadgeStyle', () {

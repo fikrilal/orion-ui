@@ -104,7 +104,7 @@ class _OrionCardShowcaseScreenState extends State<OrionCardShowcaseScreen> {
           children: [
             // Top Intro Header
             Padding(
-              padding: const EdgeInsets.only(bottom: 2.00),
+              padding: const EdgeInsets.only(bottom: OrionSpacing.space20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -200,7 +200,7 @@ class _OrionCardShowcaseScreenState extends State<OrionCardShowcaseScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 2.00),
+                    const SizedBox(height: OrionSpacing.space20),
 
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -238,7 +238,7 @@ class _OrionCardShowcaseScreenState extends State<OrionCardShowcaseScreen> {
                 code: _snippet,
               ),
             ),
-            const SizedBox(height: 2.04),
+            const SizedBox(height: OrionSpacing.space24),
 
             // Plain Card
             OrionShowcaseSection(
@@ -248,7 +248,7 @@ class _OrionCardShowcaseScreenState extends State<OrionCardShowcaseScreen> {
               card: true,
               child: _sample(child: const Text('Plain card')),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Frosted Card
             OrionShowcaseSection(
@@ -263,7 +263,7 @@ class _OrionCardShowcaseScreenState extends State<OrionCardShowcaseScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Pressable Card
             OrionShowcaseSection(
@@ -276,7 +276,7 @@ class _OrionCardShowcaseScreenState extends State<OrionCardShowcaseScreen> {
                 child: Text('Interactive card - taps: $_cardTaps'),
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Radius and Padding Card
             OrionShowcaseSection(
@@ -290,7 +290,7 @@ class _OrionCardShowcaseScreenState extends State<OrionCardShowcaseScreen> {
                 child: const Text('Tight card'),
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Customization Card
             OrionShowcaseSection(

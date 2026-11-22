@@ -66,7 +66,7 @@ class _OrionTabsShowcaseScreenState extends State<OrionTabsShowcaseScreen> {
           children: [
             // Top Intro Header
             Padding(
-              padding: const EdgeInsets.only(bottom: 2.00),
+              padding: const EdgeInsets.only(bottom: OrionSpacing.space20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -217,7 +217,7 @@ class _OrionTabsShowcaseScreenState extends State<OrionTabsShowcaseScreen> {
               ),
             ),
 
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Scrollable Overflow Strip Specimen
             OrionShowcaseSection(
@@ -298,7 +298,7 @@ OrionTabs<String>(
               ),
             ),
 
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Synchronized PageView Playground
             OrionShowcaseSection(

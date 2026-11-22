@@ -98,7 +98,7 @@ class _OrionTooltipShowcaseScreenState
           children: [
             // Top Intro Header
             Padding(
-              padding: const EdgeInsets.only(bottom: 2.00),
+              padding: const EdgeInsets.only(bottom: OrionSpacing.space20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -288,7 +288,7 @@ class _OrionTooltipShowcaseScreenState
               ),
             ),
 
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Warm Window Toolbar Specimen
             OrionShowcaseSection(
@@ -371,7 +371,7 @@ Row(
               ),
             ),
 
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Rich Custom Content Specimen
             OrionShowcaseSection(

@@ -152,7 +152,7 @@ class _OrionTextFieldShowcaseScreenState
           children: [
             // Top Intro Header
             Padding(
-              padding: const EdgeInsets.only(bottom: 2.00),
+              padding: const EdgeInsets.only(bottom: OrionSpacing.space20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -226,7 +226,7 @@ class _OrionTextFieldShowcaseScreenState
                 ),
               ],
             ),
-            const SizedBox(height: 2.04),
+            const SizedBox(height: OrionSpacing.space24),
 
             // Variants Card
             OrionShowcaseSection(
@@ -254,7 +254,7 @@ class _OrionTextFieldShowcaseScreenState
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Sizes Card
             OrionShowcaseSection(
@@ -282,7 +282,7 @@ class _OrionTextFieldShowcaseScreenState
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Types Card
             OrionShowcaseSection(
@@ -316,7 +316,7 @@ class _OrionTextFieldShowcaseScreenState
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Content Card
             OrionShowcaseSection(
@@ -349,7 +349,7 @@ class _OrionTextFieldShowcaseScreenState
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Customization Card
             OrionShowcaseSection(
@@ -367,7 +367,7 @@ class _OrionTextFieldShowcaseScreenState
                     labelOf: _skinLabel,
                     onChanged: (value) => setState(() => _skin = value),
                   ),
-                  const SizedBox(height: 2.04),
+                  const SizedBox(height: OrionSpacing.space24),
                   OrionTextField(
                     label: 'Name',
                     hint: 'Ada Lovelace',
@@ -380,7 +380,7 @@ class _OrionTextFieldShowcaseScreenState
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Playground Card
             OrionShowcaseSection(
@@ -412,7 +412,7 @@ class _OrionTextFieldShowcaseScreenState
                     labelOf: _typeLabel,
                     onChanged: (value) => setState(() => _type = value),
                   ),
-                  const SizedBox(height: 2.04),
+                  const SizedBox(height: OrionSpacing.space24),
                   OrionShowcasePanel(
                     key: const ValueKey<String>('showcase-panel-playground'),
                     preview: _sample(

@@ -71,7 +71,7 @@ class _OrionProgressShowcaseScreenState
           children: [
             // Top Intro Header
             Padding(
-              padding: const EdgeInsets.only(bottom: 2.00),
+              padding: const EdgeInsets.only(bottom: OrionSpacing.space20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -136,7 +136,7 @@ class _OrionProgressShowcaseScreenState
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Partial Card
             const OrionShowcaseSection(
@@ -145,7 +145,7 @@ class _OrionProgressShowcaseScreenState
               card: true,
               child: OrionSegmentedProgress(count: 5, value: 2.5),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Empty Card
             const OrionShowcaseSection(
@@ -154,7 +154,7 @@ class _OrionProgressShowcaseScreenState
               card: true,
               child: OrionSegmentedProgress(count: 3, value: 0),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Linear Card
             OrionShowcaseSection(
@@ -187,7 +187,7 @@ class _OrionProgressShowcaseScreenState
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Indeterminate Card
             const OrionShowcaseSection(
@@ -197,7 +197,7 @@ class _OrionProgressShowcaseScreenState
               card: true,
               child: OrionLinearProgress(),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Playground Card
             OrionShowcaseSection(
@@ -211,7 +211,7 @@ class _OrionProgressShowcaseScreenState
                   children: [
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.all(2.04),
+                      padding: const EdgeInsets.all(OrionSpacing.space24),
                       decoration: BoxDecoration(
                         color: isDark
                             ? scheme.surfaceContainerLowest
@@ -229,7 +229,7 @@ class _OrionProgressShowcaseScreenState
                         value: _playgroundValue,
                       ),
                     ),
-                    const SizedBox(height: 2.00),
+                    const SizedBox(height: OrionSpacing.space20),
 
                     OrionShowcaseLabeledRow(
                       label: 'Count',

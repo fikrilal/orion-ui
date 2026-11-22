@@ -115,7 +115,7 @@ class _OrionChipShowcaseScreenState extends State<OrionChipShowcaseScreen> {
           children: [
             // Top Intro Header
             Padding(
-              padding: const EdgeInsets.only(bottom: 2.00),
+              padding: const EdgeInsets.only(bottom: OrionSpacing.space20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -175,7 +175,7 @@ class _OrionChipShowcaseScreenState extends State<OrionChipShowcaseScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 2.04),
+            const SizedBox(height: OrionSpacing.space24),
 
             // Filters Card
             OrionShowcaseSection(
@@ -214,7 +214,7 @@ class _OrionChipShowcaseScreenState extends State<OrionChipShowcaseScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Sizes Card
             OrionShowcaseSection(
@@ -236,7 +236,7 @@ class _OrionChipShowcaseScreenState extends State<OrionChipShowcaseScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Customization Card
             OrionShowcaseSection(
@@ -265,7 +265,7 @@ class _OrionChipShowcaseScreenState extends State<OrionChipShowcaseScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Playground Card
             OrionShowcaseSection(

@@ -179,7 +179,7 @@ class _OrionWheelShowcaseScreenState extends State<OrionWheelShowcaseScreen> {
           children: [
             // Top Intro Header
             Padding(
-              padding: const EdgeInsets.only(bottom: 2.00),
+              padding: const EdgeInsets.only(bottom: OrionSpacing.space20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -239,7 +239,7 @@ class _OrionWheelShowcaseScreenState extends State<OrionWheelShowcaseScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 2.04),
+            const SizedBox(height: OrionSpacing.space24),
 
             // Month Card
             OrionShowcaseSection(
@@ -271,7 +271,7 @@ class _OrionWheelShowcaseScreenState extends State<OrionWheelShowcaseScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Number Card
             OrionShowcaseSection(
@@ -303,7 +303,7 @@ class _OrionWheelShowcaseScreenState extends State<OrionWheelShowcaseScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Seven slots Card
             OrionShowcaseSection(
@@ -336,7 +336,7 @@ class _OrionWheelShowcaseScreenState extends State<OrionWheelShowcaseScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Customization Card
             OrionShowcaseSection(
@@ -370,7 +370,7 @@ class _OrionWheelShowcaseScreenState extends State<OrionWheelShowcaseScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Playground Card
             OrionShowcaseSection(
@@ -406,7 +406,7 @@ class _OrionWheelShowcaseScreenState extends State<OrionWheelShowcaseScreen> {
                       onChanged: (value) =>
                           setState(() => _playgroundIndex = value.round()),
                     ),
-                    const SizedBox(height: 2.04),
+                    const SizedBox(height: OrionSpacing.space24),
                     Center(
                       child: SizedBox(width: 240, child: _playgroundWheel),
                     ),

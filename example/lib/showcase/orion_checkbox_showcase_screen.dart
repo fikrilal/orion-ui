@@ -119,7 +119,7 @@ class _OrionCheckboxShowcaseScreenState
           children: [
             // Top Intro Header
             Padding(
-              padding: const EdgeInsets.only(bottom: 2.00),
+              padding: const EdgeInsets.only(bottom: OrionSpacing.space20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -194,7 +194,7 @@ class _OrionCheckboxShowcaseScreenState
                 ),
               ],
             ),
-            const SizedBox(height: 2.04),
+            const SizedBox(height: OrionSpacing.space24),
             OrionShowcaseSection(
               title: 'Confirm',
               subtitle:
@@ -210,7 +210,7 @@ class _OrionCheckboxShowcaseScreenState
                 ),
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
             OrionShowcaseSection(
               title: 'Sizes',
               subtitle:
@@ -242,7 +242,7 @@ class _OrionCheckboxShowcaseScreenState
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
             OrionShowcaseSection(
               title: 'Tri-state',
               subtitle:
@@ -266,7 +266,7 @@ class _OrionCheckboxShowcaseScreenState
                 ),
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
             OrionShowcaseSection(
               title: 'Customization',
               subtitle:
@@ -282,7 +282,7 @@ class _OrionCheckboxShowcaseScreenState
                     labelOf: _skinLabel,
                     onChanged: (value) => setState(() => _skin = value),
                   ),
-                  const SizedBox(height: 2.04),
+                  const SizedBox(height: OrionSpacing.space24),
                   Center(
                     child: _sample(
                       value: _skinned,
@@ -295,7 +295,7 @@ class _OrionCheckboxShowcaseScreenState
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
             OrionShowcaseSection(
               title: 'Playground',
               subtitle: 'Interactive workbench with live code generator',
@@ -309,7 +309,7 @@ class _OrionCheckboxShowcaseScreenState
                     labelOf: _sizeLabel,
                     onChanged: (value) => setState(() => _size = value),
                   ),
-                  const SizedBox(height: 2.04),
+                  const SizedBox(height: OrionSpacing.space24),
                   OrionShowcasePanel(
                     key: const ValueKey<String>('showcase-panel-playground'),
                     preview: Center(

@@ -225,7 +225,7 @@ class _OrionDropdownShowcaseScreenState
           children: [
             // Top Intro Header
             Padding(
-              padding: const EdgeInsets.only(bottom: 2.00),
+              padding: const EdgeInsets.only(bottom: OrionSpacing.space20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -288,7 +288,7 @@ class _OrionDropdownShowcaseScreenState
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(
-                        vertical: 2.00,
+                        vertical: OrionSpacing.space20,
                         horizontal: OrionSpacing.space16,
                       ),
                       decoration: BoxDecoration(
@@ -389,7 +389,7 @@ class _OrionDropdownShowcaseScreenState
               ),
             ),
 
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Rich Option Rows Specimen
             OrionShowcaseSection(
@@ -444,7 +444,7 @@ OrionDropdown<String>(
                         ),
                       ),
                     ),
-                    const SizedBox(height: 2.00),
+                    const SizedBox(height: OrionSpacing.space20),
                     OrionShowcaseLabeledRow(
                       label: 'Badge leading',
                       labelWidth: 120,
@@ -465,7 +465,7 @@ OrionDropdown<String>(
               ),
             ),
 
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Long List Specimen
             OrionShowcaseSection(
@@ -515,7 +515,7 @@ OrionDropdown<String>(
               ),
             ),
 
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             OrionShowcaseSection(
               title: 'Searchable',
@@ -562,7 +562,7 @@ OrionDropdown<String>(
               ),
             ),
 
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Form States Specimen
             OrionShowcaseSection(

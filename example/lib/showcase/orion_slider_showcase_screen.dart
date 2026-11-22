@@ -121,7 +121,7 @@ class _OrionSliderShowcaseScreenState extends State<OrionSliderShowcaseScreen> {
           children: [
             // Top Intro Header
             Padding(
-              padding: const EdgeInsets.only(bottom: 2.00),
+              padding: const EdgeInsets.only(bottom: OrionSpacing.space20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -181,7 +181,7 @@ class _OrionSliderShowcaseScreenState extends State<OrionSliderShowcaseScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 2.04),
+            const SizedBox(height: OrionSpacing.space24),
 
             // Free Card
             OrionShowcaseSection(
@@ -202,7 +202,7 @@ class _OrionSliderShowcaseScreenState extends State<OrionSliderShowcaseScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Stepped Card
             OrionShowcaseSection(
@@ -226,7 +226,7 @@ class _OrionSliderShowcaseScreenState extends State<OrionSliderShowcaseScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Driven from outside Card
             OrionShowcaseSection(
@@ -268,7 +268,7 @@ class _OrionSliderShowcaseScreenState extends State<OrionSliderShowcaseScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Right to left Card
             OrionShowcaseSection(
@@ -295,7 +295,7 @@ class _OrionSliderShowcaseScreenState extends State<OrionSliderShowcaseScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Sizes Card
             OrionShowcaseSection(
@@ -324,7 +324,7 @@ class _OrionSliderShowcaseScreenState extends State<OrionSliderShowcaseScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Customization Card
             OrionShowcaseSection(
@@ -353,7 +353,7 @@ class _OrionSliderShowcaseScreenState extends State<OrionSliderShowcaseScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Playground Card
             OrionShowcaseSection(
@@ -368,7 +368,7 @@ class _OrionSliderShowcaseScreenState extends State<OrionSliderShowcaseScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(
                         horizontal: OrionSpacing.space16,
-                        vertical: 2.04,
+                        vertical: OrionSpacing.space24,
                       ),
                       decoration: BoxDecoration(
                         color: isDark
@@ -391,7 +391,7 @@ class _OrionSliderShowcaseScreenState extends State<OrionSliderShowcaseScreen> {
                             setState(() => _playgroundValue = value),
                       ),
                     ),
-                    const SizedBox(height: 2.00),
+                    const SizedBox(height: OrionSpacing.space20),
 
                     OrionShowcaseChoice<double?>(
                       label: 'Step',

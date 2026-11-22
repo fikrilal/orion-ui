@@ -142,7 +142,7 @@ class _OrionButtonShowcaseScreenState extends State<OrionButtonShowcaseScreen> {
           children: [
             // Top Intro Header
             Padding(
-              padding: const EdgeInsets.only(bottom: 2.00),
+              padding: const EdgeInsets.only(bottom: OrionSpacing.space20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -200,7 +200,7 @@ class _OrionButtonShowcaseScreenState extends State<OrionButtonShowcaseScreen> {
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 2.04,
+                        horizontal: OrionSpacing.space24,
                         vertical: OrionSpacing.space32,
                       ),
                       decoration: BoxDecoration(
@@ -243,7 +243,7 @@ class _OrionButtonShowcaseScreenState extends State<OrionButtonShowcaseScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 2.00),
+                    const SizedBox(height: OrionSpacing.space20),
 
                     // State Flags Bar
                     Row(
@@ -326,7 +326,7 @@ class _OrionButtonShowcaseScreenState extends State<OrionButtonShowcaseScreen> {
                 code: _snippet,
               ),
             ),
-            const SizedBox(height: 2.04),
+            const SizedBox(height: OrionSpacing.space24),
 
             // Variants Card
             OrionShowcaseSection(
@@ -345,7 +345,7 @@ class _OrionButtonShowcaseScreenState extends State<OrionButtonShowcaseScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Sizes Card
             OrionShowcaseSection(
@@ -367,7 +367,7 @@ class _OrionButtonShowcaseScreenState extends State<OrionButtonShowcaseScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Icons Card
             OrionShowcaseSection(
@@ -408,7 +408,7 @@ class _OrionButtonShowcaseScreenState extends State<OrionButtonShowcaseScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // States Card
             OrionShowcaseSection(
@@ -449,7 +449,7 @@ class _OrionButtonShowcaseScreenState extends State<OrionButtonShowcaseScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Customization Card
             OrionShowcaseSection(
@@ -467,7 +467,7 @@ class _OrionButtonShowcaseScreenState extends State<OrionButtonShowcaseScreen> {
                     labelOf: _skinLabel,
                     onChanged: (value) => setState(() => _skin = value),
                   ),
-                  const SizedBox(height: 2.00),
+                  const SizedBox(height: OrionSpacing.space20),
                   Center(
                     child: _sample(
                       style: _skinStyle(context),

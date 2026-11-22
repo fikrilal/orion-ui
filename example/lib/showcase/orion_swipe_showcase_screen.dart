@@ -108,7 +108,7 @@ class _OrionSwipeShowcaseScreenState extends State<OrionSwipeShowcaseScreen> {
             children: <Widget>[
               // Top Intro Header
               Padding(
-                padding: const EdgeInsets.only(bottom: 2.00),
+                padding: const EdgeInsets.only(bottom: OrionSpacing.space20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -171,7 +171,7 @@ class _OrionSwipeShowcaseScreenState extends State<OrionSwipeShowcaseScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 2.04),
+              const SizedBox(height: OrionSpacing.space24),
 
               // Trailing actions Card
               OrionShowcaseSection(
@@ -209,7 +209,7 @@ class _OrionSwipeShowcaseScreenState extends State<OrionSwipeShowcaseScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 2.00),
+              const SizedBox(height: OrionSpacing.space20),
 
               // Leading actions Card
               OrionShowcaseSection(
@@ -225,7 +225,7 @@ class _OrionSwipeShowcaseScreenState extends State<OrionSwipeShowcaseScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 2.00),
+              const SizedBox(height: OrionSpacing.space20),
 
               // Full swipe Card
               OrionShowcaseSection(
@@ -243,7 +243,7 @@ class _OrionSwipeShowcaseScreenState extends State<OrionSwipeShowcaseScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 2.00),
+              const SizedBox(height: OrionSpacing.space20),
 
               // Last action Card
               OrionShowcaseSection(
@@ -259,7 +259,7 @@ class _OrionSwipeShowcaseScreenState extends State<OrionSwipeShowcaseScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 2.00),
+              const SizedBox(height: OrionSpacing.space20),
 
               // Playground Card
               OrionShowcaseSection(
@@ -278,7 +278,7 @@ class _OrionSwipeShowcaseScreenState extends State<OrionSwipeShowcaseScreen> {
                         labelOf: _sideLabel,
                         onChanged: (value) => setState(() => _side = value),
                       ),
-                      const SizedBox(height: 2.04),
+                      const SizedBox(height: OrionSpacing.space24),
                       _row(
                         title: 'Playground row',
                         subtitle: 'Drag to open, tap to close',

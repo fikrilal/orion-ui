@@ -142,7 +142,7 @@ class _OrionPopoverShowcaseScreenState
           children: [
             // Top Category Header
             Padding(
-              padding: const EdgeInsets.only(bottom: 2.00),
+              padding: const EdgeInsets.only(bottom: OrionSpacing.space20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -200,7 +200,7 @@ class _OrionPopoverShowcaseScreenState
                     Container(
                       height: 180,
                       width: double.infinity,
-                      padding: const EdgeInsets.all(2.00),
+                      padding: const EdgeInsets.all(OrionSpacing.space20),
                       decoration: BoxDecoration(
                         color: isDark
                             ? scheme.surfaceContainerLowest
@@ -264,7 +264,7 @@ class _OrionPopoverShowcaseScreenState
                         ),
                       ),
                     ),
-                    const SizedBox(height: 2.00),
+                    const SizedBox(height: OrionSpacing.space20),
                     OrionShowcaseChoice<_PopoverPlacementChoice>(
                       label: 'Placement',
                       values: _PopoverPlacementChoice.values,
@@ -335,7 +335,7 @@ class _OrionPopoverShowcaseScreenState
                 code: _snippet,
               ),
             ),
-            const SizedBox(height: 2.04),
+            const SizedBox(height: OrionSpacing.space24),
 
             // Frosted Glass Specimen Card
             OrionShowcaseSection(
@@ -345,7 +345,7 @@ class _OrionPopoverShowcaseScreenState
               card: true,
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(2.00),
+                padding: const EdgeInsets.all(OrionSpacing.space20),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(OrionRadii.radius12),
                   gradient: LinearGradient(
@@ -440,7 +440,7 @@ class _OrionPopoverShowcaseScreenState
                 ),
               ),
             ),
-            const SizedBox(height: 2.04),
+            const SizedBox(height: OrionSpacing.space24),
 
             // Imperative Invocation Card
             OrionShowcaseSection(
@@ -470,7 +470,7 @@ class _OrionPopoverShowcaseScreenState
                 ],
               ),
             ),
-            const SizedBox(height: 2.04),
+            const SizedBox(height: OrionSpacing.space24),
 
             // Custom Content Popover Card
             OrionShowcaseSection(

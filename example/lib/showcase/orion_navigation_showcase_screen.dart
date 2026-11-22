@@ -203,9 +203,9 @@ class _OrionNavigationShowcaseScreenState
       color: theme.colorScheme.surface,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
-          2.04,
-          2.04,
-          2.04,
+          OrionSpacing.space24,
+          OrionSpacing.space24,
+          OrionSpacing.space24,
           96,
         ),
         child: Column(
@@ -243,7 +243,7 @@ class _OrionNavigationShowcaseScreenState
           children: [
             // Top Intro Header
             Padding(
-              padding: const EdgeInsets.only(bottom: 2.00),
+              padding: const EdgeInsets.only(bottom: OrionSpacing.space20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -310,7 +310,7 @@ class _OrionNavigationShowcaseScreenState
                 ),
               ],
             ),
-            const SizedBox(height: 2.04),
+            const SizedBox(height: OrionSpacing.space24),
 
             // Destinations Card
             OrionShowcaseSection(
@@ -320,7 +320,7 @@ class _OrionNavigationShowcaseScreenState
               card: true,
               child: _sampleBar(),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Page change Card
             OrionShowcaseSection(
@@ -388,9 +388,9 @@ class _OrionNavigationShowcaseScreenState
                           alignment: Alignment.bottomCenter,
                           child: Padding(
                             padding: const EdgeInsets.fromLTRB(
-                              2.04,
+                              OrionSpacing.space24,
                               0,
-                              2.04,
+                              OrionSpacing.space24,
                               OrionSpacing.space16,
                             ),
                             child: _sampleBar(),
@@ -402,7 +402,7 @@ class _OrionNavigationShowcaseScreenState
                 ),
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Customization Card
             OrionShowcaseSection(
@@ -420,12 +420,12 @@ class _OrionNavigationShowcaseScreenState
                     labelOf: _skinLabel,
                     onChanged: (value) => setState(() => _skin = value),
                   ),
-                  const SizedBox(height: 2.04),
+                  const SizedBox(height: OrionSpacing.space24),
                   _sampleBar(style: _skinStyle(context)),
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Playground Card
             OrionShowcaseSection(

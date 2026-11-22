@@ -100,7 +100,7 @@ class _OrionBadgeShowcaseScreenState extends State<OrionBadgeShowcaseScreen> {
           children: [
             // Top Intro Header
             Padding(
-              padding: const EdgeInsets.only(bottom: 2.00),
+              padding: const EdgeInsets.only(bottom: OrionSpacing.space20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -157,8 +157,8 @@ class _OrionBadgeShowcaseScreenState extends State<OrionBadgeShowcaseScreen> {
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 2.04,
-                        vertical: 2.04,
+                        horizontal: OrionSpacing.space24,
+                        vertical: OrionSpacing.space24,
                       ),
                       decoration: BoxDecoration(
                         color: isDark
@@ -191,7 +191,7 @@ class _OrionBadgeShowcaseScreenState extends State<OrionBadgeShowcaseScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 2.00),
+                    const SizedBox(height: OrionSpacing.space20),
 
                     OrionShowcaseChoice<OrionBadgeVariant>(
                       label: 'Variant',
@@ -252,7 +252,7 @@ class _OrionBadgeShowcaseScreenState extends State<OrionBadgeShowcaseScreen> {
                 code: _snippet,
               ),
             ),
-            const SizedBox(height: 2.04),
+            const SizedBox(height: OrionSpacing.space24),
 
             // Variants Card
             OrionShowcaseSection(
@@ -274,7 +274,7 @@ class _OrionBadgeShowcaseScreenState extends State<OrionBadgeShowcaseScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Sizes Card
             OrionShowcaseSection(
@@ -292,7 +292,7 @@ class _OrionBadgeShowcaseScreenState extends State<OrionBadgeShowcaseScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Content Modes Card
             OrionShowcaseSection(

@@ -127,7 +127,7 @@ class _OrionRadioShowcaseScreenState extends State<OrionRadioShowcaseScreen> {
           children: [
             // Top Intro Header
             Padding(
-              padding: const EdgeInsets.only(bottom: 2.00),
+              padding: const EdgeInsets.only(bottom: OrionSpacing.space20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -194,7 +194,7 @@ class _OrionRadioShowcaseScreenState extends State<OrionRadioShowcaseScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 2.04),
+            const SizedBox(height: OrionSpacing.space24),
 
             // Group Card
             OrionShowcaseSection(
@@ -221,7 +221,7 @@ class _OrionRadioShowcaseScreenState extends State<OrionRadioShowcaseScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Sizes Card
             OrionShowcaseSection(
@@ -252,7 +252,7 @@ class _OrionRadioShowcaseScreenState extends State<OrionRadioShowcaseScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Next to a checkbox Card
             OrionShowcaseSection(
@@ -270,7 +270,7 @@ class _OrionRadioShowcaseScreenState extends State<OrionRadioShowcaseScreen> {
                       onChanged: (_) => setState(() => _shared = true),
                     ),
                   ),
-                  const SizedBox(width: 2.04),
+                  const SizedBox(width: OrionSpacing.space24),
                   _RadioRow(
                     label: 'Checkbox',
                     child: OrionCheckbox(
@@ -282,7 +282,7 @@ class _OrionRadioShowcaseScreenState extends State<OrionRadioShowcaseScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Customization Card
             OrionShowcaseSection(
@@ -300,7 +300,7 @@ class _OrionRadioShowcaseScreenState extends State<OrionRadioShowcaseScreen> {
                     labelOf: _skinLabel,
                     onChanged: (value) => setState(() => _skin = value),
                   ),
-                  const SizedBox(height: 2.04),
+                  const SizedBox(height: OrionSpacing.space24),
                   Center(
                     child: _sample(
                       value: _skinned,
@@ -312,7 +312,7 @@ class _OrionRadioShowcaseScreenState extends State<OrionRadioShowcaseScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Playground Card
             OrionShowcaseSection(
@@ -330,7 +330,7 @@ class _OrionRadioShowcaseScreenState extends State<OrionRadioShowcaseScreen> {
                       labelOf: _sizeLabel,
                       onChanged: (value) => setState(() => _size = value),
                     ),
-                    const SizedBox(height: 2.00),
+                    const SizedBox(height: OrionSpacing.space20),
                     for (
                       var index = 0;
                       index < _playgroundOptions.length;

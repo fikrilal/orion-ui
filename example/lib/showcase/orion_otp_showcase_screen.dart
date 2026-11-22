@@ -105,7 +105,7 @@ class _OrionOtpShowcaseScreenState extends State<OrionOtpShowcaseScreen> {
           children: [
             // Top Category Header
             Padding(
-              padding: const EdgeInsets.only(bottom: 2.00),
+              padding: const EdgeInsets.only(bottom: OrionSpacing.space20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -164,7 +164,7 @@ class _OrionOtpShowcaseScreenState extends State<OrionOtpShowcaseScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(
                         horizontal: OrionSpacing.space16,
-                        vertical: 2.04,
+                        vertical: OrionSpacing.space24,
                       ),
                       decoration: BoxDecoration(
                         color: isDark
@@ -237,7 +237,7 @@ class _OrionOtpShowcaseScreenState extends State<OrionOtpShowcaseScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 2.00),
+                    const SizedBox(height: OrionSpacing.space20),
 
                     // Controls
                     OrionShowcaseChoice<_OtpLengthChoice>(
@@ -314,7 +314,7 @@ class _OrionOtpShowcaseScreenState extends State<OrionOtpShowcaseScreen> {
                 code: _snippet,
               ),
             ),
-            const SizedBox(height: 2.04),
+            const SizedBox(height: OrionSpacing.space24),
 
             // Grouped SMS 2FA Specimen Card
             OrionShowcaseSection(
@@ -324,7 +324,7 @@ class _OrionOtpShowcaseScreenState extends State<OrionOtpShowcaseScreen> {
               card: true,
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(2.00),
+                padding: const EdgeInsets.all(OrionSpacing.space20),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(OrionRadii.radius12),
                   color: isDark
@@ -383,7 +383,7 @@ class _OrionOtpShowcaseScreenState extends State<OrionOtpShowcaseScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 2.04),
+            const SizedBox(height: OrionSpacing.space24),
 
             // Secure 4-Digit Transaction PIN Specimen Card
             OrionShowcaseSection(
@@ -393,7 +393,7 @@ class _OrionOtpShowcaseScreenState extends State<OrionOtpShowcaseScreen> {
               card: true,
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(2.00),
+                padding: const EdgeInsets.all(OrionSpacing.space20),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(OrionRadii.radius12),
                   color: isDark

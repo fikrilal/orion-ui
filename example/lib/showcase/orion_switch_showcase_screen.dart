@@ -109,7 +109,7 @@ class _OrionSwitchShowcaseScreenState extends State<OrionSwitchShowcaseScreen> {
           children: [
             // Top Intro Header
             Padding(
-              padding: const EdgeInsets.only(bottom: 2.00),
+              padding: const EdgeInsets.only(bottom: OrionSpacing.space20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -169,7 +169,7 @@ class _OrionSwitchShowcaseScreenState extends State<OrionSwitchShowcaseScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 2.04),
+            const SizedBox(height: OrionSpacing.space24),
 
             // States Card
             OrionShowcaseSection(
@@ -192,7 +192,7 @@ class _OrionSwitchShowcaseScreenState extends State<OrionSwitchShowcaseScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Customization Card
             OrionShowcaseSection(
@@ -210,7 +210,7 @@ class _OrionSwitchShowcaseScreenState extends State<OrionSwitchShowcaseScreen> {
                     labelOf: _skinLabel,
                     onChanged: (value) => setState(() => _skin = value),
                   ),
-                  const SizedBox(height: 2.04),
+                  const SizedBox(height: OrionSpacing.space24),
                   OrionShowcaseLabeledRow(
                     label: 'On',
                     child: _sample(
@@ -223,7 +223,7 @@ class _OrionSwitchShowcaseScreenState extends State<OrionSwitchShowcaseScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Playground Card
             OrionShowcaseSection(
@@ -239,7 +239,7 @@ class _OrionSwitchShowcaseScreenState extends State<OrionSwitchShowcaseScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(
                         horizontal: OrionSpacing.space16,
-                        vertical: 2.04,
+                        vertical: OrionSpacing.space24,
                       ),
                       decoration: BoxDecoration(
                         color: isDark

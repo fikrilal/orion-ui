@@ -166,7 +166,7 @@ class _OrionSegmentedShowcaseScreenState
           children: [
             // Top Intro Header
             Padding(
-              padding: const EdgeInsets.only(bottom: 2.00),
+              padding: const EdgeInsets.only(bottom: OrionSpacing.space20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -226,7 +226,7 @@ class _OrionSegmentedShowcaseScreenState
                 ),
               ],
             ),
-            const SizedBox(height: 2.04),
+            const SizedBox(height: OrionSpacing.space24),
 
             // Trip Card
             OrionShowcaseSection(
@@ -240,7 +240,7 @@ class _OrionSegmentedShowcaseScreenState
                 segments: _tripSegments,
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Two options Card
             OrionShowcaseSection(
@@ -253,7 +253,7 @@ class _OrionSegmentedShowcaseScreenState
                 segments: _rangeSegments,
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Icon and text Card
             OrionShowcaseSection(
@@ -267,7 +267,7 @@ class _OrionSegmentedShowcaseScreenState
                 segments: _iconSegments,
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // With counts Card
             OrionShowcaseSection(
@@ -281,7 +281,7 @@ class _OrionSegmentedShowcaseScreenState
                 segments: _countSegments,
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Customization Card
             OrionShowcaseSection(
@@ -299,7 +299,7 @@ class _OrionSegmentedShowcaseScreenState
                     labelOf: _skinLabel,
                     onChanged: (value) => setState(() => _skin = value),
                   ),
-                  const SizedBox(height: 2.04),
+                  const SizedBox(height: OrionSpacing.space24),
                   _sample(
                     value: _skinTrip,
                     onChanged: (value) => setState(() => _skinTrip = value),
@@ -309,7 +309,7 @@ class _OrionSegmentedShowcaseScreenState
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Playground Card
             OrionShowcaseSection(
@@ -324,7 +324,7 @@ class _OrionSegmentedShowcaseScreenState
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(
                         horizontal: OrionSpacing.space16,
-                        vertical: 2.04,
+                        vertical: OrionSpacing.space24,
                       ),
                       decoration: BoxDecoration(
                         color: isDark

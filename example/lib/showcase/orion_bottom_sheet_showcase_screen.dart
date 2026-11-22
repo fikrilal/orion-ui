@@ -124,7 +124,7 @@ class _OrionBottomSheetShowcaseScreenState
           children: [
             // Top Intro Header
             Padding(
-              padding: const EdgeInsets.only(bottom: 2.00),
+              padding: const EdgeInsets.only(bottom: OrionSpacing.space20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -180,7 +180,7 @@ class _OrionBottomSheetShowcaseScreenState
                   children: [
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.all(2.00),
+                      padding: const EdgeInsets.all(OrionSpacing.space20),
                       decoration: BoxDecoration(
                         color: isDark
                             ? scheme.surfaceContainerLowest
@@ -220,7 +220,7 @@ class _OrionBottomSheetShowcaseScreenState
                         ],
                       ),
                     ),
-                    const SizedBox(height: 2.00),
+                    const SizedBox(height: OrionSpacing.space20),
 
                     OrionShowcaseChoice<_SheetPresetDetents>(
                       label: 'Detents',
@@ -255,7 +255,7 @@ class _OrionBottomSheetShowcaseScreenState
                 code: _snippet,
               ),
             ),
-            const SizedBox(height: 2.04),
+            const SizedBox(height: OrionSpacing.space24),
 
             // Inline Stage Card
             OrionShowcaseSection(
@@ -449,7 +449,7 @@ class _OrionBottomSheetShowcaseScreenState
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Customization Card
             OrionShowcaseSection(

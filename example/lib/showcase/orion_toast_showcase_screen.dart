@@ -114,7 +114,7 @@ class _OrionToastShowcaseScreenState extends State<OrionToastShowcaseScreen> {
             children: [
               // Top Intro Header
               Padding(
-                padding: const EdgeInsets.only(bottom: 2.00),
+                padding: const EdgeInsets.only(bottom: OrionSpacing.space20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -240,7 +240,7 @@ class _OrionToastShowcaseScreenState extends State<OrionToastShowcaseScreen> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 2.00),
+                      const SizedBox(height: OrionSpacing.space20),
 
                       OrionShowcaseChoice<OrionToastStatus>(
                         label: 'Status',
@@ -285,7 +285,7 @@ class _OrionToastShowcaseScreenState extends State<OrionToastShowcaseScreen> {
                   code: _snippet,
                 ),
               ),
-              const SizedBox(height: 2.04),
+              const SizedBox(height: OrionSpacing.space24),
 
               // Status Matrix Card
               OrionShowcaseSection(
@@ -334,7 +334,7 @@ class _OrionToastShowcaseScreenState extends State<OrionToastShowcaseScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 2.00),
+              const SizedBox(height: OrionSpacing.space20),
 
               // Promise Card
               OrionShowcaseSection(
@@ -362,7 +362,7 @@ class _OrionToastShowcaseScreenState extends State<OrionToastShowcaseScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 2.00),
+              const SizedBox(height: OrionSpacing.space20),
 
               // Customization Card
               OrionShowcaseSection(

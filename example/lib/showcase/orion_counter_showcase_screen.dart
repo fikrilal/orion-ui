@@ -76,7 +76,7 @@ class _OrionCounterShowcaseScreenState
           children: [
             // Top Intro Header
             Padding(
-              padding: const EdgeInsets.only(bottom: 2.00),
+              padding: const EdgeInsets.only(bottom: OrionSpacing.space20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -167,7 +167,7 @@ class _OrionCounterShowcaseScreenState
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Digits Section
             const OrionShowcaseSection(
@@ -176,7 +176,7 @@ class _OrionCounterShowcaseScreenState
                   'Multi-digit integers dynamically sizing digit slots and preserving leading zeros',
               card: true,
               child: Wrap(
-                spacing: 2.04,
+                spacing: OrionSpacing.space24,
                 runSpacing: OrionSpacing.space8,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
@@ -188,7 +188,7 @@ class _OrionCounterShowcaseScreenState
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Carry Section
             OrionShowcaseSection(
@@ -218,11 +218,11 @@ class _OrionCounterShowcaseScreenState
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Without travel section
             _AnimateSection(value: _value, onJump: _jump),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Customization Section
             OrionShowcaseSection(
@@ -249,7 +249,7 @@ class _OrionCounterShowcaseScreenState
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Playground Section
             OrionShowcaseSection(
@@ -264,8 +264,8 @@ class _OrionCounterShowcaseScreenState
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 2.04,
-                        vertical: 2.04,
+                        horizontal: OrionSpacing.space24,
+                        vertical: OrionSpacing.space24,
                       ),
                       decoration: BoxDecoration(
                         color: isDark
@@ -290,7 +290,7 @@ class _OrionCounterShowcaseScreenState
                         ),
                       ),
                     ),
-                    const SizedBox(height: 2.00),
+                    const SizedBox(height: OrionSpacing.space20),
 
                     OrionShowcaseValueSlider(
                       label: 'Value',

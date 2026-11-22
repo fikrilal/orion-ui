@@ -178,7 +178,7 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
           children: [
             // Top Category Header
             Padding(
-              padding: const EdgeInsets.only(bottom: 2.00),
+              padding: const EdgeInsets.only(bottom: OrionSpacing.space20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -236,8 +236,8 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 2.00,
-                        vertical: 2.04,
+                        horizontal: OrionSpacing.space20,
+                        vertical: OrionSpacing.space24,
                       ),
                       decoration: BoxDecoration(
                         color: isDark
@@ -277,7 +277,7 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 2.00),
+                    const SizedBox(height: OrionSpacing.space20),
 
                     // Controls
                     OrionShowcaseChoice<_DialogTypeChoice>(
@@ -354,7 +354,7 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
                 code: _snippet,
               ),
             ),
-            const SizedBox(height: 2.04),
+            const SizedBox(height: OrionSpacing.space24),
 
             // Dedicated Frosted Glass Specimen Card
             OrionShowcaseSection(
@@ -364,7 +364,7 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
               card: true,
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(2.00),
+                padding: const EdgeInsets.all(OrionSpacing.space20),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(OrionRadii.radius12),
                   gradient: LinearGradient(
@@ -430,7 +430,7 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 2.04),
+            const SizedBox(height: OrionSpacing.space24),
 
             // Turnkey Helpers Section
             OrionShowcaseSection(

@@ -68,7 +68,8 @@ class _OrionAccordionShowcaseScreenState
 
   /// One row under the shared flag.
   OrionAccordion _sample({
-    required Widget header,
+    String? title,
+    Widget? header,
     required Widget child,
     required bool expanded,
     required ValueChanged<bool> onExpandedChanged,
@@ -76,6 +77,7 @@ class _OrionAccordionShowcaseScreenState
     OrionAccordionStyle? style,
   }) {
     return OrionAccordion(
+      title: title,
       header: header,
       trailing: trailing,
       expanded: expanded,
@@ -89,7 +91,7 @@ class _OrionAccordionShowcaseScreenState
   String get _snippet {
     final List<String> lines = <String>[
       'OrionAccordion(',
-      "  header: const Text('Advanced options'),",
+      "  title: 'Advanced options',",
       '  expanded: $_playgroundExpanded,',
     ];
     if (_trailing == _AccordionTrailing.tune) {
@@ -119,7 +121,7 @@ class _OrionAccordionShowcaseScreenState
           children: [
             // Top Intro Header
             Padding(
-              padding: const EdgeInsets.only(bottom: 2.00),
+              padding: const EdgeInsets.only(bottom: OrionSpacing.space20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -193,10 +195,7 @@ class _OrionAccordionShowcaseScreenState
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           _sample(
-                            header: const Text(
-                              'Advanced options',
-                              style: TextStyle(fontWeight: FontWeight.w600),
-                            ),
+                            title: 'Advanced options',
                             expanded: _playgroundExpanded,
                             onExpandedChanged: (bool value) =>
                                 setState(() => _playgroundExpanded = value),
@@ -213,7 +212,7 @@ class _OrionAccordionShowcaseScreenState
                           ),
                           const SizedBox(height: OrionSpacing.space12),
                           Text(
-                            'Tap header to toggle disclosure with calm 0.99 press',
+                            'Tap header to toggle disclosure with subtle press wash & crisp spring',
                             style: TextStyle(
                               fontSize: 11.5,
                               color: scheme.onSurfaceVariant.withValues(
@@ -224,7 +223,7 @@ class _OrionAccordionShowcaseScreenState
                         ],
                       ),
                     ),
-                    const SizedBox(height: 2.00),
+                    const SizedBox(height: OrionSpacing.space20),
 
                     // Controls
                     Row(
@@ -265,7 +264,7 @@ class _OrionAccordionShowcaseScreenState
                 code: _snippet,
               ),
             ),
-            const SizedBox(height: 2.04),
+            const SizedBox(height: OrionSpacing.space24),
 
             // Single Accordion Card
             OrionShowcaseSection(
@@ -274,10 +273,7 @@ class _OrionAccordionShowcaseScreenState
                   'Independent disclosure row with aligned header and body copy',
               card: true,
               child: _sample(
-                header: const Text(
-                  'Delivery details',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
+                title: 'Delivery details',
                 expanded: _single,
                 onExpandedChanged: (bool value) =>
                     setState(() => _single = value),
@@ -288,7 +284,7 @@ class _OrionAccordionShowcaseScreenState
                 ),
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // One Open at a Time Card
             OrionShowcaseSection(
@@ -300,10 +296,7 @@ class _OrionAccordionShowcaseScreenState
                 children: <Widget>[
                   for (var index = 0; index < _faq.length; index++) ...[
                     _sample(
-                      header: Text(
-                        _faq[index].question,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
+                      title: _faq[index].question,
                       expanded: _open == index,
                       onExpandedChanged: (bool value) =>
                           setState(() => _open = value ? index : null),
@@ -327,7 +320,7 @@ class _OrionAccordionShowcaseScreenState
                 ],
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Custom Trailing Card
             OrionShowcaseSection(
@@ -351,7 +344,7 @@ class _OrionAccordionShowcaseScreenState
                 ),
               ),
             ),
-            const SizedBox(height: 2.00),
+            const SizedBox(height: OrionSpacing.space20),
 
             // Customization Card
             OrionShowcaseSection(

@@ -17,7 +17,7 @@ import 'package:orion_ui/src/theme/orion_tokens.dart';
 @immutable
 class OrionThemeData extends ThemeExtension<OrionThemeData> {
   const OrionThemeData({
-    this.pressScale = 0.96,
+    this.pressScale = 0.985,
     this.pressSpring = OrionSpringSpec.snappy,
     this.releaseSpring = OrionSpringSpec.snappy,
     this.selectionHaptic = OrionHapticType.selectionClick,

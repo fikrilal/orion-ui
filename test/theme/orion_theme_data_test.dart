@@ -7,7 +7,7 @@ void main() {
     test('fallback exposes the documented defaults', () {
       const data = OrionThemeData.fallback;
 
-      expect(data.pressScale, 0.96);
+      expect(data.pressScale, 0.985);
       expect(data.pressSpring, OrionSpringSpec.snappy);
       expect(data.releaseSpring, OrionSpringSpec.snappy);
       expect(data.selectionHaptic, OrionHapticType.selectionClick);
@@ -45,7 +45,7 @@ void main() {
       expect(a.lerp(b, 1.0), b);
 
       final mid = a.lerp(b, 0.5);
-      expect(mid.pressScale, closeTo(0.88, 1e-9));
+      expect(mid.pressScale, closeTo(0.8925, 1e-9));
       expect(mid.blurSigma, closeTo(8.0, 1e-9));
       expect(a.lerp(b, 0.49).pressSpring, a.pressSpring);
       expect(a.lerp(b, 0.5).pressSpring, b.pressSpring);

@@ -165,7 +165,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         _pressScale(tester, plain),
-        closeTo(0.96, 0.001),
+        closeTo(0.985, 0.001),
         reason: 'the sibling keeps the theme default',
       );
       await plainPress.up();

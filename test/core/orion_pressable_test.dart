@@ -173,7 +173,7 @@ void main() {
       },
     );
 
-    testWidgets('fast scroll/drag does not strand spring compressed at 0.96', (
+    testWidgets('fast scroll/drag does not strand spring compressed at 0.985', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -210,7 +210,7 @@ void main() {
           matching: find.byType(OrionPressable),
         ),
       );
-      expect(state.driver.target, 0.96);
+      expect(state.driver.target, 0.985);
       expect(state.driver.value, lessThan(1.0)); // Proves compression started
 
       await gesture.moveBy(const Offset(0, -80));
@@ -247,7 +247,7 @@ void main() {
       );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 20));
-      expect(state.driver.target, 0.96);
+      expect(state.driver.target, 0.985);
 
       // Drag beyond touch slop (e.g. 50 px)
       await gesture.moveBy(const Offset(0, 50));
@@ -428,7 +428,7 @@ void main() {
       for (var i = 0; i < 20; i++) {
         await tester.pump(const Duration(milliseconds: 16));
       }
-      expect(state.driver.value, closeTo(0.96, 0.005));
+      expect(state.driver.value, closeTo(0.985, 0.005));
 
       await gesture.up();
       var peak = 1.0;
@@ -637,7 +637,7 @@ void main() {
         final state = tester.state<OrionPressableState>(
           find.byType(OrionPressable),
         );
-        expect(state.driver.value, 0.96);
+        expect(state.driver.value, 0.985);
         expect(state.driver.isAnimating, isFalse);
 
         await gesture.up();

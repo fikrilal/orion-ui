@@ -29,7 +29,7 @@ class OrionPressable extends StatefulWidget {
     required this.child,
     this.onTap,
     this.onLongPress,
-    this.pressedScale = 0.96,
+    this.pressedScale = 0.985,
     this.springSpec = OrionSpringSpec.snappy,
     this.releaseSpringSpec,
     this.hapticType = OrionHapticType.none,
@@ -53,7 +53,7 @@ class OrionPressable extends StatefulWidget {
   /// Optional callback executed on long press.
   final VoidCallback? onLongPress;
 
-  /// The target scale when pressed down (default 0.96).
+  /// The target scale when pressed down (default 0.985).
   final double pressedScale;
 
   /// The physical spring specification governing compression on pointer down.

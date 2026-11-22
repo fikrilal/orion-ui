@@ -34,7 +34,8 @@ import 'package:orion_ui/src/theme/orion_tokens.dart';
 class OrionButton extends StatefulWidget {
   const OrionButton({
     super.key,
-    required this.child,
+    this.label,
+    this.child,
     this.onPressed,
     this.onLongPress,
     this.variant = OrionButtonVariant.solid,
@@ -43,6 +44,7 @@ class OrionButton extends StatefulWidget {
     this.leading,
     this.trailing,
     this.loadingIndicator,
+    this.loadingLabel,
     this.loadingChild,
     this.debounce = false,
     this.isLoading = false,
@@ -52,10 +54,24 @@ class OrionButton extends StatefulWidget {
     this.cursor,
     this.onHover,
     this.semanticLabel,
-  });
+  }) : assert(
+         (label != null) != (child != null),
+         'Provide either label or child, not both.',
+       ),
+       assert(
+         loadingLabel == null || loadingChild == null,
+         'Provide either loadingLabel or loadingChild, not both.',
+       );
 
-  /// Label content; inherits the size's text style and state color.
-  final Widget child;
+  /// Plain text label rendered with single-line ellipsis defaults.
+  ///
+  /// Mutually exclusive with [child]; use [child] when you need custom layout.
+  final String? label;
+
+  /// Custom label content; inherits the size's text style and state color.
+  ///
+  /// Mutually exclusive with [label].
+  final Widget? child;
 
   /// Action to run on press. Returning a [Future] locks the button until it
   /// completes; null disables the button.
@@ -83,7 +99,10 @@ class OrionButton extends StatefulWidget {
   /// Replaces the default spinner while loading.
   final Widget? loadingIndicator;
 
-  /// Replaces [child] while loading; the leading slot is still the indicator.
+  /// Plain text label shown while loading; mutually exclusive with [loadingChild].
+  final String? loadingLabel;
+
+  /// Replaces [child] or [label] while loading; the leading slot is still the indicator.
   final Widget? loadingChild;
 
   /// When true, ignores presses that arrive within the double-tap window of
@@ -249,14 +268,21 @@ class _OrionButtonState extends State<OrionButton> {
             builder: (BuildContext context, BoxConstraints constraints) {
               final bool expand =
                   widget.isExpanded && constraints.hasBoundedWidth;
+              final Widget effectiveLabel =
+                  widget.child ?? _defaultLabel(widget.label!);
+              final Widget? effectiveLoadingLabel =
+                  widget.loadingChild ??
+                  (widget.loadingLabel == null
+                      ? null
+                      : _defaultLabel(widget.loadingLabel!));
               final Widget visual = _buttonFace(
                 style: style,
                 states: states,
                 scheme: scheme,
                 expand: expand,
                 loading: _loading,
-                label: widget.child,
-                loadingChild: widget.loadingChild,
+                label: effectiveLabel,
+                loadingChild: effectiveLoadingLabel,
                 loadingIndicator: widget.loadingIndicator,
                 leading: widget.leading,
                 trailing: widget.trailing,
@@ -380,6 +406,17 @@ Widget _buttonFace({
           ],
         ),
       ),
+    ),
+  );
+}
+
+Widget _defaultLabel(String text) {
+  return Flexible(
+    child: Text(
+      text,
+      textAlign: TextAlign.center,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
     ),
   );
 }

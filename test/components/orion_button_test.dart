@@ -316,6 +316,36 @@ void main() {
         expect(find.text('V'), findsOneWidget);
       }
     });
+
+    testWidgets('renders plain text with label and loadingLabel shorthands', (
+      tester,
+    ) async {
+      await _pumpButton(
+        tester,
+        OrionButton(
+          label: 'Deploy',
+          loadingLabel: 'Deploying...',
+          onPressed: () {},
+        ),
+      );
+
+      final Text idleText = tester.widget<Text>(find.text('Deploy'));
+      expect(idleText.maxLines, 1);
+      expect(idleText.overflow, TextOverflow.ellipsis);
+
+      await _pumpButton(
+        tester,
+        OrionButton(
+          label: 'Deploy',
+          loadingLabel: 'Deploying...',
+          isLoading: true,
+          onPressed: () {},
+        ),
+      );
+
+      expect(find.text('Deploying...'), findsOneWidget);
+      expect(find.text('Deploy'), findsNothing);
+    });
   });
 
   group('OrionButtonStyle', () {
@@ -350,16 +380,25 @@ void main() {
     List<BoxShadow>? shadow(OrionButtonStyle style, Set<WidgetState> states) =>
         style.shadow?.resolve(states);
 
-    test('solid fills with primary and onPrimary', () {
+    test('solid fills with primary and onPrimary and tints on pressed', () {
       final OrionButtonStyle style = preset(OrionButtonVariant.solid);
-      expect(background(style, const <WidgetState>{}), scheme.primary);
+      final Color resting = background(style, const <WidgetState>{})!;
+      final Color pressed = background(style, const <WidgetState>{
+        WidgetState.pressed,
+      })!;
+      expect(resting, scheme.primary);
+      expect(pressed, isNot(resting));
       expect(foreground(style, const <WidgetState>{}), scheme.onPrimary);
       expect(border(style, const <WidgetState>{}), isNull);
     });
 
-    test('bordered stays transparent with an outline border', () {
+    test('bordered stays transparent at rest and tints on pressed', () {
       final OrionButtonStyle style = preset(OrionButtonVariant.bordered);
       expect(background(style, const <WidgetState>{}), isNull);
+      expect(
+        background(style, const <WidgetState>{WidgetState.pressed}),
+        isNotNull,
+      );
       expect(border(style, const <WidgetState>{})?.color, scheme.outline);
     });
 

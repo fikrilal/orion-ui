@@ -46,13 +46,37 @@ abstract final class OrionButtonPresets {
 
     final Color disabledContainer = scheme.onSurface.withValues(alpha: 0.12);
     final Color disabledForeground = scheme.onSurface.withValues(alpha: 0.38);
+    final Color pressedFilledBackground = Color.alphaBlend(
+      scheme.onPrimary.withValues(alpha: 0.12),
+      scheme.primary,
+    );
+    final Color pressedQuietBackground = scheme.primary.withValues(alpha: 0.08);
+    final Color hoveredQuietBackground = scheme.primary.withValues(alpha: 0.04);
 
     WidgetStateProperty<Color?> filledBackground() =>
-        WidgetStateProperty.resolveWith<Color?>(
-          (Set<WidgetState> states) => states.contains(WidgetState.disabled)
-              ? disabledContainer
-              : scheme.primary,
-        );
+        WidgetStateProperty.resolveWith<Color?>((Set<WidgetState> states) {
+          if (states.contains(WidgetState.disabled)) {
+            return disabledContainer;
+          }
+          if (states.contains(WidgetState.pressed)) {
+            return pressedFilledBackground;
+          }
+          return scheme.primary;
+        });
+
+    WidgetStateProperty<Color?> quietBackground() =>
+        WidgetStateProperty.resolveWith<Color?>((Set<WidgetState> states) {
+          if (states.contains(WidgetState.disabled)) {
+            return null;
+          }
+          if (states.contains(WidgetState.pressed)) {
+            return pressedQuietBackground;
+          }
+          if (states.contains(WidgetState.hovered)) {
+            return hoveredQuietBackground;
+          }
+          return null;
+        });
 
     WidgetStateProperty<Color?> filledForeground() =>
         WidgetStateProperty.resolveWith<Color?>(
@@ -81,6 +105,7 @@ abstract final class OrionButtonPresets {
         foreground = filledForeground();
         border = focusRing(scheme.onSurface);
       case OrionButtonVariant.bordered:
+        background = quietBackground();
         foreground = WidgetStateProperty.resolveWith<Color?>(
           (Set<WidgetState> states) => states.contains(WidgetState.disabled)
               ? disabledForeground
@@ -113,6 +138,7 @@ abstract final class OrionButtonPresets {
         );
         border = focusRing(scheme.onSurface);
       case OrionButtonVariant.flat:
+        background = quietBackground();
         foreground = WidgetStateProperty.resolveWith<Color?>(
           (Set<WidgetState> states) => states.contains(WidgetState.disabled)
               ? disabledForeground

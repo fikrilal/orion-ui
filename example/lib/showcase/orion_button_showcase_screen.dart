@@ -21,7 +21,7 @@ class OrionButtonShowcaseScreen extends StatefulWidget {
 enum _ButtonSkin { standard, brand, pill }
 
 class _OrionButtonShowcaseScreenState extends State<OrionButtonShowcaseScreen> {
-  static const double _defaultPressScale = 0.96;
+  static const double _defaultPressScale = 0.985;
 
   // Flags: shared by every sample on the page.
   bool _disabled = false;

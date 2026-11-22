@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:orion_ui/orion_ui.dart';
 import 'package:orion_ui_example/showcase/orion_showcase_kit.dart';
 import 'package:orion_ui_example/showcase/orion_showcase_scaffold.dart';
-import 'package:orion_ui/orion_ui.dart';
 
 /// Playground for [OrionBottomSheet] and [showOrionBottomSheet].
 class OrionBottomSheetShowcaseScreen extends StatefulWidget {
@@ -12,7 +12,7 @@ class OrionBottomSheetShowcaseScreen extends StatefulWidget {
       _OrionBottomSheetShowcaseScreenState();
 }
 
-enum _SheetPresetDetents { twoTier, threeTier }
+enum _SheetMode { fitContent, twoTier, threeTier }
 
 enum _SheetSkin { standard, frosted, bordered }
 
@@ -20,19 +20,29 @@ class _OrionBottomSheetShowcaseScreenState
     extends State<OrionBottomSheetShowcaseScreen> {
   final OrionSheetController _inlineController = OrionSheetController();
 
-  _SheetPresetDetents _preset = _SheetPresetDetents.twoTier;
+  _SheetMode _mode = _SheetMode.fitContent;
+  OrionBottomSheetVariant _variant = OrionBottomSheetVariant.floating;
   _SheetSkin _skin = _SheetSkin.standard;
   bool _showHandle = true;
+  bool _showHeader = true;
   bool _frosted = false;
+  String? _lastActionResult;
 
-  List<double> get _activeDetents => switch (_preset) {
-    _SheetPresetDetents.twoTier => const [0.4, 0.85],
-    _SheetPresetDetents.threeTier => const [0.25, 0.55, 0.90],
+  List<double> get _activeDetents => switch (_mode) {
+    _SheetMode.fitContent => const <double>[0.5, 0.9],
+    _SheetMode.twoTier => const <double>[0.4, 0.85],
+    _SheetMode.threeTier => const <double>[0.25, 0.55, 0.90],
   };
 
-  String _presetLabel(_SheetPresetDetents preset) => switch (preset) {
-    _SheetPresetDetents.twoTier => '2-Tier [40%, 85%]',
-    _SheetPresetDetents.threeTier => '3-Tier [25%, 55%, 90%]',
+  String _modeLabel(_SheetMode mode) => switch (mode) {
+    _SheetMode.fitContent => 'Fit content',
+    _SheetMode.twoTier => '2-Tier [40%, 85%]',
+    _SheetMode.threeTier => '3-Tier [25%, 55%, 90%]',
+  };
+
+  String _variantLabel(OrionBottomSheetVariant variant) => switch (variant) {
+    OrionBottomSheetVariant.floating => 'Floating',
+    OrionBottomSheetVariant.edgeToEdge => 'Edge-to-edge',
   };
 
   String _skinLabel(_SheetSkin skin) => switch (skin) {
@@ -50,50 +60,143 @@ class _OrionBottomSheetShowcaseScreenState
     ),
   };
 
-  void _openModalSheet({OrionBottomSheetStyle? styleOverride}) {
-    final scheme = Theme.of(context).colorScheme;
-    final baseStyle =
+  Future<void> _openModalSheet({
+    OrionBottomSheetStyle? styleOverride,
+    OrionBottomSheetVariant? variantOverride,
+    bool? fitOverride,
+  }) async {
+    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final OrionBottomSheetStyle baseStyle =
         styleOverride ??
         (_skinStyle(scheme) ?? const OrionBottomSheetStyle()).copyWith(
           frosted: _frosted,
         );
+    final bool fit = fitOverride ?? (_mode == _SheetMode.fitContent);
+    final OrionBottomSheetVariant variant = variantOverride ?? _variant;
 
-    showOrionBottomSheet<void>(
+    final String? result = await showOrionBottomSheet<String>(
       context: context,
+      fitContent: fit,
       detents: _activeDetents,
+      variant: variant,
+      title: _showHeader ? (fit ? 'Quick Actions' : 'Explore Items') : null,
+      subtitle: _showHeader
+          ? (fit
+                ? 'Auto-sized to content height with spring dismiss'
+                : 'Drag handle or scroll past top to transition detents')
+          : null,
+      showCloseButton: _showHeader,
       showDragHandle: _showHandle,
       style: baseStyle,
-      builder: (context, scrollController) {
-        return ListView.builder(
-          controller: scrollController,
-          itemCount: 25,
-          padding: const EdgeInsets.symmetric(
-            horizontal: OrionSpacing.space16,
-            vertical: OrionSpacing.space8,
-          ),
-          itemBuilder: (context, index) {
-            return ListTile(
-              leading: CircleAvatar(
-                backgroundColor: Theme.of(
-                  context,
-                ).colorScheme.surfaceContainerHighest,
-                child: Text('${index + 1}'),
+      builder: (BuildContext sheetContext, ScrollController scrollController) {
+        if (fit) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(
+              OrionSpacing.space16,
+              0,
+              OrionSpacing.space16,
+              OrionSpacing.space16,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                const OrionTextField(
+                  hint: 'Add a quick note (tests keyboard lift)...',
+                ),
+                const SizedBox(height: OrionSpacing.space16),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: OrionButton(
+                        label: 'Cancel',
+                        variant: OrionButtonVariant.bordered,
+                        isExpanded: true,
+                        onPressed: () =>
+                            OrionBottomSheet.dismissOf(sheetContext, 'Cancelled'),
+                      ),
+                    ),
+                    const SizedBox(width: OrionSpacing.space12),
+                    Expanded(
+                      child: OrionButton(
+                        label: 'Confirm',
+                        variant: OrionButtonVariant.solid,
+                        isExpanded: true,
+                        onPressed: () =>
+                            OrionBottomSheet.dismissOf(sheetContext, 'Confirmed'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        }
+
+        return Column(
+          children: <Widget>[
+            Expanded(
+              child: ListView.builder(
+                controller: scrollController,
+                itemCount: 25,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: OrionSpacing.space16,
+                ),
+                itemBuilder: (BuildContext context, int index) {
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: CircleAvatar(
+                      backgroundColor: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest,
+                      child: Text('${index + 1}'),
+                    ),
+                    title: Text('Sheet Item ${index + 1}'),
+                    subtitle: const Text(
+                      'Scroll down continuously past top to collapse',
+                    ),
+                    onTap: () => OrionBottomSheet.dismissOf(
+                      sheetContext,
+                      'Picked Item ${index + 1}',
+                    ),
+                  );
+                },
               ),
-              title: Text('Sheet Item ${index + 1}'),
-              subtitle: const Text('Pull down at top to collapse or dismiss'),
-            );
-          },
+            ),
+            Padding(
+              padding: const EdgeInsets.all(OrionSpacing.space16),
+              child: OrionButton(
+                label: 'Done',
+                isExpanded: true,
+                onPressed: () =>
+                    OrionBottomSheet.dismissOf(sheetContext, 'Done'),
+              ),
+            ),
+          ],
         );
       },
     );
+
+    if (mounted && result != null) {
+      setState(() => _lastActionResult = result);
+    }
   }
 
   String get _snippet {
+    final bool fit = _mode == _SheetMode.fitContent;
     final List<String> lines = <String>[
-      'showOrionBottomSheet(',
+      'final result = await showOrionBottomSheet<String>(',
       '  context: context,',
-      '  detents: ${_activeDetents.map((d) => d.toString()).toList()},',
+      '  variant: OrionBottomSheetVariant.${_variant.name},',
+      if (fit)
+        '  fitContent: true,'
+      else
+        '  detents: ${_activeDetents.map((double d) => d.toString()).toList()},',
     ];
+    if (_showHeader) {
+      lines.add("  title: '${fit ? 'Quick Actions' : 'Explore Items'}',");
+      lines.add('  showCloseButton: true,');
+    }
     if (!_showHandle) {
       lines.add('  showDragHandle: false,');
     }
@@ -101,10 +204,7 @@ class _OrionBottomSheetShowcaseScreenState
       lines.add('  style: OrionBottomSheetStyle.from(frosted: true),');
     }
     lines.addAll(<String>[
-      '  builder: (context, scrollController) => ListView(',
-      '    controller: scrollController,',
-      '    children: [...],',
-      '  ),',
+      '  builder: (context, scrollController) => ...,',
       ');',
     ]);
     return lines.join('\n');
@@ -112,22 +212,22 @@ class _OrionBottomSheetShowcaseScreenState
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme scheme = theme.colorScheme;
+    final bool isDark = theme.brightness == Brightness.dark;
 
     return OrionThemedScaffold(
       title: 'Orion Bottom Sheet',
-      builder: (context) {
+      builder: (BuildContext context) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+          children: <Widget>[
             // Top Intro Header
             Padding(
               padding: const EdgeInsets.only(bottom: OrionSpacing.space20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+                children: <Widget>[
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: OrionSpacing.space8,
@@ -137,7 +237,9 @@ class _OrionBottomSheetShowcaseScreenState
                       color: isDark
                           ? scheme.onSurface.withValues(alpha: 0.10)
                           : scheme.onSurface.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(OrionRadii.radiusPill),
+                      borderRadius: BorderRadius.circular(
+                        OrionRadii.radiusPill,
+                      ),
                       border: Border.all(
                         color: isDark
                             ? scheme.outlineVariant.withValues(alpha: 0.20)
@@ -146,7 +248,7 @@ class _OrionBottomSheetShowcaseScreenState
                       ),
                     ),
                     child: Text(
-                      'SURFACE • MULTI-SNAP DETENTS',
+                      'SURFACE • FIT-CONTENT & MULTI-DETENT',
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
@@ -157,7 +259,7 @@ class _OrionBottomSheetShowcaseScreenState
                   ),
                   const SizedBox(height: OrionSpacing.space8),
                   Text(
-                    'Physics-driven multi-detent bottom sheet. Features continuous spring velocity projection, top rubber-banding, nested scroll cooperation, and modal presentation.',
+                    'Physics-driven bottom sheet supporting intrinsic content sizing, multi-snap detents, floating card or edge-to-edge layout, keyboard lift, and seamless nested scroll handoff.',
                     style: TextStyle(
                       fontSize: 13.5,
                       height: 1.4,
@@ -172,20 +274,20 @@ class _OrionBottomSheetShowcaseScreenState
             OrionShowcaseSection(
               title: 'Playground',
               subtitle:
-                  'Interactive workbench: test modal and inline sheets with live code generation',
+                  'Test floating vs edge-to-edge, fit-content vs multi-detent, keyboard avoidance, and typed results',
               child: OrionShowcasePanel(
                 key: const ValueKey<String>('showcase-panel-playground'),
                 preview: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                  children: <Widget>[
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(OrionSpacing.space20),
                       decoration: BoxDecoration(
-                        color: isDark
-                            ? scheme.surfaceContainerLowest
-                            : scheme.surfaceContainerLowest,
-                        borderRadius: BorderRadius.circular(OrionRadii.radius12),
+                        color: scheme.surfaceContainerLowest,
+                        borderRadius: BorderRadius.circular(
+                          OrionRadii.radius12,
+                        ),
                         border: Border.all(
                           color: isDark
                               ? scheme.outlineVariant.withValues(alpha: 0.15)
@@ -194,9 +296,10 @@ class _OrionBottomSheetShowcaseScreenState
                         ),
                       ),
                       child: Column(
-                        children: [
+                        children: <Widget>[
                           Center(
                             child: OrionButton(
+                              label: 'Open Modal Bottom Sheet',
                               size: OrionButtonSize.medium,
                               variant: OrionButtonVariant.solid,
                               onPressed: _openModalSheet,
@@ -204,16 +307,18 @@ class _OrionBottomSheetShowcaseScreenState
                                 Icons.open_in_new_rounded,
                                 size: 18,
                               ),
-                              child: const Text('Open Modal Bottom Sheet'),
                             ),
                           ),
                           const SizedBox(height: OrionSpacing.space12),
                           Text(
-                            'Drag pill or scroll content down at top to test physics',
+                            _lastActionResult == null
+                                ? 'Try focusing the input inside Fit Content, or dragging smoothly across detents'
+                                : 'Last returned result: $_lastActionResult',
+                            textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 11.5,
                               color: scheme.onSurfaceVariant.withValues(
-                                alpha: 0.7,
+                                alpha: 0.8,
                               ),
                             ),
                           ),
@@ -222,30 +327,50 @@ class _OrionBottomSheetShowcaseScreenState
                     ),
                     const SizedBox(height: OrionSpacing.space20),
 
-                    OrionShowcaseChoice<_SheetPresetDetents>(
-                      label: 'Detents',
-                      values: _SheetPresetDetents.values,
-                      selected: _preset,
-                      labelOf: _presetLabel,
-                      onChanged: (val) => setState(() => _preset = val),
+                    OrionShowcaseChoice<OrionBottomSheetVariant>(
+                      label: 'Variant',
+                      values: OrionBottomSheetVariant.values,
+                      selected: _variant,
+                      labelOf: _variantLabel,
+                      onChanged: (OrionBottomSheetVariant val) =>
+                          setState(() => _variant = val),
+                    ),
+                    const SizedBox(height: OrionSpacing.space16),
+
+                    OrionShowcaseChoice<_SheetMode>(
+                      label: 'Sizing mode',
+                      values: _SheetMode.values,
+                      selected: _mode,
+                      labelOf: _modeLabel,
+                      onChanged: (_SheetMode val) =>
+                          setState(() => _mode = val),
                     ),
                     const SizedBox(height: OrionSpacing.space16),
 
                     Row(
-                      children: [
+                      children: <Widget>[
                         Expanded(
                           child: OrionShowcaseToggle(
-                            label: 'Drag handle',
+                            label: 'Handle',
                             value: _showHandle,
-                            onChanged: (val) =>
+                            onChanged: (bool val) =>
                                 setState(() => _showHandle = val),
                           ),
                         ),
                         Expanded(
                           child: OrionShowcaseToggle(
-                            label: 'Frosted blur',
+                            label: 'Header',
+                            value: _showHeader,
+                            onChanged: (bool val) =>
+                                setState(() => _showHeader = val),
+                          ),
+                        ),
+                        Expanded(
+                          child: OrionShowcaseToggle(
+                            label: 'Frosted',
                             value: _frosted,
-                            onChanged: (val) => setState(() => _frosted = val),
+                            onChanged: (bool val) =>
+                                setState(() => _frosted = val),
                           ),
                         ),
                       ],
@@ -265,28 +390,28 @@ class _OrionBottomSheetShowcaseScreenState
               card: true,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+                children: <Widget>[
                   Wrap(
                     spacing: OrionSpacing.space8,
                     runSpacing: OrionSpacing.space8,
-                    children: [
+                    children: <Widget>[
                       OrionButton(
+                        label: 'Expand (Top)',
                         size: OrionButtonSize.small,
                         variant: OrionButtonVariant.bordered,
                         onPressed: () => _inlineController.expand(),
-                        child: const Text('Expand (Top)'),
                       ),
                       OrionButton(
+                        label: 'Collapse (Low)',
                         size: OrionButtonSize.small,
                         variant: OrionButtonVariant.bordered,
                         onPressed: () => _inlineController.collapse(),
-                        child: const Text('Collapse (Low)'),
                       ),
                       OrionButton(
+                        label: 'Dismiss',
                         size: OrionButtonSize.small,
                         variant: OrionButtonVariant.flat,
                         onPressed: () => _inlineController.dismiss(),
-                        child: const Text('Dismiss'),
                       ),
                     ],
                   ),
@@ -296,9 +421,7 @@ class _OrionBottomSheetShowcaseScreenState
                     width: double.infinity,
                     clipBehavior: Clip.antiAlias,
                     decoration: BoxDecoration(
-                      color: isDark
-                          ? scheme.surfaceContainerLowest
-                          : scheme.surfaceContainerLowest,
+                      color: scheme.surfaceContainerLowest,
                       borderRadius: BorderRadius.circular(OrionRadii.radius12),
                       border: Border.all(
                         color: isDark
@@ -307,13 +430,12 @@ class _OrionBottomSheetShowcaseScreenState
                       ),
                     ),
                     child: Stack(
-                      children: [
-                        // Rich simulated map canvas so frosted glass blur is clearly visible
+                      children: <Widget>[
                         Positioned.fill(
                           child: Container(
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
-                                colors: [
+                                colors: <Color>[
                                   isDark
                                       ? const Color(0xFF1E293B)
                                       : const Color(0xFFE2E8F0),
@@ -326,7 +448,7 @@ class _OrionBottomSheetShowcaseScreenState
                               ),
                             ),
                             child: Stack(
-                              children: [
+                              children: <Widget>[
                                 Positioned(
                                   top: 40,
                                   left: 0,
@@ -361,7 +483,7 @@ class _OrionBottomSheetShowcaseScreenState
                                     decoration: const BoxDecoration(
                                       color: Color(0xFFEF4444),
                                       shape: BoxShape.circle,
-                                      boxShadow: [
+                                      boxShadow: <BoxShadow>[
                                         BoxShadow(
                                           color: Color(0x33000000),
                                           blurRadius: 4,
@@ -375,73 +497,39 @@ class _OrionBottomSheetShowcaseScreenState
                                     ),
                                   ),
                                 ),
-                                Positioned(
-                                  top: 70,
-                                  right: 32,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: isDark
-                                          ? const Color(0xFF334155)
-                                          : Colors.white,
-                                      borderRadius: BorderRadius.circular(12),
-                                      boxShadow: const [
-                                        BoxShadow(
-                                          color: Color(0x20000000),
-                                          blurRadius: 6,
-                                        ),
-                                      ],
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: const [
-                                        Icon(
-                                          Icons.local_cafe,
-                                          size: 14,
-                                          color: Color(0xFFD97706),
-                                        ),
-                                        SizedBox(width: 4),
-                                        Text(
-                                          'Blue Bottle Coffee',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
                               ],
                             ),
                           ),
                         ),
                         OrionBottomSheet(
                           controller: _inlineController,
-                          detents: const [0.35, 0.85],
+                          detents: const <double>[0.35, 0.85],
                           initialDetentIndex: 0,
                           showDragHandle: true,
                           style:
                               (_skinStyle(scheme) ??
                                       const OrionBottomSheetStyle())
                                   .copyWith(frosted: _frosted),
-                          builder: (context, scroll) => ListView(
-                            controller: scroll,
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            children: const [
-                              Text(
-                                'Inline Tray Content',
-                                style: TextStyle(fontWeight: FontWeight.w600),
-                              ),
-                              SizedBox(height: 8),
-                              Text(
-                                'Swipe or use the buttons above to animate detents.',
-                              ),
-                            ],
-                          ),
+                          builder:
+                              (BuildContext context, ScrollController scroll) =>
+                                  ListView(
+                                    controller: scroll,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                    ),
+                                    children: const <Widget>[
+                                      Text(
+                                        'Inline Tray Content',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      SizedBox(height: 8),
+                                      Text(
+                                        'Swipe or use the buttons above to animate detents.',
+                                      ),
+                                    ],
+                                  ),
                         ),
                       ],
                     ),
@@ -459,21 +547,21 @@ class _OrionBottomSheetShowcaseScreenState
               card: true,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+                children: <Widget>[
                   OrionShowcaseChoice<_SheetSkin>(
                     label: 'Skin',
                     values: _SheetSkin.values,
                     selected: _skin,
                     labelOf: _skinLabel,
-                    onChanged: (val) => setState(() => _skin = val),
+                    onChanged: (_SheetSkin val) => setState(() => _skin = val),
                   ),
                   const SizedBox(height: OrionSpacing.space16),
                   OrionButton(
+                    label: 'Open ${_skinLabel(_skin)} Sheet',
                     size: OrionButtonSize.small,
                     variant: OrionButtonVariant.bordered,
                     onPressed: () =>
                         _openModalSheet(styleOverride: _skinStyle(scheme)),
-                    child: Text('Open ${_skinLabel(_skin)} Sheet'),
                   ),
                 ],
               ),

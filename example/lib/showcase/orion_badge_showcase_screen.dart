@@ -47,9 +47,9 @@ class _OrionBadgeShowcaseScreenState extends State<OrionBadgeShowcaseScreen> {
 
   Widget _playgroundBadge() => switch (_mode) {
     _BadgeMode.label => OrionBadge(
+      label: 'New',
       variant: _variant,
       size: _size,
-      child: const Text('New'),
     ),
     _BadgeMode.count => OrionBadge.count(
       value: _count,
@@ -76,7 +76,7 @@ class _OrionBadgeShowcaseScreenState extends State<OrionBadgeShowcaseScreen> {
     }
     switch (_mode) {
       case _BadgeMode.label:
-        lines.add("  child: Text('New'),");
+        lines.add("  label: 'New',");
       case _BadgeMode.count:
         lines.add('  value: $_count,');
       case _BadgeMode.dot:

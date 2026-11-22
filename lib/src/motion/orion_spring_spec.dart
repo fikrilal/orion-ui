@@ -7,9 +7,9 @@ import 'package:flutter/physics.dart';
 ///
 /// An underdamped spring ($\zeta < 1.0$) produces a subtle, organic release bounce.
 /// The analytic overshoot fraction of the travel distance is $\exp(-\pi \zeta / \sqrt{1 - \zeta^2})$.
-/// For example, on a $0.04$ scale release ($0.96 \to 1.0$) with $\zeta = 0.36$, the spring
-/// overshoots by $\approx 1.2\%$ of scale (peak scale $\approx 1.012$) before settling
-/// smoothly at 1.0.
+/// For example, on a $0.04$ scale release ($0.96 \to 1.0$) with $\zeta = 0.78$, the spring
+/// responds briskly with a micro overshoot ($\approx 2\%$ of travel) before snapping cleanly
+/// to rest without wobbling.
 class OrionSpringSpec {
   const OrionSpringSpec({
     this.mass = 1.0,
@@ -47,14 +47,11 @@ class OrionSpringSpec {
     );
   }
 
-  /// Press spring for the release of a held control, where the travel is a few percent
-  /// of the scale. Damping ratio 0.36 is deliberately bouncy: on a 0.04 scale release
-  /// it peaks near 1.012, which reads as tactility rather than as wobble.
+  /// Press spring for tactile controls (buttons, cards, chips, switch hold).
   ///
-  /// Do not use it for travel. Over a full 0 to 1 change the same ratio peaks near
-  /// 1.30, and a spring that overshoots its target by a third has to be clamped or
-  /// damped by hand at every call site.
-  static const snappy = OrionSpringSpec(stiffness: 380.0, dampingRatio: 0.36);
+  /// High stiffness ($k = 600$) and tight damping ($\zeta = 0.78$) make compression
+  /// hit immediately and snap back decisively without jelly-like wobble.
+  static const snappy = OrionSpringSpec(stiffness: 600.0, dampingRatio: 0.78);
 
   /// Travel spring for surfaces that move a visible distance: rows, sheets, tracks.
   ///

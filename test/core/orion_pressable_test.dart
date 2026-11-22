@@ -439,9 +439,10 @@ void main() {
         frames++;
       }
 
-      // Proves the actual physical spring simulation overshoots 1.0 (~1.012)
-      expect(peak, greaterThan(1.008));
-      expect(peak, closeTo(1.012, 0.004));
+      // Tight snappy spring (k = 600, zeta = 0.78) snaps back cleanly with a
+      // subtle micro-overshoot (~1.0008) rather than wobbling.
+      expect(peak, greaterThan(1.0));
+      expect(peak, lessThan(1.003));
       expect(state.driver.value, 1.0); // Exact settlement via snapToEnd
     });
 

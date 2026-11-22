@@ -917,21 +917,25 @@ void main() {
     });
 
     testWidgets('a retuned expand spring reaches the reveal', (tester) async {
+      const OrionSpringSpec bouncySpring = OrionSpringSpec(
+        stiffness: 380.0,
+        dampingRatio: 0.36,
+      );
       await _pumpAccordion(
         tester,
         expanded: false,
         onExpandedChanged: (_) {},
-        style: OrionAccordionStyle.from(expandSpring: OrionSpringSpec.snappy),
+        style: OrionAccordionStyle.from(expandSpring: bouncySpring),
       );
       await _pumpAccordion(
         tester,
         expanded: true,
         onExpandedChanged: (_) {},
-        style: OrionAccordionStyle.from(expandSpring: OrionSpringSpec.snappy),
+        style: OrionAccordionStyle.from(expandSpring: bouncySpring),
       );
       await tester.pump(const Duration(milliseconds: 16));
 
-      // The snappy spec overshoots a full travel hard, so the panel's clip
+      // An underdamped spring overshoots a full travel hard, so the panel's clip
       // grows past the content for at least one frame.
       double peak = 0;
       for (var frame = 0; frame < 60; frame++) {

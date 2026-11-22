@@ -21,27 +21,24 @@ void main() {
     });
 
     test(
-      'snappy preset produces calibrated organic bounce (~1.2% peak overshoot)',
+      'snappy preset produces a tight, crisp response (~2% travel overshoot)',
       () {
         final spec = OrionSpringSpec.snappy;
-        expect(spec.stiffness, 380.0);
-        expect(spec.dampingRatio, 0.36);
+        expect(spec.stiffness, 600.0);
+        expect(spec.dampingRatio, 0.78);
 
         // Analytic overshoot ratio = exp(-pi * zeta / sqrt(1 - zeta^2))
         final zeta = spec.dampingRatio;
         final overshootRatio = math.exp(
           -math.pi * zeta / math.sqrt(1 - zeta * zeta),
         );
-        // For a 0.04 scale travel (0.96 -> 1.0), overshoot is 0.04 * ratio
-        final scaleOvershoot = 0.04 * overshootRatio;
-
-        expect(scaleOvershoot, closeTo(0.0119, 0.002)); // ~1.2% visible bounce
+        expect(overshootRatio, closeTo(0.02, 0.005));
       },
     );
 
     test('presets have expected physical parameters', () {
-      expect(OrionSpringSpec.snappy.stiffness, 380.0);
-      expect(OrionSpringSpec.snappy.dampingRatio, 0.36);
+      expect(OrionSpringSpec.snappy.stiffness, 600.0);
+      expect(OrionSpringSpec.snappy.dampingRatio, 0.78);
 
       expect(OrionSpringSpec.gentle.stiffness, 260.0);
       // Recalibrated into the band production references use for travel.

@@ -3,12 +3,7 @@ import 'package:orion_ui_example/showcase/orion_showcase_kit.dart';
 import 'package:orion_ui_example/showcase/orion_showcase_scaffold.dart';
 import 'package:orion_ui/orion_ui.dart';
 
-/// Playground for [OrionChip].
-///
-/// The `Disabled` flag in the top controls card drives every sample; the
-/// sections below are the reference matrices - the multi-select filter row, the
-/// sizes, the customization skins - and the playground last selects a single
-/// chip with its generated call behind the Code tab.
+/// Playground for [OrionChip] and [OrionChipGroup].
 class OrionChipShowcaseScreen extends StatefulWidget {
   const OrionChipShowcaseScreen({super.key});
 
@@ -21,45 +16,71 @@ class OrionChipShowcaseScreen extends StatefulWidget {
 enum _ChipSkin { standard, soft, loud }
 
 class _OrionChipShowcaseScreenState extends State<OrionChipShowcaseScreen> {
-  static const List<String> _filters = <String>[
-    'Live',
-    'Draft',
-    'Archived',
-    'Mine',
+  static const List<OrionChipItem<String>> _filterItems =
+      <OrionChipItem<String>>[
+        OrionChipItem<String>(
+          value: 'live',
+          label: 'Live',
+          leading: Icon(Icons.bolt_rounded),
+        ),
+        OrionChipItem<String>(
+          value: 'draft',
+          label: 'Draft',
+          leading: Icon(Icons.edit_note_rounded),
+        ),
+        OrionChipItem<String>(
+          value: 'archived',
+          label: 'Archived',
+          leading: Icon(Icons.archive_outlined),
+        ),
+        OrionChipItem<String>(
+          value: 'mine',
+          label: 'Mine',
+          leading: Icon(Icons.person_outline_rounded),
+        ),
+        OrionChipItem<String>(
+          value: 'shared',
+          label: 'Shared',
+          leading: Icon(Icons.group_outlined),
+        ),
+      ];
+
+  static const List<OrionChipItem<String>> _rangeItems =
+      <OrionChipItem<String>>[
+        OrionChipItem<String>(value: 'today', label: 'Today'),
+        OrionChipItem<String>(value: 'week', label: 'This week'),
+        OrionChipItem<String>(value: 'month', label: 'This month'),
+        OrionChipItem<String>(value: 'all', label: 'All time'),
+      ];
+
+  static const List<String> _initialTags = <String>[
+    'Flutter',
+    'Dart',
+    'Motion',
+    'Design System',
   ];
 
-  static const List<String> _ranges = <String>['Today', 'This week', 'All'];
-
-  // Flags: shared by every sample on the page.
+  // Shared flag
   bool _disabled = false;
 
-  // Filters: the row owns the set it reports.
-  final Set<String> _selected = <String>{'Live'};
+  // Multi-select filter bar
+  Set<String> _selectedFilters = <String>{'live'};
+  OrionChipGroupLayout _filterLayout = OrionChipGroupLayout.wrap;
 
-  // Customization: the focused skin and its specimen.
+  // Single-select choice group
+  Set<String> _selectedRange = <String>{'today'};
+
+  // Removable input tags
+  List<String> _tags = List<String>.of(_initialTags);
+
+  // Customization
   _ChipSkin _skin = _ChipSkin.standard;
   bool _skinned = false;
 
-  // Playground: the single select and the size.
-  String _range = 'Today';
+  // Playground
+  String _playgroundValue = 'Today';
   OrionChipSize _size = OrionChipSize.medium;
-
-  /// One sample under the shared flag.
-  OrionChip _sample({
-    required String label,
-    required bool selected,
-    required ValueChanged<bool> onSelected,
-    OrionChipSize size = OrionChipSize.medium,
-    OrionChipStyle? style,
-  }) {
-    return OrionChip(
-      label: Text(label),
-      selected: selected,
-      size: size,
-      onSelected: _disabled ? null : onSelected,
-      style: style,
-    );
-  }
+  bool _showCheckmark = true;
 
   OrionChipStyle? _skinStyle(ColorScheme scheme) => switch (_skin) {
     _ChipSkin.standard => null,
@@ -67,6 +88,7 @@ class _OrionChipShowcaseScreenState extends State<OrionChipShowcaseScreen> {
     _ChipSkin.loud => OrionChipStyle.from(
       fillColor: scheme.primary,
       labelColor: scheme.onPrimary,
+      borderColor: scheme.primary,
     ),
   };
 
@@ -82,13 +104,21 @@ class _OrionChipShowcaseScreenState extends State<OrionChipShowcaseScreen> {
     OrionChipSize.large => 'Large',
   };
 
-  /// The exact call the current controls produce.
+  String _layoutLabel(OrionChipGroupLayout layout) => switch (layout) {
+    OrionChipGroupLayout.wrap => 'Wrap',
+    OrionChipGroupLayout.horizontal => 'Horizontal',
+  };
+
+  /// The exact call the current playground controls produce.
   String get _snippet {
     final List<String> lines = <String>[
       'OrionChip(',
-      "  label: const Text('$_range'),",
+      "  text: '$_playgroundValue',",
       '  selected: true,',
     ];
+    if (!_showCheckmark) {
+      lines.add('  showCheckmark: false,');
+    }
     if (_size != OrionChipSize.medium) {
       lines.add('  size: OrionChipSize.${_size.name},');
     }
@@ -109,16 +139,16 @@ class _OrionChipShowcaseScreenState extends State<OrionChipShowcaseScreen> {
 
     return OrionThemedScaffold(
       title: 'Orion Chip',
-      builder: (context) {
+      builder: (BuildContext context) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+          children: <Widget>[
             // Top Intro Header
             Padding(
               padding: const EdgeInsets.only(bottom: OrionSpacing.space20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+                children: <Widget>[
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: OrionSpacing.space8,
@@ -137,7 +167,7 @@ class _OrionChipShowcaseScreenState extends State<OrionChipShowcaseScreen> {
                       ),
                     ),
                     child: Text(
-                      'SELECTION • GENTLE TRAVEL',
+                      'SELECTION • CHIPS & GROUPS',
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
@@ -148,7 +178,7 @@ class _OrionChipShowcaseScreenState extends State<OrionChipShowcaseScreen> {
                   ),
                   const SizedBox(height: OrionSpacing.space8),
                   Text(
-                    'Tap-only selectable pill with animated checkmark and color lerp riding the gentle travel spring. Surface state focus layer without outer halos.',
+                    'Selectable pill with crisp spring travel, optional checkmark, leading/trailing slots, removal, and managed OrionChipGroup.',
                     style: TextStyle(
                       fontSize: 13.5,
                       height: 1.4,
@@ -160,15 +190,16 @@ class _OrionChipShowcaseScreenState extends State<OrionChipShowcaseScreen> {
             ),
 
             OrionShowcaseControls(
-              children: [
+              children: <Widget>[
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                  children: <Widget>[
                     Expanded(
                       child: OrionShowcaseToggle(
                         label: 'Disabled',
                         value: _disabled,
-                        onChanged: (value) => setState(() => _disabled = value),
+                        onChanged: (bool value) =>
+                            setState(() => _disabled = value),
                       ),
                     ),
                   ],
@@ -177,40 +208,102 @@ class _OrionChipShowcaseScreenState extends State<OrionChipShowcaseScreen> {
             ),
             const SizedBox(height: OrionSpacing.space24),
 
-            // Filters Card
+            // Multi-select OrionChipGroup Card
             OrionShowcaseSection(
-              title: 'Filters',
+              title: 'Filter Group (Multi-Select)',
               subtitle:
-                  'Multi-select token filters with smooth label and check interpolation',
+                  'OrionChipGroup with leading icons, summary count, clear action, and wrap/scroll layout',
               card: true,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Wrap(
-                    spacing: OrionSpacing.space8,
-                    runSpacing: OrionSpacing.space8,
-                    children: [
-                      for (final String filter in _filters)
-                        _sample(
-                          label: filter,
-                          selected: _selected.contains(filter),
-                          onSelected: (bool value) => setState(() {
-                            if (value) {
-                              _selected.add(filter);
-                            } else {
-                              _selected.remove(filter);
-                            }
-                          }),
-                        ),
-                    ],
+                children: <Widget>[
+                  OrionShowcaseChoice<OrionChipGroupLayout>(
+                    label: 'Layout',
+                    values: OrionChipGroupLayout.values,
+                    selected: _filterLayout,
+                    labelOf: _layoutLabel,
+                    onChanged: (OrionChipGroupLayout value) =>
+                        setState(() => _filterLayout = value),
                   ),
                   const SizedBox(height: OrionSpacing.space12),
-                  Text(
-                    '${_selected.length} of ${_filters.length} selected',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                    ),
+                  OrionChipGroup<String>(
+                    items: _filterItems,
+                    selectedValues: _selectedFilters,
+                    layout: _filterLayout,
+                    enabled: !_disabled,
+                    showClearAction: true,
+                    selectedCountLabelBuilder: (int count) =>
+                        '$count of ${_filterItems.length} selected',
+                    onSelectionChanged: (Set<String> next) =>
+                        setState(() => _selectedFilters = next),
                   ),
+                ],
+              ),
+            ),
+            const SizedBox(height: OrionSpacing.space20),
+
+            // Single-select Choice Group Card
+            OrionShowcaseSection(
+              title: 'Choice Group (Single-Select)',
+              subtitle:
+                  'Defaults to showCheckmark: false for zero horizontal reflow jitter',
+              card: true,
+              child: OrionChipGroup<String>(
+                items: _rangeItems,
+                selectedValues: _selectedRange,
+                selectionMode: OrionChipSelectionMode.single,
+                allowDeselect: false,
+                enabled: !_disabled,
+                onSelectionChanged: (Set<String> next) =>
+                    setState(() => _selectedRange = next),
+              ),
+            ),
+            const SizedBox(height: OrionSpacing.space20),
+
+            // Removable Tags Card
+            OrionShowcaseSection(
+              title: 'Removable Tags',
+              subtitle: 'Input chips with onDeleted and plain text shorthand',
+              card: true,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  if (_tags.isEmpty)
+                    Text(
+                      'All tags removed.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    )
+                  else
+                    Wrap(
+                      spacing: OrionSpacing.space8,
+                      runSpacing: OrionSpacing.space8,
+                      children: <Widget>[
+                        for (final String tag in _tags)
+                          OrionChip(
+                            text: tag,
+                            selected: false,
+                            onSelected: null,
+                            onDeleted: _disabled
+                                ? null
+                                : () => setState(() => _tags.remove(tag)),
+                          ),
+                      ],
+                    ),
+                  if (_tags.length < _initialTags.length) ...<Widget>[
+                    const SizedBox(height: OrionSpacing.space12),
+                    OrionButton(
+                      variant: OrionButtonVariant.flat,
+                      size: OrionButtonSize.small,
+                      label: 'Reset tags',
+                      onPressed: _disabled
+                          ? null
+                          : () => setState(
+                              () => _tags = List<String>.of(_initialTags),
+                            ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -220,18 +313,18 @@ class _OrionChipShowcaseScreenState extends State<OrionChipShowcaseScreen> {
             OrionShowcaseSection(
               title: 'Sizes',
               subtitle:
-                  'Small (28 pt), Medium (32 pt), and Large (40 pt) inside the constant 44 pt hit target',
+                  'Small (28 pt), Medium (32 pt), and Large (40 pt) with stepped typography inside the 44 pt hit target',
               card: true,
               child: Wrap(
                 spacing: OrionSpacing.space8,
                 runSpacing: OrionSpacing.space8,
-                children: [
+                children: <Widget>[
                   for (final OrionChipSize size in OrionChipSize.values)
-                    _sample(
-                      label: _sizeLabel(size),
+                    OrionChip(
+                      text: _sizeLabel(size),
                       selected: true,
                       size: size,
-                      onSelected: (_) {},
+                      onSelected: _disabled ? null : (_) {},
                     ),
                 ],
               ),
@@ -242,25 +335,27 @@ class _OrionChipShowcaseScreenState extends State<OrionChipShowcaseScreen> {
             OrionShowcaseSection(
               title: 'Customization',
               subtitle:
-                  'Three-layer style contract: Presets -> OrionChipTheme -> Instance OrionChipStyle',
+                  'Three-layer style contract — Soft uses borderWidth: 0 (truly borderless)',
               card: true,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+                children: <Widget>[
                   OrionShowcaseChoice<_ChipSkin>(
                     label: 'Skin',
                     values: _ChipSkin.values,
                     selected: _skin,
                     labelOf: _skinLabel,
-                    onChanged: (value) => setState(() => _skin = value),
+                    onChanged: (_ChipSkin value) =>
+                        setState(() => _skin = value),
                   ),
                   const SizedBox(height: OrionSpacing.space16),
-                  _sample(
-                    label: 'Live',
+                  OrionChip(
+                    text: 'Live',
                     selected: _skinned,
                     style: _skinStyle(scheme),
-                    onSelected: (bool value) =>
-                        setState(() => _skinned = value),
+                    onSelected: _disabled
+                        ? null
+                        : (bool value) => setState(() => _skinned = value),
                   ),
                 ],
               ),
@@ -270,30 +365,46 @@ class _OrionChipShowcaseScreenState extends State<OrionChipShowcaseScreen> {
             // Playground Card
             OrionShowcaseSection(
               title: 'Playground',
-              subtitle: 'Single-select choice chips with live code generator',
+              subtitle: 'Configure size and checkmark with live code generator',
               child: OrionShowcasePanel(
                 key: const ValueKey<String>('showcase-panel-playground'),
                 preview: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                  children: <Widget>[
                     OrionShowcaseChoice<OrionChipSize>(
                       label: 'Size',
                       values: OrionChipSize.values,
                       selected: _size,
                       labelOf: _sizeLabel,
-                      onChanged: (value) => setState(() => _size = value),
+                      onChanged: (OrionChipSize value) =>
+                          setState(() => _size = value),
+                    ),
+                    const SizedBox(height: OrionSpacing.space12),
+                    OrionShowcaseToggle(
+                      label: 'Show checkmark',
+                      value: _showCheckmark,
+                      onChanged: (bool value) =>
+                          setState(() => _showCheckmark = value),
                     ),
                     const SizedBox(height: OrionSpacing.space16),
                     Wrap(
                       spacing: OrionSpacing.space8,
                       runSpacing: OrionSpacing.space8,
-                      children: [
-                        for (final String range in _ranges)
-                          _sample(
-                            label: range,
-                            selected: _range == range,
+                      children: <Widget>[
+                        for (final String label in const <String>[
+                          'Today',
+                          'This week',
+                          'All',
+                        ])
+                          OrionChip(
+                            text: label,
+                            selected: _playgroundValue == label,
                             size: _size,
-                            onSelected: (_) => setState(() => _range = range),
+                            showCheckmark: _showCheckmark,
+                            onSelected: _disabled
+                                ? null
+                                : (_) =>
+                                      setState(() => _playgroundValue = label),
                           ),
                       ],
                     ),

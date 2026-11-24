@@ -15,7 +15,7 @@ abstract final class OrionBottomSheetPresets {
 
   /// Default critically-damped dismissal spring.
   static const OrionSpringSpec defaultDismissSpring = OrionSpringSpec(
-    stiffness: 480.0,
+    stiffness: 560.0,
     dampingRatio: 1.0,
     clampOvershoot: true,
   );

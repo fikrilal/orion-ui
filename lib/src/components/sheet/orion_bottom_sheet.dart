@@ -308,6 +308,7 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
   int _activeDetentIndex = 0;
   bool _mountedArrival = false;
   bool _isClosing = false;
+  bool _dismissCompleted = false;
   Object? _pendingDismissResult;
   void Function(Object? result)? _routeDismissCallback;
 
@@ -455,26 +456,38 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
   void _onDriverTick() {
     if (!mounted) return;
     final double h = _driver.value;
+    // Complete dismissal once the sheet is visually offscreen (<= 2 px) rather
+    // than waiting ~350 ms for a 650 px critically-damped tail to hit 0.001 px.
+    final bool finishedDismiss = _isClosing && h <= 2.0;
     final double fraction = _availableHeight > 0
         ? (h / _availableHeight).clamp(0.0, 1.0)
         : 0.0;
     _effectiveController.updateState(
-      height: h,
-      fraction: fraction,
+      height: finishedDismiss ? 0.0 : h,
+      fraction: finishedDismiss ? 0.0 : fraction,
       detentIndex: _activeDetentIndex,
-      isDismissed: _isClosing && h <= 0.01,
+      isDismissed: finishedDismiss,
     );
+    if (finishedDismiss && !_dismissCompleted) {
+      _completeDismissal();
+    }
   }
 
   void _onDriverStatus(AnimationStatus status) {
     if (status == AnimationStatus.completed &&
         _isClosing &&
-        _driver.value <= 0.01) {
+        !_dismissCompleted &&
+        _driver.value <= 2.0) {
       _completeDismissal();
     }
   }
 
   void _completeDismissal() {
+    if (_dismissCompleted) return;
+    _dismissCompleted = true;
+    if (_driver.value > 0.0 || _driver.isAnimating) {
+      _driver.jumpTo(0.0);
+    }
     final Object? result = _pendingDismissResult;
     _pendingDismissResult = null;
     if (_routeDismissCallback != null) {
@@ -493,6 +506,7 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
   void _snapToFitHeight({double? velocity}) {
     if (_availableHeight <= 0) return;
     _isClosing = false;
+    _dismissCompleted = false;
     _driver.springSpec =
         _resolvedStyle.detentSpring ??
         OrionBottomSheetPresets.defaultDetentSpring;
@@ -506,6 +520,7 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
       return;
     }
     _isClosing = false;
+    _dismissCompleted = false;
     final int idx = index.clamp(0, _sortedDetents.length - 1);
     final int previousIdx = _activeDetentIndex;
     _activeDetentIndex = idx;
@@ -522,6 +537,7 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
   void _snapToPixelHeight(double height, {double? velocity}) {
     if (_availableHeight <= 0) return;
     _isClosing = false;
+    _dismissCompleted = false;
     _driver.springSpec =
         _resolvedStyle.detentSpring ??
         OrionBottomSheetPresets.defaultDetentSpring;

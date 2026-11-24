@@ -21,6 +21,7 @@ class OrionChipStyle {
     this.borderColor,
     this.labelColor,
     this.checkColor,
+    this.textStyle,
     this.height,
     this.padding,
     this.radius,
@@ -28,6 +29,8 @@ class OrionChipStyle {
     this.checkSize,
     this.checkGap,
     this.focusOverlayColor,
+    this.hoverOverlayColor,
+    this.pressedScale,
     this.spring,
   });
 
@@ -47,6 +50,9 @@ class OrionChipStyle {
   /// that can carry a colour the label does not.
   final WidgetStateProperty<Color?>? checkColor;
 
+  /// Label typography. Stepped per [OrionChipSize] by [OrionChipPresets].
+  final TextStyle? textStyle;
+
   /// Pill height. The hit target stays 44 pt whatever this is.
   final double? height;
 
@@ -56,7 +62,7 @@ class OrionChipStyle {
   /// Pill corner radius; the default is a pill.
   final BorderRadius? radius;
 
-  /// Hairline width, constant across states.
+  /// Hairline width, constant across states. Values `<= 0` omit the border.
   final double? borderWidth;
 
   /// Check glyph size.
@@ -69,8 +75,14 @@ class OrionChipStyle {
   /// Focus is a translucent affordance, not a second concentric edge.
   final Color? focusOverlayColor;
 
-  /// Spring the state travel rides. The trip is the whole 0 to 1 change, so
-  /// the spec is the gentler travel spring rather than a press release.
+  /// Subtle state layer painted over the pill's surface inside its clip while
+  /// hovered on pointer devices.
+  final Color? hoverOverlayColor;
+
+  /// Target scale while pressed. Defaults to `OrionThemeData.pressScale`.
+  final double? pressedScale;
+
+  /// Spring the state travel rides.
   final OrionSpringSpec? spring;
 
   /// Returns a copy with the provided fields replaced.
@@ -79,6 +91,7 @@ class OrionChipStyle {
     WidgetStateProperty<Color?>? borderColor,
     WidgetStateProperty<Color?>? labelColor,
     WidgetStateProperty<Color?>? checkColor,
+    TextStyle? textStyle,
     double? height,
     EdgeInsetsGeometry? padding,
     BorderRadius? radius,
@@ -86,6 +99,8 @@ class OrionChipStyle {
     double? checkSize,
     double? checkGap,
     Color? focusOverlayColor,
+    Color? hoverOverlayColor,
+    double? pressedScale,
     OrionSpringSpec? spring,
   }) {
     return OrionChipStyle(
@@ -93,6 +108,7 @@ class OrionChipStyle {
       borderColor: borderColor ?? this.borderColor,
       labelColor: labelColor ?? this.labelColor,
       checkColor: checkColor ?? this.checkColor,
+      textStyle: textStyle ?? this.textStyle,
       height: height ?? this.height,
       padding: padding ?? this.padding,
       radius: radius ?? this.radius,
@@ -100,6 +116,8 @@ class OrionChipStyle {
       checkSize: checkSize ?? this.checkSize,
       checkGap: checkGap ?? this.checkGap,
       focusOverlayColor: focusOverlayColor ?? this.focusOverlayColor,
+      hoverOverlayColor: hoverOverlayColor ?? this.hoverOverlayColor,
+      pressedScale: pressedScale ?? this.pressedScale,
       spring: spring ?? this.spring,
     );
   }
@@ -114,6 +132,7 @@ class OrionChipStyle {
       borderColor: other.borderColor ?? borderColor,
       labelColor: other.labelColor ?? labelColor,
       checkColor: other.checkColor ?? checkColor,
+      textStyle: other.textStyle ?? textStyle,
       height: other.height ?? height,
       padding: other.padding ?? padding,
       radius: other.radius ?? radius,
@@ -121,6 +140,8 @@ class OrionChipStyle {
       checkSize: other.checkSize ?? checkSize,
       checkGap: other.checkGap ?? checkGap,
       focusOverlayColor: other.focusOverlayColor ?? focusOverlayColor,
+      hoverOverlayColor: other.hoverOverlayColor ?? hoverOverlayColor,
+      pressedScale: other.pressedScale ?? pressedScale,
       spring: other.spring ?? spring,
     );
   }
@@ -134,6 +155,7 @@ class OrionChipStyle {
     Color? borderColor,
     Color? labelColor,
     Color? checkColor,
+    TextStyle? textStyle,
     double? height,
     EdgeInsetsGeometry? padding,
     BorderRadius? radius,
@@ -141,6 +163,8 @@ class OrionChipStyle {
     double? checkSize,
     double? checkGap,
     Color? focusOverlayColor,
+    Color? hoverOverlayColor,
+    double? pressedScale,
     OrionSpringSpec? spring,
   }) {
     return OrionChipStyle(
@@ -156,6 +180,7 @@ class OrionChipStyle {
       checkColor: checkColor == null
           ? null
           : WidgetStatePropertyAll<Color?>(checkColor),
+      textStyle: textStyle,
       height: height,
       padding: padding,
       radius: radius,
@@ -163,6 +188,8 @@ class OrionChipStyle {
       checkSize: checkSize,
       checkGap: checkGap,
       focusOverlayColor: focusOverlayColor,
+      hoverOverlayColor: hoverOverlayColor,
+      pressedScale: pressedScale,
       spring: spring,
     );
   }
@@ -177,6 +204,7 @@ class OrionChipStyle {
         other.borderColor == borderColor &&
         other.labelColor == labelColor &&
         other.checkColor == checkColor &&
+        other.textStyle == textStyle &&
         other.height == height &&
         other.padding == padding &&
         other.radius == radius &&
@@ -184,6 +212,8 @@ class OrionChipStyle {
         other.checkSize == checkSize &&
         other.checkGap == checkGap &&
         other.focusOverlayColor == focusOverlayColor &&
+        other.hoverOverlayColor == hoverOverlayColor &&
+        other.pressedScale == pressedScale &&
         other.spring == spring;
   }
 
@@ -193,6 +223,7 @@ class OrionChipStyle {
     borderColor,
     labelColor,
     checkColor,
+    textStyle,
     height,
     padding,
     radius,
@@ -200,6 +231,8 @@ class OrionChipStyle {
     checkSize,
     checkGap,
     focusOverlayColor,
+    hoverOverlayColor,
+    pressedScale,
     spring,
   ]);
 }

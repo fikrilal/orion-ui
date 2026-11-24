@@ -20,6 +20,7 @@ export 'src/components/checkbox/orion_checkbox_presets.dart';
 export 'src/components/checkbox/orion_checkbox_style.dart';
 export 'src/components/checkbox/orion_checkbox_theme.dart';
 export 'src/components/chip/orion_chip.dart';
+export 'src/components/chip/orion_chip_group.dart';
 export 'src/components/chip/orion_chip_presets.dart';
 export 'src/components/chip/orion_chip_style.dart';
 export 'src/components/chip/orion_chip_theme.dart';

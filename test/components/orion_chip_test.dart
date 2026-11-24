@@ -125,7 +125,7 @@ void main() {
       await _pumpChip(tester, selected: false, onSelected: (_) {});
 
       expect(_chipDecoration(tester).color, OrionColors.lightScheme.secondary);
-      expect(_chipBorder(tester).color, OrionColors.lightScheme.outline);
+      expect(_chipBorder(tester).color, OrionColors.lightScheme.outlineVariant);
       expect(_checkScale(tester), 0);
       // The check is built but collapsed, so the label starts at the padding.
       expect(
@@ -251,7 +251,7 @@ void main() {
       await _pumpChip(tester, selected: true, onSelected: (_) {});
 
       // Frame 0: the fill has not moved, so the label must not have either.
-      expect(_labelColor(tester), OrionColors.lightScheme.onSurfaceVariant);
+      expect(_labelColor(tester), OrionColors.lightScheme.onSecondary);
 
       await tester.pump(const Duration(milliseconds: 16));
 
@@ -259,7 +259,7 @@ void main() {
       expect(mid, isNot(OrionColors.lightScheme.secondary));
       expect(mid, isNot(OrionColors.lightScheme.primary));
       final Color midLabel = _labelColor(tester);
-      expect(midLabel, isNot(OrionColors.lightScheme.onSurfaceVariant));
+      expect(midLabel, isNot(OrionColors.lightScheme.onSecondary));
       expect(midLabel, isNot(OrionColors.lightScheme.onPrimary));
 
       await tester.pumpAndSettle();
@@ -654,6 +654,320 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(reported, isNull);
     });
+
+    testWidgets('omits the border when borderWidth is zero', (tester) async {
+      await _pumpChip(
+        tester,
+        selected: false,
+        onSelected: (_) {},
+        style: OrionChipStyle.from(borderWidth: 0),
+      );
+
+      expect(_chipDecoration(tester).border, isNull);
+    });
+
+    testWidgets('keeps chip width constant when showCheckmark is false', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: Scaffold(
+            body: Center(
+              child: MediaQuery(
+                data: const MediaQueryData(disableAnimations: true),
+                child: OrionChip(
+                  text: 'Today',
+                  selected: false,
+                  showCheckmark: false,
+                  onSelected: (_) {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      final double unselectedWidth = _pillSize(tester).width;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: Scaffold(
+            body: Center(
+              child: MediaQuery(
+                data: const MediaQueryData(disableAnimations: true),
+                child: OrionChip(
+                  text: 'Today',
+                  selected: true,
+                  showCheckmark: false,
+                  onSelected: (_) {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byIcon(Icons.check), findsNothing);
+      expect(_pillSize(tester).width, unselectedWidth);
+    });
+
+    testWidgets('supports plain text shorthand and leading/trailing icons', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: Scaffold(
+            body: Center(
+              child: MediaQuery(
+                data: const MediaQueryData(disableAnimations: true),
+                child: OrionChip(
+                  text: 'Music',
+                  leading: const Icon(Icons.music_note_rounded),
+                  trailing: const Icon(Icons.arrow_drop_down_rounded),
+                  selected: true,
+                  showCheckmark: false,
+                  onSelected: (_) {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Music'), findsOneWidget);
+      final IconThemeData leadingTheme = IconTheme.of(
+        tester.element(find.byIcon(Icons.music_note_rounded)),
+      );
+      final IconThemeData trailingTheme = IconTheme.of(
+        tester.element(find.byIcon(Icons.arrow_drop_down_rounded)),
+      );
+      expect(leadingTheme.color, OrionColors.lightScheme.onPrimary);
+      expect(trailingTheme.color, OrionColors.lightScheme.onPrimary);
+    });
+
+    testWidgets('invokes onDeleted without toggling selection', (tester) async {
+      bool selectedCalled = false;
+      bool deletedCalled = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: Scaffold(
+            body: Center(
+              child: OrionChip(
+                text: 'Flutter',
+                selected: false,
+                onSelected: (_) => selectedCalled = true,
+                onDeleted: () => deletedCalled = true,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byKey(orionChipDeleteButtonKey));
+      await tester.pump();
+
+      expect(deletedCalled, isTrue);
+      expect(selectedCalled, isFalse);
+    });
+
+    testWidgets('keeps removable-only chips active when onSelected is null', (
+      tester,
+    ) async {
+      bool deleted = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: Scaffold(
+            body: Center(
+              child: OrionChip(
+                text: 'Tag',
+                selected: false,
+                onSelected: null,
+                onDeleted: () => deleted = true,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(_chipDecoration(tester).color, OrionColors.lightScheme.secondary);
+      await tester.tap(find.byKey(orionChipDeleteButtonKey));
+      await tester.pump();
+      expect(deleted, isTrue);
+    });
+
+    testWidgets('steps label typography across sizes', (tester) async {
+      await _pumpChip(
+        tester,
+        selected: false,
+        onSelected: (_) {},
+        size: OrionChipSize.small,
+      );
+      final TextTheme localizedTextTheme = Theme.of(
+        tester.element(find.byType(OrionChip)),
+      ).textTheme;
+      final double smallSize = DefaultTextStyle.of(
+        tester.element(find.text('Live')),
+      ).style.fontSize!;
+
+      await _pumpChip(
+        tester,
+        selected: false,
+        onSelected: (_) {},
+        size: OrionChipSize.medium,
+      );
+      final double mediumSize = DefaultTextStyle.of(
+        tester.element(find.text('Live')),
+      ).style.fontSize!;
+
+      await _pumpChip(
+        tester,
+        selected: false,
+        onSelected: (_) {},
+        size: OrionChipSize.large,
+      );
+      final double largeSize = DefaultTextStyle.of(
+        tester.element(find.text('Live')),
+      ).style.fontSize!;
+
+      expect(smallSize, localizedTextTheme.labelSmall!.fontSize);
+      expect(mediumSize, localizedTextTheme.labelMedium!.fontSize);
+      expect(largeSize, localizedTextTheme.labelLarge!.fontSize);
+      expect(smallSize, lessThan(mediumSize));
+      expect(mediumSize, lessThan(largeSize));
+    });
+  });
+
+  group('OrionChipGroup', () {
+    const List<OrionChipItem<String>> items = <OrionChipItem<String>>[
+      OrionChipItem<String>(value: 'live', label: 'Live'),
+      OrionChipItem<String>(value: 'draft', label: 'Draft'),
+      OrionChipItem<String>(value: 'archived', label: 'Archived'),
+    ];
+
+    testWidgets('multi-select toggles values, shows count, and clears', (
+      tester,
+    ) async {
+      Set<String> selected = <String>{'live'};
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (BuildContext context, StateSetter setState) {
+                return OrionChipGroup<String>(
+                  items: items,
+                  selectedValues: selected,
+                  showClearAction: true,
+                  selectedCountLabelBuilder: (int count) => '$count selected',
+                  onSelectionChanged: (Set<String> next) =>
+                      setState(() => selected = next),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('1 selected'), findsOneWidget);
+      expect(find.byIcon(Icons.check), findsNWidgets(3));
+
+      await tester.tap(find.text('Draft'));
+      await tester.pumpAndSettle();
+      expect(selected, <String>{'live', 'draft'});
+      expect(find.text('2 selected'), findsOneWidget);
+
+      await tester.tap(find.byKey(orionChipGroupClearKey));
+      await tester.pumpAndSettle();
+      expect(selected, isEmpty);
+      expect(find.text('0 selected'), findsOneWidget);
+    });
+
+    testWidgets(
+      'single-select defaults to no checkmark and respects allowDeselect',
+      (tester) async {
+        Set<String> selected = <String>{'live'};
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: StatefulBuilder(
+                builder: (BuildContext context, StateSetter setState) {
+                  return OrionChipGroup<String>(
+                    items: items,
+                    selectedValues: selected,
+                    selectionMode: OrionChipSelectionMode.single,
+                    allowDeselect: false,
+                    onSelectionChanged: (Set<String> next) =>
+                        setState(() => selected = next),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+
+        expect(find.byIcon(Icons.check), findsNothing);
+
+        // Tapping the already-selected chip keeps it selected when allowDeselect is false.
+        await tester.tap(find.text('Live'));
+        await tester.pumpAndSettle();
+        expect(selected, <String>{'live'});
+
+        // Tapping another chip switches the selection.
+        await tester.tap(find.text('Draft'));
+        await tester.pumpAndSettle();
+        expect(selected, <String>{'draft'});
+      },
+    );
+
+    testWidgets('horizontal layout respects per-item enabled flag', (
+      tester,
+    ) async {
+      Set<String> selected = <String>{};
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (BuildContext context, StateSetter setState) {
+                return OrionChipGroup<String>(
+                  layout: OrionChipGroupLayout.horizontal,
+                  items: const <OrionChipItem<String>>[
+                    OrionChipItem<String>(value: 'a', label: 'Enabled'),
+                    OrionChipItem<String>(
+                      value: 'b',
+                      label: 'Locked',
+                      enabled: false,
+                    ),
+                  ],
+                  selectedValues: selected,
+                  onSelectionChanged: (Set<String> next) =>
+                      setState(() => selected = next),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byType(SingleChildScrollView), findsOneWidget);
+      await tester.tap(find.text('Locked'));
+      await tester.pump();
+      expect(selected, isEmpty);
+
+      await tester.tap(find.text('Enabled'));
+      await tester.pumpAndSettle();
+      expect(selected, <String>{'a'});
+    });
   });
 
   group('OrionChipStyle', () {
@@ -684,7 +998,7 @@ void main() {
       expect(style.checkSize, OrionSizing.iconSmall);
       expect(style.checkGap, OrionSpacing.space8);
       expect(style.radius, BorderRadius.circular(OrionRadii.radiusPill));
-      expect(style.spring, OrionSpringSpec.gentle);
+      expect(style.spring, OrionChipPresets.defaultSpring);
       expect(
         style.fillColor?.resolve(const <WidgetState>{}),
         OrionColors.lightScheme.secondary,
@@ -692,6 +1006,14 @@ void main() {
       expect(
         style.fillColor?.resolve(const <WidgetState>{WidgetState.selected}),
         OrionColors.lightScheme.primary,
+      );
+      expect(
+        style.borderColor?.resolve(const <WidgetState>{}),
+        OrionColors.lightScheme.outlineVariant,
+      );
+      expect(
+        style.labelColor?.resolve(const <WidgetState>{}),
+        OrionColors.lightScheme.onSecondary,
       );
       expect(
         style.labelColor?.resolve(const <WidgetState>{WidgetState.selected}),

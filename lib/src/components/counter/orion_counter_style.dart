@@ -15,6 +15,7 @@ class OrionCounterStyle {
     this.textStyle,
     this.rollStretchX,
     this.rollSquashY,
+    this.fadeEdges,
     this.spring,
   });
 
@@ -29,6 +30,11 @@ class OrionCounterStyle {
   /// How much a rolling digit squashes at the midpoint of its travel.
   final double? rollSquashY;
 
+  /// Whether rolling digits softly fade near the top and bottom clip edges
+  /// while in motion. At rest, digits render at full opacity with no extra
+  /// compositing layer.
+  final bool? fadeEdges;
+
   /// Spring one row of digits rides.
   final OrionSpringSpec? spring;
 
@@ -37,25 +43,36 @@ class OrionCounterStyle {
     TextStyle? textStyle,
     double? rollStretchX,
     double? rollSquashY,
+    bool? fadeEdges,
     OrionSpringSpec? spring,
   }) {
     return OrionCounterStyle(
       textStyle: textStyle ?? this.textStyle,
       rollStretchX: rollStretchX ?? this.rollStretchX,
       rollSquashY: rollSquashY ?? this.rollSquashY,
+      fadeEdges: fadeEdges ?? this.fadeEdges,
       spring: spring ?? this.spring,
     );
   }
 
   /// Returns this style with every non-null field of [other] applied on top.
+  ///
+  /// When both layers provide a [textStyle], they are merged field-by-field via
+  /// [TextStyle.merge] so an instance override (such as `fontSize`) preserves
+  /// theme-level typography attributes (such as `fontWeight` or `fontFamily`).
   OrionCounterStyle merge(OrionCounterStyle? other) {
     if (other == null) {
       return this;
     }
     return OrionCounterStyle(
-      textStyle: other.textStyle ?? textStyle,
+      textStyle: textStyle == null
+          ? other.textStyle
+          : (other.textStyle == null
+                ? textStyle
+                : textStyle!.merge(other.textStyle)),
       rollStretchX: other.rollStretchX ?? rollStretchX,
       rollSquashY: other.rollSquashY ?? rollSquashY,
+      fadeEdges: other.fadeEdges ?? fadeEdges,
       spring: other.spring ?? spring,
     );
   }
@@ -65,12 +82,14 @@ class OrionCounterStyle {
     TextStyle? textStyle,
     double? rollStretchX,
     double? rollSquashY,
+    bool? fadeEdges,
     OrionSpringSpec? spring,
   }) {
     return OrionCounterStyle(
       textStyle: textStyle,
       rollStretchX: rollStretchX,
       rollSquashY: rollSquashY,
+      fadeEdges: fadeEdges,
       spring: spring,
     );
   }
@@ -84,10 +103,16 @@ class OrionCounterStyle {
         other.textStyle == textStyle &&
         other.rollStretchX == rollStretchX &&
         other.rollSquashY == rollSquashY &&
+        other.fadeEdges == fadeEdges &&
         other.spring == spring;
   }
 
   @override
-  int get hashCode =>
-      Object.hashAll(<Object?>[textStyle, rollStretchX, rollSquashY, spring]);
+  int get hashCode => Object.hashAll(<Object?>[
+    textStyle,
+    rollStretchX,
+    rollSquashY,
+    fadeEdges,
+    spring,
+  ]);
 }

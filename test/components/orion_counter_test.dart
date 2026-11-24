@@ -12,10 +12,19 @@ const int _period = 10;
 
 Future<void> _pumpCounter(
   WidgetTester tester, {
-  required int value,
+  required num value,
+  int fractionDigits = 0,
+  int minDigits = 1,
+  String? thousandSeparator,
+  String decimalSeparator = '.',
+  String? prefix,
+  String? suffix,
+  bool showPositiveSign = false,
+  TextStyle? textStyle,
   OrionCounterStyle? style,
   String? semanticLabel,
   bool animate = true,
+  bool? fadeEdges,
   bool disableAnimations = false,
   double textScale = 1.0,
 }) {
@@ -31,9 +40,18 @@ Future<void> _pumpCounter(
             ),
             child: OrionCounter(
               value: value,
+              fractionDigits: fractionDigits,
+              minDigits: minDigits,
+              thousandSeparator: thousandSeparator,
+              decimalSeparator: decimalSeparator,
+              prefix: prefix,
+              suffix: suffix,
+              showPositiveSign: showPositiveSign,
+              textStyle: textStyle,
               style: style,
               semanticLabel: semanticLabel,
               animate: animate,
+              fadeEdges: fadeEdges,
             ),
           ),
         ),
@@ -735,16 +753,17 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    test('a merge only changes the fields it names', () {
+    test('a merge preserves theme textStyle fields when overriding', () {
       final OrionCounterStyle base = OrionCounterStyle.from(
         rollStretchX: 0.2,
-        textStyle: const TextStyle(fontSize: 20),
+        textStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
       );
       final OrionCounterStyle merged = base.merge(
         OrionCounterStyle.from(textStyle: const TextStyle(fontSize: 24)),
       );
 
-      expect(merged.textStyle, const TextStyle(fontSize: 24));
+      expect(merged.textStyle?.fontSize, 24);
+      expect(merged.textStyle?.fontWeight, FontWeight.w700);
       expect(merged.rollStretchX, 0.2);
     });
 
@@ -754,7 +773,8 @@ void main() {
       expect(style.textStyle, isNull);
       expect(style.rollStretchX, 0.06);
       expect(style.rollSquashY, 0.10);
-      expect(style.spring, OrionSpringSpec.gentle);
+      expect(style.fadeEdges, isTrue);
+      expect(style.spring, OrionCounterPresets.defaultSpring);
     });
 
     testWidgets('exposes one node with the formatted value', (tester) async {
@@ -797,8 +817,139 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('rejects a negative value', (tester) async {
-      expect(() => _pumpCounter(tester, value: -1), throwsAssertionError);
+    testWidgets('rejects non-finite values', (tester) async {
+      expect(
+        () => _pumpCounter(tester, value: double.nan),
+        throwsAssertionError,
+      );
+      expect(
+        () => _pumpCounter(tester, value: double.infinity),
+        throwsAssertionError,
+      );
+      expect(
+        () => _pumpCounter(tester, value: double.negativeInfinity),
+        throwsAssertionError,
+      );
+    });
+
+    testWidgets('supports negative values and magnitude carries', (
+      tester,
+    ) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      await _pumpCounter(tester, value: -9);
+      await tester.pumpAndSettle();
+      final double lineHeight = _lineHeight(tester);
+
+      expect(_read(tester), '9');
+      expect(tester.getSemantics(find.byType(OrionCounter)).value, '-9');
+
+      // -9 -> -10 increases magnitude: ones rolls forward 1 row (9 -> 0).
+      await _pumpCounter(tester, value: -10);
+      final List<double> offsets = await _sample(tester, 0, frames: 90);
+      _expectRoll(
+        track: _unwrap(offsets, lineHeight),
+        lineHeight: lineHeight,
+        up: true,
+        rows: 1,
+      );
+
+      await tester.pumpAndSettle();
+      expect(_read(tester), '10');
+      expect(tester.getSemantics(find.byType(OrionCounter)).value, '-10');
+      handle.dispose();
+    });
+
+    testWidgets('omits negative and positive signs when rounded value is zero', (
+      tester,
+    ) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      await _pumpCounter(
+        tester,
+        value: -0.001,
+        fractionDigits: 2,
+        prefix: r'$',
+        showPositiveSign: true,
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.getSemantics(find.byType(OrionCounter)).value, r'$0.00');
+      expect(find.text('-'), findsNothing);
+      expect(find.text('+'), findsNothing);
+      handle.dispose();
+    });
+
+    testWidgets(
+      'formats currency with decimals, grouping, prefix, and sign',
+      (tester) async {
+        final SemanticsHandle handle = tester.ensureSemantics();
+        await _pumpCounter(
+          tester,
+          value: 1240.5,
+          fractionDigits: 2,
+          thousandSeparator: ',',
+          prefix: r'$',
+          showPositiveSign: true,
+        );
+        await tester.pumpAndSettle();
+
+        expect(_read(tester), '124050');
+        expect(find.text('+'), findsOneWidget);
+        expect(find.text(r'$'), findsOneWidget);
+        expect(find.text(','), findsOneWidget);
+        expect(find.text('.'), findsOneWidget);
+        expect(
+          tester.getSemantics(find.byType(OrionCounter)).value,
+          r'+$1,240.50',
+        );
+
+        // Carrying across the decimal point: 1240.99 -> 1241.00.
+        await _pumpCounter(
+          tester,
+          value: 1240.99,
+          fractionDigits: 2,
+          thousandSeparator: ',',
+          prefix: r'$',
+          showPositiveSign: true,
+        );
+        await tester.pumpAndSettle();
+        await _pumpCounter(
+          tester,
+          value: 1241.00,
+          fractionDigits: 2,
+          thousandSeparator: ',',
+          prefix: r'$',
+          showPositiveSign: true,
+        );
+        await tester.pumpAndSettle();
+
+        expect(_read(tester), '124100');
+        expect(
+          tester.getSemantics(find.byType(OrionCounter)).value,
+          r'+$1,241.00',
+        );
+        handle.dispose();
+      },
+    );
+
+    testWidgets('supports minDigits zero-padding, suffix, and textStyle', (
+      tester,
+    ) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      await _pumpCounter(
+        tester,
+        value: 9,
+        minDigits: 2,
+        suffix: '%',
+        textStyle: const TextStyle(fontSize: 28),
+      );
+      await tester.pumpAndSettle();
+
+      expect(_slotCount(tester), 2);
+      expect(_read(tester), '09');
+      expect(find.text('%'), findsOneWidget);
+      expect(_digitStyle(tester).fontSize, 28);
+      expect(tester.getSemantics(find.byType(OrionCounter)).value, '09%');
+      handle.dispose();
     });
 
     testWidgets('stays silent while its list is dragged', (tester) async {

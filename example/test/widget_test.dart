@@ -3,13 +3,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:orion_ui_example/main.dart';
 
 void main() {
-  testWidgets('Orion Showcase index renders all 25 entries and navigates', (
+  testWidgets('Orion Showcase index renders all 24 entries and navigates', (
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(const OrionShowcaseApp());
 
     expect(find.text('Orion Showcase'), findsOneWidget);
-    expect(find.text('25 COMPONENTS'), findsOneWidget);
+    expect(find.text('24 COMPONENTS'), findsOneWidget);
     expect(find.text('Buttons'), findsOneWidget);
 
     await tester.tap(find.text('Buttons'));

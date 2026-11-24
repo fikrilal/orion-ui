@@ -6,7 +6,6 @@ import 'package:orion_ui_example/showcase/orion_badge_showcase_screen.dart';
 import 'package:orion_ui_example/showcase/orion_bottom_sheet_showcase_screen.dart';
 import 'package:orion_ui_example/showcase/orion_button_showcase_screen.dart';
 import 'package:orion_ui_example/showcase/orion_calendar_showcase_screen.dart';
-import 'package:orion_ui_example/showcase/orion_card_showcase_screen.dart';
 import 'package:orion_ui_example/showcase/orion_checkbox_showcase_screen.dart';
 import 'package:orion_ui_example/showcase/orion_chip_showcase_screen.dart';
 import 'package:orion_ui_example/showcase/orion_counter_showcase_screen.dart';
@@ -69,12 +68,6 @@ class OrionShowcaseScreen extends StatelessWidget {
       subtitle: 'A month grid for a single day',
       icon: Icons.calendar_month_outlined,
       builder: (BuildContext context) => const OrionCalendarShowcaseScreen(),
-    ),
-    _OrionShowcaseEntry(
-      title: 'Cards',
-      subtitle: 'Plain, frosted, pressable, radius, and padding',
-      icon: Icons.credit_card_outlined,
-      builder: (BuildContext context) => const OrionCardShowcaseScreen(),
     ),
     _OrionShowcaseEntry(
       title: 'Checkbox',

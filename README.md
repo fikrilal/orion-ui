@@ -115,7 +115,7 @@ OrionButton(
 | **Theme & Tokens** | `OrionTheme`, `OrionThemeData`, `OrionColors`, `OrionSpacing`, `OrionRadii`, `OrionSizing` |
 | **Actions & Inputs** | `OrionButton`, `OrionTextField`, `OrionOtpField`, `OrionCheckbox`, `OrionRadio`, `OrionSwitch`, `OrionSlider`, `OrionCounter`, `OrionDropdown`, `OrionCalendar`, `OrionWheelPicker` |
 | **Navigation & Selection** | `OrionNavigationBar`, `OrionSegmentedControl`, `OrionTabs`, `OrionChip`, `OrionSwipeActionRow` |
-| **Surfaces & Overlays** | `OrionCard`, `OrionAccordion`, `OrionBottomSheet`, `OrionDialog`, `OrionPopover`, `OrionMenu`, `OrionTooltip`, `OrionToaster` / `OrionToast` |
+| **Surfaces & Overlays** | `OrionAccordion`, `OrionBottomSheet`, `OrionDialog`, `OrionPopover`, `OrionMenu`, `OrionTooltip`, `OrionToaster` / `OrionToast` |
 | **Feedback & Status** | `OrionBadge`, `OrionLinearProgress`, `OrionSegmentedProgress` |
 
 ## License

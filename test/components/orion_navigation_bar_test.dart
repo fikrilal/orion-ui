@@ -1,4 +1,4 @@
-import 'dart:ui' show Tristate;
+import 'dart:ui' show PointerDeviceKind, SemanticsAction, Tristate;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -433,17 +433,19 @@ void main() {
           OrionNavigationDestination(
             icon: Icon(Icons.people_outline),
             label: 'Contacts',
+            badge: Text('3'),
           ),
         ],
       );
       await tester.pump();
 
       expect(find.text('12'), findsOneWidget);
+      expect(find.text('3'), findsOneWidget);
 
       final ThemeData theme = Theme.of(
         tester.element(find.byType(OrionNavigationBar)),
       );
-      final Iterable<DecoratedBox> chips = tester
+      final List<DecoratedBox> chips = tester
           .widgetList<DecoratedBox>(
             find.descendant(
               of: find.byType(OrionNavigationBar),
@@ -455,11 +457,23 @@ void main() {
             return decoration is BoxDecoration &&
                 decoration.color == theme.colorScheme.primary &&
                 decoration.border != null;
-          });
-      expect(chips, hasLength(1));
+          })
+          .toList();
+      expect(chips, hasLength(2));
+
+      final Color selectedSlotSurface = Color.alphaBlend(
+        theme.colorScheme.onSurface.withValues(alpha: 0.08),
+        theme.colorScheme.surfaceContainer,
+      );
       expect(
-        (chips.first.decoration as BoxDecoration).border,
-        Border.all(color: theme.colorScheme.surface, width: 1.33),
+        (chips[0].decoration as BoxDecoration).border,
+        Border.all(color: selectedSlotSurface, width: 1.33),
+        reason: 'selected tab ring blends with the active selection pill',
+      );
+      expect(
+        (chips[1].decoration as BoxDecoration).border,
+        Border.all(color: theme.colorScheme.surfaceContainer, width: 1.33),
+        reason: 'unselected tab ring matches the bar surface',
       );
     });
 
@@ -790,9 +804,28 @@ void main() {
       expect(find.text('Contacts'), findsOneWidget);
     });
 
-    testWidgets('centers the destinations in the expanding reserve', (
+    testWidgets('keeps uniform concentric edge gaps in expanding mode', (
       tester,
     ) async {
+      Rect activePillRect() {
+        final DecoratedBox pill = tester
+            .widgetList<DecoratedBox>(
+              find.descendant(
+                of: find.byType(OrionNavigationBar),
+                matching: find.byType(DecoratedBox),
+              ),
+            )
+            .firstWhere((DecoratedBox box) {
+              final Decoration decoration = box.decoration;
+              if (decoration is! BoxDecoration) return false;
+              final Color? color = decoration.color;
+              return color != null && color.a > 0 && color.a < 0.2;
+            });
+        return tester.getRect(find.byWidget(pill));
+      }
+
+      // First tab ('Chats', shorter than 'Contacts') stays flush to the 4 pt
+      // left, top, and bottom capsule edges.
       await _pumpBar(
         tester,
         selectedIndex: 0,
@@ -805,13 +838,36 @@ void main() {
       await tester.pump();
 
       final Rect capsule = _capsuleRect(tester);
+      final Rect firstPill = activePillRect();
+      expect(firstPill.left - capsule.left, closeTo(4, 0.5));
+      expect(firstPill.top - capsule.top, closeTo(4, 0.5));
+      expect(capsule.bottom - firstPill.bottom, closeTo(4, 0.5));
+
       final Rect first = tester.getRect(find.byIcon(Icons.chat_bubble_outline));
       final Rect last = tester.getRect(find.byIcon(Icons.settings_outlined));
       expect(
         (first.center.dx - capsule.left) - (capsule.right - last.center.dx),
         closeTo(0, 2),
-        reason: "a short label's slack splits evenly across the capsule",
+        reason: 'leading and trailing destinations stay symmetric',
       );
+
+      // Last tab ('Settings') stays flush to the 4 pt right, top, and bottom
+      // capsule edges as well.
+      await _pumpBar(
+        tester,
+        selectedIndex: 2,
+        onChanged: (_) {},
+        disableAnimations: true,
+        style: OrionNavigationBarStyle.from(
+          labelMode: OrionNavigationLabelMode.selected,
+        ),
+      );
+      await tester.pump();
+
+      final Rect lastPill = activePillRect();
+      expect(capsule.right - lastPill.right, closeTo(4, 0.5));
+      expect(lastPill.top - capsule.top, closeTo(4, 0.5));
+      expect(capsule.bottom - lastPill.bottom, closeTo(4, 0.5));
     });
 
     testWidgets('fades a departing badge out', (tester) async {
@@ -894,22 +950,562 @@ void main() {
       await tester.tap(find.text('Contacts'));
       expect(tapped, 1);
     });
+
+    testWidgets(
+      'works cleanly inside Scaffold.bottomNavigationBar without swallowing body height',
+      (tester) async {
+        const Key bodyKey = Key('scaffold-body');
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: const SizedBox.expand(
+                key: bodyKey,
+                child: Center(child: Text('Body content')),
+              ),
+              bottomNavigationBar: OrionNavigationBar(
+                destinations: _destinations,
+                selectedIndex: 0,
+                onChanged: (_) {},
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final Size bodySize = tester.getSize(find.byKey(bodyKey));
+        final Size navSize = tester.getSize(find.byType(OrionNavigationBar));
+        expect(navSize.height, 64);
+        expect(
+          bodySize.height,
+          greaterThan(400),
+          reason: 'nav bar must take its intrinsic height, not crush body',
+        );
+      },
+    );
+
+    testWidgets(
+      'hiding the bar does not steal focus from another newly focused widget',
+      (tester) async {
+        final FocusNode fieldFocus = FocusNode();
+        addTearDown(fieldFocus.dispose);
+
+        Widget buildTree({required bool visible}) {
+          return MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: Column(
+                children: <Widget>[
+                  TextField(focusNode: fieldFocus),
+                  OrionNavigationBar(
+                    destinations: _destinations,
+                    selectedIndex: 0,
+                    visible: visible,
+                    autofocus: true,
+                    onChanged: (_) {},
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        await tester.pumpWidget(buildTree(visible: true));
+        await tester.pump();
+
+        // User focuses the TextField in the same frame the nav bar hides.
+        fieldFocus.requestFocus();
+        await tester.pumpWidget(buildTree(visible: false));
+        await tester.pumpAndSettle();
+
+        expect(
+          fieldFocus.hasFocus,
+          isTrue,
+          reason: 'hiding must only unfocus the bar itself, never a TextField',
+        );
+      },
+    );
+
+    testWidgets(
+      '5 and 6 destinations never overflow narrow bars in selected or none modes',
+      (tester) async {
+        const List<OrionNavigationDestination> sixTabs =
+            <OrionNavigationDestination>[
+              OrionNavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                label: 'Home',
+              ),
+              OrionNavigationDestination(
+                icon: Icon(Icons.search_outlined),
+                label: 'Search',
+              ),
+              OrionNavigationDestination(
+                icon: Icon(Icons.add_circle_outline),
+                label: 'Create',
+              ),
+              OrionNavigationDestination(
+                icon: Icon(Icons.inbox_outlined),
+                label: 'Inbox',
+              ),
+              OrionNavigationDestination(
+                icon: Icon(Icons.notifications_outlined),
+                label: 'Alerts',
+              ),
+              OrionNavigationDestination(
+                icon: Icon(Icons.person_outline),
+                label: 'Profile',
+              ),
+            ];
+
+        for (final OrionNavigationLabelMode mode
+            in <OrionNavigationLabelMode>[
+              OrionNavigationLabelMode.selected,
+              OrionNavigationLabelMode.none,
+            ]) {
+          await tester.pumpWidget(
+            MaterialApp(
+              theme: OrionTheme.light(),
+              home: Scaffold(
+                body: Center(
+                  child: SizedBox(
+                    width: 280,
+                    child: OrionNavigationBar(
+                      destinations: sixTabs,
+                      selectedIndex: 2,
+                      onChanged: (_) {},
+                      style: OrionNavigationBarStyle.from(
+                        labelMode: mode,
+                        maxWidth: 280,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          expect(
+            tester.takeException(),
+            isNull,
+            reason: 'mode $mode must fit 6 tabs in 280 px without overflow',
+          );
+        }
+      },
+    );
+
+    testWidgets('cross-fades icon and selectedIcon smoothly', (tester) async {
+      const List<OrionNavigationDestination> dualIcons =
+          <OrionNavigationDestination>[
+            OrionNavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home),
+              label: 'Home',
+            ),
+            OrionNavigationDestination(
+              icon: Icon(Icons.settings_outlined),
+              selectedIcon: Icon(Icons.settings),
+              label: 'Settings',
+            ),
+          ];
+
+      await _pumpBar(
+        tester,
+        selectedIndex: 0,
+        onChanged: (_) {},
+        disableAnimations: true,
+        destinations: dualIcons,
+      );
+      await tester.pump();
+      expect(find.byIcon(Icons.home), findsOneWidget);
+      expect(find.byIcon(Icons.home_outlined), findsNothing);
+      expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.settings), findsNothing);
+
+      // Mid-flight drag shows both icons cross-fading.
+      await _pumpBar(
+        tester,
+        selectedIndex: 0,
+        onChanged: (_) {},
+        dragPosition: 0.5,
+        destinations: dualIcons,
+      );
+      await tester.pump();
+      expect(find.byIcon(Icons.home), findsOneWidget);
+      expect(find.byIcon(Icons.home_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.settings), findsOneWidget);
+      expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
+    });
+
+    testWidgets('renders badgeCount with maxBadgeCount cap and badgeDot', (
+      tester,
+    ) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      await _pumpBar(
+        tester,
+        selectedIndex: 0,
+        onChanged: (_) {},
+        disableAnimations: true,
+        destinations: const <OrionNavigationDestination>[
+          OrionNavigationDestination(
+            icon: Icon(Icons.chat_bubble_outline),
+            label: 'Chats',
+            badgeCount: 128,
+          ),
+          OrionNavigationDestination(
+            icon: Icon(Icons.people_outline),
+            label: 'Contacts',
+            badgeDot: true,
+          ),
+          OrionNavigationDestination(
+            icon: Icon(Icons.settings_outlined),
+            label: 'Settings',
+            badgeCount: 0,
+          ),
+        ],
+      );
+      await tester.pump();
+
+      expect(find.text('99+'), findsOneWidget);
+      expect(find.text('0'), findsNothing);
+      expect(
+        tester.widget<Text>(find.text('99+')).semanticsLabel,
+        '128',
+        reason: 'capped badge announces true count',
+      );
+
+      // Dot badge is a compact 8x8 circle, not a 16x16 pill.
+      final Finder dotContainer = find.byWidgetPredicate((Widget widget) {
+        if (widget is! Container) return false;
+        final Decoration? dec = widget.decoration;
+        return dec is BoxDecoration && dec.shape == BoxShape.circle;
+      });
+      expect(dotContainer, findsOneWidget);
+      expect(tester.getSize(dotContainer), const Size(8, 8));
+
+      handle.dispose();
+    });
+
+    testWidgets('excludes departing badge from semantics while scaling out', (
+      tester,
+    ) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      const OrionNavigationDestination badged = OrionNavigationDestination(
+        icon: Icon(Icons.chat_bubble_outline),
+        label: 'Chats',
+        badgeCount: 5,
+      );
+      const OrionNavigationDestination cleared = OrionNavigationDestination(
+        icon: Icon(Icons.chat_bubble_outline),
+        label: 'Chats',
+        badgeCount: 0,
+      );
+      const OrionNavigationDestination other = OrionNavigationDestination(
+        icon: Icon(Icons.people_outline),
+        label: 'Contacts',
+      );
+
+      await _pumpBar(
+        tester,
+        selectedIndex: 0,
+        onChanged: (_) {},
+        destinations: const <OrionNavigationDestination>[badged, other],
+      );
+      await _pumpBar(
+        tester,
+        selectedIndex: 0,
+        onChanged: (_) {},
+        destinations: const <OrionNavigationDestination>[cleared, other],
+      );
+      await tester.pump(const Duration(milliseconds: 60));
+
+      // Still visually scaling out...
+      expect(find.text('5'), findsOneWidget);
+      // ...but immediately excluded from semantics.
+      final SemanticsNode chatsNode = tester.getSemantics(find.text('Chats'));
+      expect(chatsNode.label, 'Chats');
+
+      await tester.pumpAndSettle();
+      expect(find.text('5'), findsNothing);
+      handle.dispose();
+    });
+
+    testWidgets(
+      'supports per-destination enabled and skips disabled items via keyboard',
+      (tester) async {
+        final List<int> selected = <int>[];
+        int? longPressed;
+        const List<OrionNavigationDestination> items =
+            <OrionNavigationDestination>[
+              OrionNavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                label: 'Home',
+              ),
+              OrionNavigationDestination(
+                icon: Icon(Icons.lock_outline),
+                label: 'Pro',
+                enabled: false,
+              ),
+              OrionNavigationDestination(
+                icon: Icon(Icons.settings_outlined),
+                label: 'Settings',
+              ),
+            ];
+
+        await _pumpBar(
+          tester,
+          selectedIndex: 0,
+          autofocus: true,
+          destinations: items,
+          onChanged: selected.add,
+          onLongPress: (int i) => longPressed = i,
+        );
+        await tester.pump();
+
+        // Tap and long-press on disabled destination are ignored.
+        await tester.tap(find.text('Pro'));
+        await tester.longPress(find.text('Pro'));
+        expect(selected, isEmpty);
+        expect(longPressed, isNull);
+        expect(
+          _labelColor(tester, 'Pro'),
+          OrionColors.lightScheme.onSurface.withValues(alpha: 0.38),
+        );
+
+        // Arrow right skips disabled index 1 and lands on index 2.
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+        expect(selected, <int>[2]);
+
+        // Re-pump at index 2 and verify Home/End keyboard navigation.
+        await _pumpBar(
+          tester,
+          selectedIndex: 2,
+          autofocus: true,
+          destinations: items,
+          onChanged: selected.add,
+        );
+        await tester.pump();
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.home);
+        expect(selected.last, 0);
+
+        await _pumpBar(
+          tester,
+          selectedIndex: 0,
+          autofocus: true,
+          destinations: items,
+          onChanged: selected.add,
+        );
+        await tester.pump();
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.end);
+        expect(selected.last, 2);
+      },
+    );
+
+    testWidgets('adds icon-only tooltips and preserves semanticLabel tap', (
+      tester,
+    ) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      int? tapped;
+      await _pumpBar(
+        tester,
+        selectedIndex: 0,
+        onChanged: (int i) => tapped = i,
+        disableAnimations: true,
+        style: OrionNavigationBarStyle.from(
+          labelMode: OrionNavigationLabelMode.none,
+        ),
+        destinations: const <OrionNavigationDestination>[
+          OrionNavigationDestination(
+            icon: Icon(Icons.chat_bubble_outline),
+            label: 'Chats',
+            badgeCount: 4,
+            semanticLabel: 'Chats, 4 unread',
+          ),
+          OrionNavigationDestination(
+            icon: Icon(Icons.people_outline),
+            label: 'Contacts',
+            tooltip: '',
+          ),
+        ],
+      );
+      await tester.pump();
+
+      // Chats gets automatic tooltip from label; Contacts suppresses it with ''.
+      final Iterable<Tooltip> tooltips = tester.widgetList<Tooltip>(
+        find.byType(Tooltip),
+      );
+      expect(tooltips.map((Tooltip t) => t.message), <String?>['Chats']);
+
+      // Custom semanticLabel announces once and preserves tap semantic action.
+      final Finder semanticChats = find.bySemanticsLabel('Chats, 4 unread');
+      expect(semanticChats, findsOneWidget);
+      final SemanticsNode node = tester.getSemantics(semanticChats);
+      expect(node.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
+
+      await tester.tap(find.byIcon(Icons.chat_bubble_outline));
+      expect(tapped, 0);
+      handle.dispose();
+    });
+
+    testWidgets('updates destination color and hover overlay on pointer hover', (
+      tester,
+    ) async {
+      await _pumpBar(
+        tester,
+        selectedIndex: 0,
+        onChanged: (_) {},
+        disableAnimations: true,
+      );
+      await tester.pump();
+
+      final TestGesture mouse = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+      );
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(location: Offset.zero);
+      await tester.pump();
+
+      expect(
+        _labelColor(tester, 'Contacts'),
+        OrionColors.lightScheme.onSurfaceVariant,
+      );
+
+      await mouse.moveTo(tester.getCenter(find.text('Contacts')));
+      await tester.pump();
+
+      expect(
+        _labelColor(tester, 'Contacts'),
+        OrionColors.lightScheme.onSurface,
+      );
+    });
+
+    testWidgets('supports docked variant with top hairline and safe area', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.dark(),
+          home: MediaQuery(
+            data: const MediaQueryData(
+              padding: EdgeInsets.only(bottom: 34),
+              disableAnimations: true,
+            ),
+            child: Scaffold(
+              body: const SizedBox.expand(),
+              bottomNavigationBar: OrionNavigationBar(
+                variant: OrionNavigationBarVariant.docked,
+                destinations: _destinations,
+                selectedIndex: 0,
+                onChanged: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final Size size = tester.getSize(find.byType(OrionNavigationBar));
+      // Full viewport width (800 in default test surface, ignores 360 cap) and
+      // 64 min height + 34 bottom safe area inside the docked surface.
+      expect(size.width, 800);
+      expect(size.height, 98);
+    });
+
+    testWidgets(
+      'supports frosted glass, borderWidth: 0, concentric radius, and dark surfaceContainer',
+      (tester) async {
+        await _pumpBar(
+          tester,
+          selectedIndex: 0,
+          onChanged: (_) {},
+          theme: OrionTheme.dark(),
+          disableAnimations: true,
+          style: OrionNavigationBarStyle.from(
+            frosted: true,
+            borderWidth: 0,
+            radius: BorderRadius.circular(20),
+          ),
+        );
+        await tester.pump();
+
+        expect(find.byType(BackdropFilter), findsOneWidget);
+
+        // Inner pill reduces concentrically from 20 - 4 padding = 16.
+        final Transform pill = tester
+            .widgetList<Transform>(find.byType(Transform))
+            .firstWhere((Transform transform) {
+              final Widget? child = transform.child;
+              if (child is! DecoratedBox) return false;
+              final Color? color = (child.decoration as BoxDecoration).color;
+              return color != null && color.a > 0 && color.a < 0.2;
+            });
+        final BoxDecoration pillDec =
+            (pill.child! as DecoratedBox).decoration as BoxDecoration;
+        expect(pillDec.borderRadius, BorderRadius.circular(16));
+
+        // No border painted when borderWidth == 0.
+        final Iterable<DecoratedBox> foregroundBorders = tester
+            .widgetList<DecoratedBox>(
+              find.descendant(
+                of: find.byType(OrionNavigationBar),
+                matching: find.byType(DecoratedBox),
+              ),
+            )
+            .where(
+              (DecoratedBox box) =>
+                  box.position == DecorationPosition.foreground &&
+                  (box.decoration as BoxDecoration).border != null,
+            );
+        expect(foregroundBorders, isEmpty);
+      },
+    );
+
+    testWidgets('clamps pill smoothly when destinations shrink below index', (
+      tester,
+    ) async {
+      await _pumpBar(
+        tester,
+        selectedIndex: 2,
+        onChanged: (_) {},
+        destinations: _destinations,
+      );
+      await tester.pumpAndSettle();
+
+      await _pumpBar(
+        tester,
+        selectedIndex: 1,
+        onChanged: (_) {},
+        destinations: _destinations.sublist(0, 2),
+      );
+      await tester.pump();
+
+      final double twoTabSlot = (_width - 8) / 2;
+      expect(_pillX(tester), closeTo(twoTabSlot, 0.5));
+    });
   });
 
   group('OrionNavigationBarStyle', () {
     test('a merge only changes the fields it names, deeply for the badge', () {
       final OrionNavigationBarStyle base = OrionNavigationBarStyle.defaults(
         scheme: OrionColors.lightScheme,
+        labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
       );
       final OrionNavigationBarStyle merged = base.merge(
         OrionNavigationBarStyle.from(
           maxWidth: 280,
-          badge: OrionNavigationBadgeStyle.from(fill: const Color(0xFFFF0000)),
+          labelStyle: const TextStyle(letterSpacing: 0.4),
+          badge: OrionNavigationBadgeStyle.from(
+            fill: const Color(0xFFFF0000),
+            textStyle: const TextStyle(fontWeight: FontWeight.w700),
+          ),
         ),
       );
 
       expect(merged.maxWidth, 280);
       expect(merged.minHeight, base.minHeight);
+      expect(merged.labelStyle?.fontSize, 12);
+      expect(merged.labelStyle?.letterSpacing, 0.4);
       expect(
         merged.badge?.fill?.resolve(const <WidgetState>{}),
         const Color(0xFFFF0000),
@@ -919,9 +1515,10 @@ void main() {
         base.badge?.ink?.resolve(const <WidgetState>{}),
         reason: 'unnamed badge fields fall through the deep merge',
       );
+      expect(merged.badge?.textStyle?.fontWeight, FontWeight.w700);
     });
 
-    test('defaults reproduce the shipped bar', () {
+    test('defaults reproduce the shipped bar and elevate dark mode surface', () {
       final OrionNavigationBarStyle style = OrionNavigationBarStyle.defaults(
         scheme: OrionColors.lightScheme,
       );
@@ -933,10 +1530,31 @@ void main() {
       expect(style.hideSlide, 8);
       expect(style.hideScale, 0.98);
       expect(style.selectionSpring, OrionSpringSpec.immediate);
+      expect(style.background, OrionColors.lightScheme.surfaceContainer);
+      expect(style.borderColor, OrionColors.lightScheme.outlineVariant);
+      expect(style.borderWidth, 1);
       expect(
         style.selectionColor?.resolve(const <WidgetState>{}),
         OrionColors.lightScheme.onSurface.withValues(alpha: 0.08),
       );
+
+      final OrionNavigationBarStyle darkStyle =
+          OrionNavigationBarStyle.defaults(scheme: OrionColors.darkScheme);
+      expect(
+        darkStyle.background,
+        OrionColors.darkScheme.surfaceContainer,
+        reason: 'dark floating capsule separates from dark scaffold surface',
+      );
+      expect(darkStyle.background, isNot(OrionColors.darkScheme.surface));
+
+      final OrionNavigationBarStyle dockedStyle =
+          OrionNavigationBarStyle.defaults(
+            scheme: OrionColors.lightScheme,
+            variant: OrionNavigationBarVariant.docked,
+          );
+      expect(dockedStyle.maxWidth, double.infinity);
+      expect(dockedStyle.radius, BorderRadius.zero);
+      expect(dockedStyle.shadows, isEmpty);
     });
   });
 }

@@ -275,4 +275,161 @@ void main() {
     );
     expect(find.byKey(orionCalendarTodayDotKey), findsNothing);
   });
+
+  testWidgets('horizontal swipe left and right pages months smoothly', (
+    tester,
+  ) async {
+    await pump(tester, value: march, onChanged: (_) {});
+    expect(find.text('March 2026'), findsOneWidget);
+
+    await tester.fling(
+      find.byKey(orionCalendarGridKey),
+      const Offset(-160, 0),
+      800,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('April 2026'), findsOneWidget);
+
+    await tester.fling(
+      find.byKey(orionCalendarGridKey),
+      const Offset(160, 0),
+      800,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('March 2026'), findsOneWidget);
+  });
+
+  testWidgets('tapping Month Year pill opens month and year pickers', (
+    tester,
+  ) async {
+    await pump(tester, value: march, onChanged: (_) {});
+
+    // Tap header pill -> switches to month picker for 2026.
+    await tester.tap(find.byKey(orionCalendarMonthYearButtonKey));
+    await tester.pumpAndSettle();
+    expect(find.text('2026'), findsOneWidget);
+    expect(find.text('Oct'), findsOneWidget);
+
+    // Tap header pill again -> switches to 12-year picker.
+    await tester.tap(find.byKey(orionCalendarMonthYearButtonKey));
+    await tester.pumpAndSettle();
+    expect(find.text('2028'), findsOneWidget);
+
+    // Pick year 2028 -> returns to month picker.
+    await tester.tap(find.byKey(const ValueKey<String>('orion_calendar_year_2028')));
+    await tester.pumpAndSettle();
+    expect(find.text('2028'), findsOneWidget);
+
+    // Pick Oct -> returns to day grid in October 2028.
+    await tester.tap(find.byKey(const ValueKey<String>('orion_calendar_month_10')));
+    await tester.pumpAndSettle();
+    expect(find.text('October 2028'), findsOneWidget);
+  });
+
+  testWidgets('Today pill appears off current month and jumps back', (
+    tester,
+  ) async {
+    final DateTime now = DateTime.now();
+    final DateTime otherMonth = DateTime(now.year - 1, now.month, 10);
+
+    await pump(tester, value: otherMonth, onChanged: (_) {});
+    expect(find.byKey(orionCalendarTodayButtonKey), findsOneWidget);
+
+    await tester.tap(find.byKey(orionCalendarTodayButtonKey));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(orionCalendarTodayButtonKey), findsNothing);
+  });
+
+  testWidgets(
+    'OrionCalendar.range selects ordered range and enforces min/max span',
+    (tester) async {
+      DateTimeRange? committed;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('en', 'US'),
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 340,
+                child: OrionCalendar.range(
+                  initialMonth: DateTime(2026, 3),
+                  minRangeDays: 3,
+                  maxRangeDays: 7,
+                  onRangeChanged: (DateTimeRange? r) => committed = r,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      // Tap start day March 10.
+      await tester.tap(find.byKey(orionCalendarDayKey(DateTime(2026, 3, 10))));
+      await tester.pump();
+      expect(committed, isNull);
+
+      // March 11 (2 days) is below minRangeDays: 3 -> blocked.
+      await tester.tap(find.byKey(orionCalendarDayKey(DateTime(2026, 3, 11))));
+      await tester.pump();
+      expect(committed, isNull);
+
+      // March 20 (11 days) exceeds maxRangeDays: 7 -> blocked.
+      await tester.tap(find.byKey(orionCalendarDayKey(DateTime(2026, 3, 20))));
+      await tester.pump();
+      expect(committed, isNull);
+
+      // March 14 (5 days) is valid -> commits range.
+      await tester.tap(find.byKey(orionCalendarDayKey(DateTime(2026, 3, 14))));
+      await tester.pump();
+      expect(
+        committed,
+        DateTimeRange(start: DateTime(2026, 3, 10), end: DateTime(2026, 3, 14)),
+      );
+    },
+  );
+
+  testWidgets(
+    'showOrionDateRangePickerSheet selects range and returns typed value',
+    (tester) async {
+      DateTimeRange? picked;
+      final DateTimeRange initial = DateTimeRange(
+        start: DateTime(2026, 3, 10),
+        end: DateTime(2026, 3, 16),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          locale: const Locale('en', 'US'),
+          home: Scaffold(
+            body: Builder(
+              builder: (BuildContext context) => ElevatedButton(
+                onPressed: () async {
+                  picked = await showOrionDateRangePickerSheet(
+                    context: context,
+                    initialRange: initial,
+                    firstDate: DateTime(2026, 1, 1),
+                    lastDate: DateTime(2026, 12, 31),
+                  );
+                },
+                child: const Text('Open Range Sheet'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open Range Sheet'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('7 days'), findsOneWidget);
+
+      await tester.tap(find.byKey(orionDatePickerConfirmKey));
+      await tester.pumpAndSettle();
+
+      expect(picked, initial);
+    },
+  );
 }

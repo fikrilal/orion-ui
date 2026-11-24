@@ -14,6 +14,7 @@ export 'src/components/calendar/orion_calendar.dart';
 export 'src/components/calendar/orion_calendar_presets.dart';
 export 'src/components/calendar/orion_calendar_style.dart';
 export 'src/components/calendar/orion_calendar_theme.dart';
+export 'src/components/calendar/orion_date_picker_sheet.dart';
 export 'src/components/card/orion_card.dart';
 export 'src/components/card/orion_card_presets.dart';
 export 'src/components/card/orion_card_style.dart';

@@ -1,4 +1,4 @@
-import 'dart:ui' show Tristate;
+import 'dart:ui' show PointerDeviceKind, Tristate;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -617,16 +617,460 @@ void main() {
         expect(find.text('Tab 0'), findsNothing);
       },
     );
+
+    testWidgets(
+      'retapping already-selected tab suppresses onChanged and haptics',
+      (tester) async {
+        final List<String> haptics = <String>[];
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          (MethodCall call) async {
+            if (call.method == 'HapticFeedback.vibrate') {
+              haptics.add(call.arguments.toString());
+            }
+            return null;
+          },
+        );
+        addTearDown(() {
+          tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SystemChannels.platform,
+            null,
+          );
+        });
+
+        int changeCount = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: Center(
+                child: OrionTabs<String>(
+                  value: 'overview',
+                  onChanged: (_) => changeCount++,
+                  tabs: const <OrionTab<String>>[
+                    OrionTab<String>(value: 'overview', label: 'Overview'),
+                    OrionTab<String>(value: 'issues', label: 'Issues'),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.text('Overview'));
+        await tester.pumpAndSettle();
+
+        expect(changeCount, 0);
+        expect(haptics, isEmpty);
+
+        // Tapping a different tab still fires onChanged and selection haptic.
+        await tester.tap(find.text('Issues'));
+        await tester.pumpAndSettle();
+
+        expect(changeCount, 1);
+        expect(haptics, isNotEmpty);
+      },
+    );
+
+    testWidgets(
+      'keyboard Home/End, RTL arrows, and disabled skipping stay silent',
+      (tester) async {
+        final List<String> haptics = <String>[];
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          (MethodCall call) async {
+            if (call.method == 'HapticFeedback.vibrate') {
+              haptics.add(call.arguments.toString());
+            }
+            return null;
+          },
+        );
+        addTearDown(() {
+          tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SystemChannels.platform,
+            null,
+          );
+        });
+
+        final FocusNode focusNode = FocusNode();
+        addTearDown(focusNode.dispose);
+        int selected = 1;
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Directionality(
+              textDirection: TextDirection.rtl,
+              child: Scaffold(
+                body: Center(
+                  child: StatefulBuilder(
+                    builder: (BuildContext context, StateSetter setState) {
+                      return OrionTabs<int>(
+                        focusNode: focusNode,
+                        autofocus: true,
+                        value: selected,
+                        onChanged: (int v) => setState(() => selected = v),
+                        tabs: const <OrionTab<int>>[
+                          OrionTab<int>(
+                            value: 0,
+                            label: 'Disabled Start',
+                            disabled: true,
+                          ),
+                          OrionTab<int>(value: 1, label: 'First Enabled'),
+                          OrionTab<int>(value: 2, label: 'Middle'),
+                          OrionTab<int>(value: 3, label: 'Last Enabled'),
+                          OrionTab<int>(
+                            value: 4,
+                            label: 'Disabled End',
+                            disabled: true,
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        // Under RTL, Left Arrow advances to index 2.
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+        await tester.pumpAndSettle();
+        expect(selected, 2);
+
+        // End jumps to last enabled tab (skips disabled index 4 -> selects 3).
+        await tester.sendKeyEvent(LogicalKeyboardKey.end);
+        await tester.pumpAndSettle();
+        expect(selected, 3);
+
+        // Home jumps to first enabled tab (skips disabled index 0 -> selects 1).
+        await tester.sendKeyEvent(LogicalKeyboardKey.home);
+        await tester.pumpAndSettle();
+        expect(selected, 1);
+
+        // Keyboard navigation never triggers mobile haptics.
+        expect(haptics, isEmpty);
+      },
+    );
+
+    testWidgets(
+      'pill variant cross-fades label ink continuously with moving indicator',
+      (tester) async {
+        final ThemeData theme = OrionTheme.light();
+        final ColorScheme scheme = theme.colorScheme;
+        int selected = 0;
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: theme,
+            home: Scaffold(
+              body: Center(
+                child: StatefulBuilder(
+                  builder: (BuildContext context, StateSetter setState) {
+                    return OrionTabs<int>(
+                      value: selected,
+                      variant: OrionTabsVariant.pill,
+                      onChanged: (int v) => setState(() => selected = v),
+                      tabs: const <OrionTab<int>>[
+                        OrionTab<int>(value: 0, label: 'Alpha'),
+                        OrionTab<int>(value: 1, label: 'Beta'),
+                        OrionTab<int>(value: 2, label: 'Gamma'),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        );
+
+        // Before tap: Alpha is onPrimary, Gamma is onSurfaceVariant.
+        expect(
+          tester.widget<Text>(find.text('Alpha')).style?.color,
+          scheme.onPrimary,
+        );
+        expect(
+          tester.widget<Text>(find.text('Gamma')).style?.color,
+          scheme.onSurfaceVariant,
+        );
+
+        // Tap Gamma (2 slots away) and advance only 1 frame: pill is still near 0,
+        // so Gamma must NOT flash white onPrimary before the pill reaches it!
+        await tester.tap(find.text('Gamma'));
+        await tester.pump();
+        expect(
+          tester.widget<Text>(find.text('Gamma')).style?.color,
+          isNot(scheme.onPrimary),
+        );
+
+        // Once settled, Gamma reaches onPrimary and Alpha settles to inactive.
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<Text>(find.text('Gamma')).style?.color,
+          scheme.onPrimary,
+        );
+        expect(
+          tester.widget<Text>(find.text('Alpha')).style?.color,
+          scheme.onSurfaceVariant,
+        );
+      },
+    );
+
+    testWidgets(
+      'underline shows baseline divider by default, respects showDivider, and clips rounded track cleanly',
+      (tester) async {
+        bool hasBottomBorder(WidgetTester t) {
+          return t.widgetList<DecoratedBox>(find.byType(DecoratedBox)).any((
+            DecoratedBox box,
+          ) {
+            final Decoration d = box.decoration;
+            return d is BoxDecoration &&
+                d.border is Border &&
+                (d.border! as Border).bottom != BorderSide.none;
+          });
+        }
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: Center(
+                child: OrionTabs<int>(
+                  value: 0,
+                  variant: OrionTabsVariant.underline,
+                  style: OrionTabsStyle(
+                    trackColor: Colors.grey.shade200,
+                    trackBorderRadius: BorderRadius.circular(12),
+                  ),
+                  tabs: const <OrionTab<int>>[
+                    OrionTab<int>(value: 0, label: 'One'),
+                    OrionTab<int>(value: 1, label: 'Two'),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        expect(tester.takeException(), isNull);
+        expect(hasBottomBorder(tester), isTrue);
+        expect(find.byType(ClipRRect), findsOneWidget);
+
+        // Turning off showDivider removes the baseline border.
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: const Scaffold(
+              body: Center(
+                child: OrionTabs<int>(
+                  value: 0,
+                  variant: OrionTabsVariant.underline,
+                  showDivider: false,
+                  tabs: <OrionTab<int>>[
+                    OrionTab<int>(value: 0, label: 'One'),
+                    OrionTab<int>(value: 1, label: 'Two'),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        expect(hasBottomBorder(tester), isFalse);
+      },
+    );
+
+    testWidgets(
+      'fadeEdges masks only overflowing strips and auto-centers deep-linked initial tab',
+      (tester) async {
+        final List<OrionTab<int>> manyTabs = List<OrionTab<int>>.generate(
+          10,
+          (int i) => OrionTab<int>(value: i, label: 'Category Item $i'),
+        );
+
+        // Non-overflowing strip: zero ShaderMask overhead.
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: const Scaffold(
+              body: Center(
+                child: SizedBox(
+                  width: 400,
+                  child: OrionTabs<int>(
+                    value: 0,
+                    tabs: <OrionTab<int>>[
+                      OrionTab<int>(value: 0, label: 'A'),
+                      OrionTab<int>(value: 1, label: 'B'),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.byType(ShaderMask), findsNothing);
+
+        // Overflowing strip with deep-linked initial value: mounts ShaderMask & scrolls to center.
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: Center(
+                child: SizedBox(
+                  width: 240,
+                  child: OrionTabs<int>(value: 8, tabs: manyTabs),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byType(ShaderMask), findsOneWidget);
+        final ScrollableState scrollable = tester.state<ScrollableState>(
+          find.byType(Scrollable),
+        );
+        expect(scrollable.position.pixels, greaterThan(0.0));
+
+        // Disabling fadeEdges removes ShaderMask cleanly.
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: Center(
+                child: SizedBox(
+                  width: 240,
+                  child: OrionTabs<int>(
+                    value: 8,
+                    fadeEdges: false,
+                    tabs: manyTabs,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.byType(ShaderMask), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'pointer hover highlights unselected enabled tabs and ignores disabled tabs',
+      (tester) async {
+        const Color hoverTint = Color(0x2200AAFF);
+        const Color hoverInk = Color(0xFF0055AA);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: const Scaffold(
+              body: Center(
+                child: OrionTabs<int>(
+                  value: 0,
+                  style: OrionTabsStyle(
+                    hoverColor: hoverTint,
+                    hoverLabelColor: hoverInk,
+                  ),
+                  tabs: <OrionTab<int>>[
+                    OrionTab<int>(value: 0, label: 'Active'),
+                    OrionTab<int>(value: 1, label: 'Idle'),
+                    OrionTab<int>(value: 2, label: 'Locked', disabled: true),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final TestGesture mouse = await tester.createGesture(
+          kind: PointerDeviceKind.mouse,
+        );
+        await mouse.addPointer(location: Offset.zero);
+        addTearDown(mouse.removePointer);
+
+        // Hover over unselected enabled tab 'Idle'.
+        await mouse.moveTo(tester.getCenter(find.text('Idle')));
+        await tester.pump();
+        expect(tester.widget<Text>(find.text('Idle')).style?.color, hoverInk);
+        expect(
+          tester
+              .widgetList<DecoratedBox>(find.byType(DecoratedBox))
+              .any(
+                (DecoratedBox box) =>
+                    box.decoration is BoxDecoration &&
+                    (box.decoration as BoxDecoration).color == hoverTint,
+              ),
+          isTrue,
+        );
+
+        // Hover over disabled tab 'Locked': no hover ink or tint.
+        await mouse.moveTo(tester.getCenter(find.text('Locked')));
+        await tester.pump();
+        expect(
+          tester.widget<Text>(find.text('Locked')).style?.color,
+          isNot(hoverInk),
+        );
+      },
+    );
+
+    testWidgets('semanticLabel and tooltip are wired per OrionTab', (
+      tester,
+    ) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: const Scaffold(
+            body: Center(
+              child: OrionTabs<String>(
+                value: 'pulls',
+                tabs: <OrionTab<String>>[
+                  OrionTab<String>(
+                    value: 'pulls',
+                    label: 'Pulls',
+                    semanticLabel: 'Pull requests, 12 open',
+                    tooltip: 'Open pull requests',
+                  ),
+                  OrionTab<String>(value: 'issues', label: 'Issues'),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final Tooltip tooltip = tester.widget<Tooltip>(find.byType(Tooltip));
+      expect(tooltip.message, 'Open pull requests');
+
+      final semantics = tester.getSemantics(
+        find.bySemanticsLabel('Pull requests, 12 open'),
+      );
+      expect(semantics.flagsCollection.isSelected, Tristate.isTrue);
+
+      handle.dispose();
+    });
   });
 
   group('OrionTabsStyle & Presets', () {
     test('presets resolve distinct configurations per variant', () {
+      expect(OrionTabsVariant.values, const <OrionTabsVariant>[
+        OrionTabsVariant.underline,
+        OrionTabsVariant.pill,
+      ]);
+
       final underline = OrionTabsPresets.resolve(
         scheme: OrionColors.lightScheme,
         variant: OrionTabsVariant.underline,
       );
       expect(underline.indicatorHeight, 2.5);
       expect(underline.trackColor, Colors.transparent);
+      expect(underline.dividerColor, OrionColors.lightScheme.outlineVariant);
+      expect(underline.dividerThickness, 1.0);
+      expect(underline.hoverColor, isNotNull);
+      expect(underline.hoverLabelColor, isNotNull);
+      expect(underline.edgeFadeWidth, 28.0);
 
       final pill = OrionTabsPresets.resolve(
         scheme: OrionColors.lightScheme,
@@ -634,25 +1078,22 @@ void main() {
       );
       expect(pill.trackColor, Colors.transparent);
       expect(pill.activeLabelColor, OrionColors.lightScheme.onPrimary);
-
-      final segment = OrionTabsPresets.resolve(
-        scheme: OrionColors.lightScheme,
-        variant: OrionTabsVariant.segment,
-      );
-      expect(
-        segment.trackColor,
-        OrionColors.lightScheme.surfaceContainerHighest,
-      );
-      expect(segment.activeLabelColor, OrionColors.lightScheme.onSurface);
+      expect(pill.hoverColor, isNotNull);
+      expect(pill.edgeFadeWidth, 28.0);
     });
 
     test('style merge overrides only named fields', () {
-      const base = OrionTabsStyle(tabSpacing: 4.0, indicatorHeight: 2.0);
+      const base = OrionTabsStyle(
+        tabSpacing: 4.0,
+        indicatorHeight: 2.0,
+        dividerThickness: 1.0,
+      );
 
       final merged = base.merge(const OrionTabsStyle(tabSpacing: 12.0));
 
       expect(merged.tabSpacing, 12.0);
       expect(merged.indicatorHeight, 2.0);
+      expect(merged.dividerThickness, 1.0);
     });
 
     test('lerp correctly interpolates scalars and colors', () {
@@ -660,17 +1101,29 @@ void main() {
         tabSpacing: 4.0,
         indicatorHeight: 2.0,
         pressedScale: 0.95,
+        dividerThickness: 1.0,
+        edgeFadeWidth: 20.0,
+        dividerColor: Color(0xFF000000),
       );
       const b = OrionTabsStyle(
         tabSpacing: 12.0,
         indicatorHeight: 4.0,
         pressedScale: 1.0,
+        dividerThickness: 3.0,
+        edgeFadeWidth: 40.0,
+        dividerColor: Color(0xFFFFFFFF),
       );
 
       final result = OrionTabsStyle.lerp(a, b, 0.5)!;
       expect(result.tabSpacing, 8.0);
       expect(result.indicatorHeight, 3.0);
       expect(result.pressedScale, closeTo(0.975, 0.001));
+      expect(result.dividerThickness, 2.0);
+      expect(result.edgeFadeWidth, 30.0);
+      expect(
+        result.dividerColor,
+        Color.lerp(const Color(0xFF000000), const Color(0xFFFFFFFF), 0.5),
+      );
     });
   });
 }

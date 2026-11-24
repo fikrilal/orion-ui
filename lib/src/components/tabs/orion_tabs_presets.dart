@@ -19,6 +19,16 @@ abstract final class OrionTabsPresets {
     required ColorScheme scheme,
     OrionTabsVariant variant = OrionTabsVariant.underline,
   }) {
+    final bool isDark = scheme.brightness == Brightness.dark;
+    final Color hoverSurface = scheme.onSurface.withValues(
+      alpha: isDark ? 0.06 : 0.04,
+    );
+    final Color hoverLabel = Color.lerp(
+      scheme.onSurfaceVariant,
+      scheme.onSurface,
+      0.55,
+    )!;
+
     switch (variant) {
       case OrionTabsVariant.underline:
         return OrionTabsStyle(
@@ -27,9 +37,13 @@ abstract final class OrionTabsPresets {
           indicatorRadius: const BorderRadius.vertical(
             top: Radius.circular(OrionRadii.radiusPill),
           ),
+          dividerColor: scheme.outlineVariant,
+          dividerThickness: 1.0,
           trackColor: Colors.transparent,
           activeLabelColor: scheme.primary,
           inactiveLabelColor: scheme.onSurfaceVariant,
+          hoverLabelColor: hoverLabel,
+          hoverColor: hoverSurface,
           disabledLabelColor: scheme.onSurface.withValues(alpha: 0.38),
           labelStyle: const TextStyle(
             fontSize: 14.0,
@@ -42,6 +56,7 @@ abstract final class OrionTabsPresets {
           ),
           trackPadding: EdgeInsets.zero,
           tabSpacing: OrionSpacing.space4,
+          edgeFadeWidth: 28.0,
           springSpec: defaultSpringSpec,
           pressedScale: 0.98,
           pressSpring: const OrionSpringSpec(
@@ -61,9 +76,13 @@ abstract final class OrionTabsPresets {
         return OrionTabsStyle(
           indicatorColor: scheme.primary,
           indicatorRadius: BorderRadius.circular(OrionRadii.radiusPill),
+          dividerColor: Colors.transparent,
+          dividerThickness: 0.0,
           trackColor: Colors.transparent,
           activeLabelColor: scheme.onPrimary,
           inactiveLabelColor: scheme.onSurfaceVariant,
+          hoverLabelColor: hoverLabel,
+          hoverColor: hoverSurface,
           disabledLabelColor: scheme.onSurface.withValues(alpha: 0.38),
           labelStyle: const TextStyle(
             fontSize: 13.5,
@@ -76,6 +95,7 @@ abstract final class OrionTabsPresets {
           ),
           trackPadding: EdgeInsets.zero,
           tabSpacing: 6.0,
+          edgeFadeWidth: 28.0,
           springSpec: defaultSpringSpec,
           pressedScale: 0.98,
           pressSpring: const OrionSpringSpec(
@@ -89,41 +109,6 @@ abstract final class OrionTabsPresets {
           hapticType: OrionHapticType.selectionClick,
           focusRingColor: scheme.primary.withValues(alpha: 0.5),
           iconSize: 18.0,
-        );
-
-      case OrionTabsVariant.segment:
-        return OrionTabsStyle(
-          indicatorColor: scheme.surface,
-          indicatorRadius: BorderRadius.circular(OrionRadii.radius8),
-          trackColor: scheme.surfaceContainerHighest,
-          trackBorderRadius: BorderRadius.circular(OrionRadii.radius12),
-          activeLabelColor: scheme.onSurface,
-          inactiveLabelColor: scheme.onSurfaceVariant,
-          disabledLabelColor: scheme.onSurface.withValues(alpha: 0.38),
-          labelStyle: const TextStyle(
-            fontSize: 13.0,
-            fontWeight: FontWeight.w600,
-            letterSpacing: -0.1,
-          ),
-          tabPadding: const EdgeInsets.symmetric(
-            horizontal: OrionSpacing.space12,
-            vertical: OrionSpacing.space4,
-          ),
-          trackPadding: const EdgeInsets.all(OrionSpacing.space4),
-          tabSpacing: 2.0,
-          springSpec: defaultSpringSpec,
-          pressedScale: 0.98,
-          pressSpring: const OrionSpringSpec(
-            stiffness: 420.0,
-            dampingRatio: 0.85,
-          ),
-          releaseSpring: const OrionSpringSpec(
-            stiffness: 380.0,
-            dampingRatio: 0.85,
-          ),
-          hapticType: OrionHapticType.selectionClick,
-          focusRingColor: scheme.primary.withValues(alpha: 0.5),
-          iconSize: 16.0,
         );
     }
   }

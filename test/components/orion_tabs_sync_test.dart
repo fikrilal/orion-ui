@@ -422,4 +422,113 @@ void main() {
       reason: 'the press must spring back when the arena goes to the scroll',
     );
   });
+
+  testWidgets('honors PageController.initialPage when value is omitted', (
+    tester,
+  ) async {
+    final PageController pageController = PageController(initialPage: 2);
+    addTearDown(pageController.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: OrionTheme.light(),
+        home: Scaffold(
+          body: Column(
+            children: <Widget>[
+              OrionTabs<String>(tabs: _tabs, pageController: pageController),
+              Expanded(
+                child: PageView(
+                  controller: pageController,
+                  children: const <Widget>[
+                    Center(child: Text('page a')),
+                    Center(child: Text('page b')),
+                    Center(child: Text('page c')),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final OrionTabsState<String> state = tester.state<OrionTabsState<String>>(
+      find.byType(OrionTabs<String>),
+    );
+    expect(state.indicatorDriver.value, closeTo(2.0, 0.01));
+    expect(find.text('page c'), findsOneWidget);
+  });
+
+  testWidgets('a fast ballistic PageView flick still reports onChanged', (
+    tester,
+  ) async {
+    final List<String> changes = <String>[];
+    final PageController pageController = PageController();
+    addTearDown(pageController.dispose);
+    String value = 'a';
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: OrionTheme.light(),
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (BuildContext context, StateSetter setState) {
+              return Column(
+                children: <Widget>[
+                  OrionTabs<String>(
+                    tabs: _tabs,
+                    value: value,
+                    pageController: pageController,
+                    onChanged: (String next) {
+                      changes.add(next);
+                      setState(() => value = next);
+                    },
+                  ),
+                  Expanded(
+                    child: PageView(
+                      controller: pageController,
+                      children: const <Widget>[
+                        Center(child: Text('page a')),
+                        Center(child: Text('page b')),
+                        Center(child: Text('page c')),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Short, fast flick whose momentum crosses 0.5 after pointer-up.
+    await tester.fling(find.text('page a'), const Offset(-140, 0), 1800);
+    await tester.pumpAndSettle();
+
+    expect(pageController.page, closeTo(1.0, 0.01));
+    expect(changes, contains('b'));
+    expect(value, 'b');
+  });
+
+  testWidgets('retapping the active tab with a bound pager is a silent no-op', (
+    tester,
+  ) async {
+    final List<String> haptics = _haptics(tester);
+    final PageController pageController = PageController();
+    addTearDown(pageController.dispose);
+
+    await tester.pumpWidget(_Host(pageController: pageController));
+    await tester.pumpAndSettle();
+
+    final _HostState hostState = tester.state<_HostState>(find.byType(_Host));
+    await tester.tap(find.text('A'));
+    await tester.pumpAndSettle();
+
+    expect(hostState.changes, isEmpty);
+    expect(haptics, isEmpty);
+    expect(pageController.page, closeTo(0.0, 0.01));
+  });
 }

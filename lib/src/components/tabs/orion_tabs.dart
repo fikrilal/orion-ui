@@ -17,14 +17,12 @@ import 'package:orion_ui/src/theme/orion_tokens.dart';
 
 /// Top-level view navigation tabs powered by continuous spring physics.
 ///
-/// Features:
-/// - Velocity-driven kinetic indicator stretch with single spring simulation (Zero Snap).
-/// - Clean single-tree layout with zero duplicate text ghosting.
-/// - Intrinsic width and equal width distributions.
-/// - Horizontal scrolling with auto-centering on selection.
-/// - Bidirectional `PageView` / `PageController` swipe synchronization.
-/// - Full keyboard navigation (arrow keys respecting RTL) and focus ring support.
-/// - Pure Flutter SDK (zero 3rd-party dependencies).
+/// Use [OrionTabs] for view and content navigation (`underline` with baseline
+/// hairline divider, or floating `pill` category strips) supporting variable
+/// intrinsic tab widths, horizontal scrolling with automatic edge fades and
+/// auto-centering, velocity-driven kinetic indicator stretching, and real-time
+/// bidirectional `PageView` synchronization. For compact 2–4 option equal-width
+/// mode switchers inside cards or toolbars, use `OrionSegmentedControl`.
 class OrionTabs<T> extends StatefulWidget {
   const OrionTabs({
     super.key,
@@ -35,6 +33,8 @@ class OrionTabs<T> extends StatefulWidget {
     this.pageController,
     this.variant = OrionTabsVariant.underline,
     this.distribution = OrionTabsDistribution.intrinsic,
+    this.showDivider,
+    this.fadeEdges = true,
     this.style,
     this.focusNode,
     this.autofocus = false,
@@ -46,25 +46,36 @@ class OrionTabs<T> extends StatefulWidget {
   /// The currently selected tab value.
   final T? value;
 
-  /// Callback when a tab is selected.
+  /// Callback when a tab is selected. Retapping the already-selected tab does
+  /// not fire this callback.
   final ValueChanged<T>? onChanged;
 
   /// Optional programmatic controller.
   final OrionTabsController<T>? controller;
 
-  /// Optional PageController for bidirectional swipe synchronization.
+  /// Optional [PageController] for bidirectional swipe synchronization.
   final PageController? pageController;
 
-  /// Visual treatment of the active indicator (underline, pill, segment).
+  /// Visual treatment of the active indicator (`underline` or `pill`).
   final OrionTabsVariant variant;
 
   /// Sizing and layout distribution (intrinsic scrollable vs. equal division).
   final OrionTabsDistribution distribution;
 
+  /// Whether to paint the baseline hairline divider beneath
+  /// [OrionTabsVariant.underline]. Defaults to `true` for `underline` and
+  /// `false` for `pill`.
+  final bool? showDivider;
+
+  /// Whether to smoothly fade overflowing scroll edges on long tab strips.
+  /// Defaults to `true` and has zero overhead when all tabs fit.
+  final bool fadeEdges;
+
   /// Instance styling overrides.
   final OrionTabsStyle? style;
 
-  /// Optional focus node for arrow-key keyboard selection.
+  /// Optional focus node for keyboard selection (`ArrowLeft`, `ArrowRight`,
+  /// `Home`, `End`).
   final FocusNode? focusNode;
 
   /// Whether the control requests focus on first build.
@@ -78,6 +89,9 @@ class OrionTabsState<T> extends State<OrionTabs<T>>
     with SingleTickerProviderStateMixin {
   late final OrionSpringDriver _driver;
   final ScrollController _scrollController = ScrollController();
+  final GlobalKey _scrollViewKey = GlobalKey();
+  final ValueNotifier<(bool, bool)> _edgeFadeNotifier =
+      ValueNotifier<(bool, bool)>((false, false));
 
   OrionTabsController<T>? _internalController;
   OrionTabsController<T> get _effectiveController =>
@@ -90,9 +104,14 @@ class OrionTabsState<T> extends State<OrionTabs<T>>
   bool _focused = false;
   T? _selectedValue;
   int? _lastPageIndex;
+  int _programmaticPageAnimCount = 0;
+  bool _isProgrammaticJump = false;
+  bool _didInitialAutoCenter = false;
+  int? _pendingAutoCenterIndex;
+  bool _pendingAutoCenterImmediate = false;
   List<Rect> _cachedTabRects = const <Rect>[];
 
-  /// The spring behind the indicator, exposed so a test can assert continuity.
+  /// The spring behind the indicator, exposed so tests can assert continuity.
   @visibleForTesting
   late final OrionSpringDriver indicatorDriver = _driver;
 
@@ -112,20 +131,25 @@ class OrionTabsState<T> extends State<OrionTabs<T>>
   @override
   void initState() {
     super.initState();
-    _selectedValue =
-        widget.value ??
-        widget.controller?.value ??
-        (widget.tabs.isNotEmpty ? widget.tabs.first.value : null);
+    T? initial = widget.value ?? widget.controller?.value;
+    if (initial == null && widget.tabs.isNotEmpty) {
+      final int initialIdx = widget.pageController != null
+          ? widget.pageController!.initialPage.clamp(0, widget.tabs.length - 1)
+          : 0;
+      initial = widget.tabs[initialIdx].value;
+    }
+    _selectedValue = initial;
+    _lastPageIndex = _currentIndex;
 
-    final double initialPos = _currentIndex.toDouble();
     _driver = OrionSpringDriver(
       vsync: this,
-      initialValue: initialPos,
+      initialValue: _currentIndex.toDouble(),
       springSpec:
           widget.style?.springSpec ?? OrionTabsPresets.defaultSpringSpec,
     );
     _attachController();
     widget.pageController?.addListener(_handlePageScroll);
+    _scrollController.addListener(_updateEdgeFades);
   }
 
   @override
@@ -137,6 +161,7 @@ class OrionTabsState<T> extends State<OrionTabs<T>>
     final OrionTabsStyle resolved = _resolveStyle(Theme.of(context));
     _driver.springSpec =
         resolved.springSpec ?? OrionTabsPresets.defaultSpringSpec;
+    _scheduleEdgeFadeCheck();
   }
 
   @override
@@ -158,9 +183,6 @@ class OrionTabsState<T> extends State<OrionTabs<T>>
     }
     if (widget.value != oldWidget.value && widget.value != null) {
       final int newIdx = _indexOf(widget.value);
-      // The pager echoes the selection it just resolved: `_handlePageScroll` has already
-      // moved the indicator and reported it. Animating to that echo would seize a swipe
-      // that is still in the air, and the user could no longer drag back.
       final bool alreadySelected = newIdx == _currentIndex;
       _selectedValue = widget.value;
       if (newIdx >= 0 && !alreadySelected) {
@@ -168,37 +190,78 @@ class OrionTabsState<T> extends State<OrionTabs<T>>
       }
     }
 
-    // A shrunk list can strand the selection on a tab that no longer exists.
+    // A shrunk list cannot strand the selection on a tab that no longer exists.
     if (widget.tabs.isNotEmpty && _indexOf(_selectedValue) < 0) {
-      _animateToIndex(math.min(_currentIndex, widget.tabs.length - 1));
+      final int fallbackIndex = math.min(_currentIndex, widget.tabs.length - 1);
+      _animateToIndex(fallbackIndex);
     }
 
     final OrionTabsStyle resolved = _resolveStyle(Theme.of(context));
     _driver.springSpec =
         resolved.springSpec ?? OrionTabsPresets.defaultSpringSpec;
+
+    if (widget.fadeEdges != oldWidget.fadeEdges ||
+        widget.tabs.length != oldWidget.tabs.length ||
+        widget.distribution != oldWidget.distribution) {
+      _scheduleEdgeFadeCheck();
+    }
   }
 
   @override
   void dispose() {
     widget.pageController?.removeListener(_handlePageScroll);
+    _scrollController.removeListener(_updateEdgeFades);
     _effectiveController.detach();
     _internalController?.dispose();
     _ownedFocusNode?.dispose();
     _scrollController.dispose();
+    _edgeFadeNotifier.dispose();
     _driver.dispose();
     super.dispose();
   }
 
+  void _scheduleEdgeFadeCheck() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _updateEdgeFades();
+      }
+    });
+  }
+
+  void _updateEdgeFades() {
+    if (!mounted) return;
+    if (!widget.fadeEdges || !_scrollController.hasClients) {
+      if (_edgeFadeNotifier.value != (false, false)) {
+        _edgeFadeNotifier.value = (false, false);
+      }
+      return;
+    }
+    final ScrollPosition pos = _scrollController.position;
+    if (!pos.hasContentDimensions || pos.maxScrollExtent <= 1.0) {
+      if (_edgeFadeNotifier.value != (false, false)) {
+        _edgeFadeNotifier.value = (false, false);
+      }
+      return;
+    }
+    final bool canStart = pos.pixels > 1.0;
+    final bool canEnd = pos.pixels < pos.maxScrollExtent - 1.0;
+    final bool isRtl = Directionality.of(context) == TextDirection.rtl;
+    final (bool, bool) next = isRtl ? (canEnd, canStart) : (canStart, canEnd);
+    if (_edgeFadeNotifier.value != next) {
+      _edgeFadeNotifier.value = next;
+    }
+  }
+
   void _attachController() {
     _effectiveController.attach(
-      onAnimateTo: (val) {
+      onAnimateTo: (T val) {
         final int idx = _indexOf(val);
         if (idx >= 0) {
           _selectedValue = val;
           _animateToIndex(idx);
         }
       },
-      onJumpTo: (val) {
+      onJumpTo: (T val) {
         final int idx = _indexOf(val);
         if (idx >= 0) {
           _selectedValue = val;
@@ -224,29 +287,31 @@ class OrionTabsState<T> extends State<OrionTabs<T>>
   void _handlePageScroll() {
     final PageController? pager = widget.pageController;
     if (pager == null || !pager.hasClients || pager.page == null) return;
+    if (widget.tabs.isEmpty) return;
 
-    final double page = pager.page!;
+    final double clampedPage = pager.page!.clamp(
+      0.0,
+      (widget.tabs.length - 1).toDouble(),
+    );
 
     if (_driver.reducedMotion) {
-      _driver.jumpTo(page.roundToDouble());
+      _driver.jumpTo(clampedPage.roundToDouble());
     } else {
-      _driver.jumpTo(page);
+      _driver.jumpTo(clampedPage);
     }
 
-    // The public way to tell a finger from an animation: the position reports a user
-    // scroll direction only while the user is the one moving it. A tap's animation and
-    // the jump reduced motion uses both leave it idle.
+    final bool isProgrammatic =
+        _programmaticPageAnimCount > 0 || _isProgrammaticJump;
     final bool userDriven =
+        !isProgrammatic ||
         pager.position.userScrollDirection != ScrollDirection.idle;
 
-    final int targetPage = page.round();
+    final int targetPage = clampedPage.round();
     if (targetPage != _lastPageIndex &&
         targetPage >= 0 &&
         targetPage < widget.tabs.length) {
       _lastPageIndex = targetPage;
       _syncControllerSelection(targetPage);
-      // A page the user dragged to is an event; a page the component animated to was
-      // already reported by `_select`.
       if (userDriven) {
         widget.onChanged?.call(widget.tabs[targetPage].value);
       }
@@ -256,18 +321,36 @@ class OrionTabsState<T> extends State<OrionTabs<T>>
 
   void _animateToIndex(int targetIndex) {
     if (targetIndex < 0 || targetIndex >= widget.tabs.length) return;
+    _lastPageIndex = targetIndex;
 
     if (widget.pageController != null && widget.pageController!.hasClients) {
-      if (_driver.reducedMotion) {
-        widget.pageController!.jumpToPage(targetIndex);
-      } else {
-        widget.pageController!.animateToPage(
-          targetIndex,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOutCubic,
-        );
-      }
       _syncControllerSelection(targetIndex);
+      _autoCenterActiveTab(targetIndex);
+      if (_driver.reducedMotion) {
+        _isProgrammaticJump = true;
+        try {
+          widget.pageController!.jumpToPage(targetIndex);
+        } finally {
+          _isProgrammaticJump = false;
+        }
+        _driver.jumpTo(targetIndex.toDouble());
+      } else {
+        _programmaticPageAnimCount++;
+        widget.pageController!
+            .animateToPage(
+              targetIndex,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOutCubic,
+            )
+            .whenComplete(() {
+              if (mounted) {
+                _programmaticPageAnimCount = math.max(
+                  0,
+                  _programmaticPageAnimCount - 1,
+                );
+              }
+            });
+      }
       return;
     }
 
@@ -287,10 +370,18 @@ class OrionTabsState<T> extends State<OrionTabs<T>>
 
   void _jumpToIndex(int targetIndex) {
     if (targetIndex < 0 || targetIndex >= widget.tabs.length) return;
+    _lastPageIndex = targetIndex;
 
     if (widget.pageController != null && widget.pageController!.hasClients) {
-      widget.pageController!.jumpToPage(targetIndex);
       _syncControllerSelection(targetIndex);
+      _autoCenterActiveTab(targetIndex, immediate: true);
+      _isProgrammaticJump = true;
+      try {
+        widget.pageController!.jumpToPage(targetIndex);
+      } finally {
+        _isProgrammaticJump = false;
+      }
+      _driver.jumpTo(targetIndex.toDouble());
       return;
     }
 
@@ -299,52 +390,92 @@ class OrionTabsState<T> extends State<OrionTabs<T>>
     _autoCenterActiveTab(targetIndex, immediate: true);
   }
 
-  void _select(int index) {
+  void _select(int index, {required bool haptic}) {
     if (index < 0 || index >= widget.tabs.length) return;
+    if (index == _currentIndex) return;
     final OrionTab<T> tab = widget.tabs[index];
     if (tab.disabled) return;
 
-    final theme = Theme.of(context);
-    final style = _resolveStyle(theme);
-    OrionHaptics.trigger(style.hapticType ?? OrionHapticType.selectionClick);
+    if (haptic) {
+      final OrionTabsStyle style = _resolveStyle(Theme.of(context));
+      final OrionHapticType cue =
+          style.hapticType ?? OrionHapticType.selectionClick;
+      if (cue != OrionHapticType.none) {
+        OrionHaptics.trigger(cue);
+      }
+    }
 
     _animateToIndex(index);
     widget.onChanged?.call(tab.value);
   }
 
+  int? _findBoundaryEnabled({required bool fromStart}) {
+    if (fromStart) {
+      for (int i = 0; i < widget.tabs.length; i++) {
+        if (!widget.tabs[i].disabled) return i;
+      }
+    } else {
+      for (int i = widget.tabs.length - 1; i >= 0; i--) {
+        if (!widget.tabs[i].disabled) return i;
+      }
+    }
+    return null;
+  }
+
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    if (widget.tabs.isEmpty) return KeyEventResult.ignored;
 
     final bool rtl = Directionality.of(context) == TextDirection.rtl;
-    final int delta = switch (event.logicalKey) {
-      LogicalKeyboardKey.arrowRight => rtl ? -1 : 1,
-      LogicalKeyboardKey.arrowLeft => rtl ? 1 : -1,
-      _ => 0,
-    };
-    if (delta == 0) return KeyEventResult.ignored;
+    final LogicalKeyboardKey key = event.logicalKey;
 
-    final int current = _currentIndex;
-    int next = current + delta;
-    while (next >= 0 &&
-        next < widget.tabs.length &&
-        widget.tabs[next].disabled) {
-      next += delta;
+    int? targetIndex;
+    if (key == LogicalKeyboardKey.arrowRight ||
+        key == LogicalKeyboardKey.arrowLeft) {
+      final int delta = key == LogicalKeyboardKey.arrowRight
+          ? (rtl ? -1 : 1)
+          : (rtl ? 1 : -1);
+      int next = _currentIndex + delta;
+      while (next >= 0 &&
+          next < widget.tabs.length &&
+          widget.tabs[next].disabled) {
+        next += delta;
+      }
+      if (next >= 0 && next < widget.tabs.length) {
+        targetIndex = next;
+      }
+    } else if (key == LogicalKeyboardKey.home) {
+      targetIndex = _findBoundaryEnabled(fromStart: true);
+    } else if (key == LogicalKeyboardKey.end) {
+      targetIndex = _findBoundaryEnabled(fromStart: false);
+    } else {
+      return KeyEventResult.ignored;
     }
-    if (current < 0 || next < 0 || next >= widget.tabs.length) {
-      return KeyEventResult.handled;
+
+    if (targetIndex != null) {
+      _select(targetIndex, haptic: false);
     }
-    _select(next);
     return KeyEventResult.handled;
   }
 
   void _autoCenterActiveTab(int index, {bool immediate = false}) {
-    if (widget.distribution != OrionTabsDistribution.intrinsic) return;
-    if (!_scrollController.hasClients) return;
-    if (index < 0 || index >= _cachedTabRects.length) return;
+    if (index < 0 || index >= widget.tabs.length) return;
+    if (!_scrollController.hasClients ||
+        _cachedTabRects.length != widget.tabs.length ||
+        index >= _cachedTabRects.length ||
+        !_scrollController.position.hasContentDimensions) {
+      _pendingAutoCenterIndex = index;
+      _pendingAutoCenterImmediate = immediate;
+      return;
+    }
+    _pendingAutoCenterIndex = null;
+    final double maxScroll = _scrollController.position.maxScrollExtent;
+    if (maxScroll <= 0.0) return;
 
     final Rect tabRect = _cachedTabRects[index];
     final double viewportWidth = _scrollController.position.viewportDimension;
-    final double maxScroll = _scrollController.position.maxScrollExtent;
     final bool isRtl = Directionality.of(context) == TextDirection.rtl;
 
     final double totalWidth = maxScroll + viewportWidth;
@@ -378,50 +509,255 @@ class OrionTabsState<T> extends State<OrionTabs<T>>
     return defaults.merge(tabsTheme.defaultStyle).merge(widget.style);
   }
 
-  Widget _buildTabItem({
-    required OrionTab<T> tab,
-    required int index,
-    required OrionTabsStyle style,
-    required ColorScheme scheme,
-  }) {
-    final bool isSelected = index == _currentIndex;
-    final Color textColor = tab.disabled
-        ? (style.disabledLabelColor ?? scheme.onSurface.withValues(alpha: 0.38))
-        : (isSelected
-              ? (style.activeLabelColor ?? scheme.onPrimary)
-              : (style.inactiveLabelColor ?? scheme.onSurfaceVariant));
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme scheme = theme.colorScheme;
+    final OrionTabsStyle style = _resolveStyle(theme);
+    final TextDirection textDirection = Directionality.of(context);
+    final bool effectiveShowDivider =
+        widget.showDivider ?? (widget.variant == OrionTabsVariant.underline);
+    final double edgeFadeWidth = math.max(0.0, style.edgeFadeWidth ?? 28.0);
+    final BorderRadius? trackRadius = style.trackBorderRadius;
+    final bool hasTrackBg =
+        style.trackColor != null && style.trackColor != Colors.transparent;
+    final Color focusRing =
+        style.focusRingColor ?? scheme.primary.withValues(alpha: 0.5);
 
-    final Widget labelWidget = Text(
-      tab.label,
-      maxLines: 1,
-      style:
-          (style.labelStyle ??
-                  const TextStyle(fontSize: 14.0, fontWeight: FontWeight.w600))
-              .copyWith(color: textColor),
+    final List<Widget> tabWidgets = <Widget>[
+      for (int i = 0; i < widget.tabs.length; i++)
+        _OrionTabItem<T>(
+          tab: widget.tabs[i],
+          index: i,
+          isSelected: i == _currentIndex,
+          driver: _driver,
+          variant: widget.variant,
+          style: style,
+          scheme: scheme,
+          onTap: () => _select(i, haptic: true),
+        ),
+    ];
+
+    return Focus(
+      canRequestFocus: false,
+      skipTraversal: true,
+      onKeyEvent: _onKey,
+      child: FocusableActionDetector(
+        focusNode: _focusNode,
+        autofocus: widget.autofocus,
+        onShowFocusHighlight: (bool focused) {
+          if (focused != _focused) {
+            setState(() => _focused = focused);
+          }
+        },
+        child: LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            final double availableWidth = constraints.maxWidth;
+
+            final Widget tabsLayout = _OrionTabsRenderWidget(
+              driver: _driver,
+              tabsCount: widget.tabs.length,
+              distribution: widget.distribution,
+              variant: widget.variant,
+              style: style,
+              scheme: scheme,
+              textDirection: textDirection,
+              availableWidth: availableWidth,
+              tabSpacing: style.tabSpacing ?? OrionSpacing.space4,
+              trackPadding: (style.trackPadding ?? EdgeInsets.zero).resolve(
+                textDirection,
+              ),
+              onLayoutResolved: (List<Rect> rects) {
+                _cachedTabRects = rects;
+                if (!_didInitialAutoCenter && rects.isNotEmpty) {
+                  _didInitialAutoCenter = true;
+                  if (_currentIndex > 0) {
+                    _pendingAutoCenterIndex ??= _currentIndex;
+                    _pendingAutoCenterImmediate = true;
+                  }
+                }
+                if (_pendingAutoCenterIndex != null &&
+                    rects.length == widget.tabs.length) {
+                  final int pendingIdx = _pendingAutoCenterIndex!;
+                  final bool pendingImmediate = _pendingAutoCenterImmediate;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted && _pendingAutoCenterIndex == pendingIdx) {
+                      _autoCenterActiveTab(
+                        pendingIdx,
+                        immediate: pendingImmediate,
+                      );
+                    }
+                  });
+                }
+                _scheduleEdgeFadeCheck();
+              },
+              children: tabWidgets,
+            );
+
+            Widget contentStrip = SingleChildScrollView(
+              key: _scrollViewKey,
+              controller: _scrollController,
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              child: tabsLayout,
+            );
+
+            if (widget.fadeEdges && edgeFadeWidth > 0.0) {
+              contentStrip = AnimatedBuilder(
+                animation: _edgeFadeNotifier,
+                child: contentStrip,
+                builder: (BuildContext context, Widget? child) {
+                  final (bool fadeLeft, bool fadeRight) =
+                      _edgeFadeNotifier.value;
+                  if (!fadeLeft && !fadeRight) {
+                    return child!;
+                  }
+                  return ShaderMask(
+                    blendMode: BlendMode.dstIn,
+                    shaderCallback: (Rect bounds) {
+                      final double w = bounds.width > 0 ? bounds.width : 1.0;
+                      final double stop = (edgeFadeWidth / w).clamp(0.0, 0.25);
+                      return LinearGradient(
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                        colors: <Color>[
+                          fadeLeft ? Colors.transparent : Colors.white,
+                          Colors.white,
+                          Colors.white,
+                          fadeRight ? Colors.transparent : Colors.white,
+                        ],
+                        stops: <double>[0.0, stop, 1.0 - stop, 1.0],
+                      ).createShader(bounds);
+                    },
+                    child: child,
+                  );
+                },
+              );
+            }
+
+            final Color? dividerColor =
+                effectiveShowDivider &&
+                    widget.variant == OrionTabsVariant.underline
+                ? (style.dividerColor ?? scheme.outlineVariant)
+                : null;
+            final double dividerThickness = style.dividerThickness ?? 1.0;
+
+            if (dividerColor != null &&
+                dividerColor != Colors.transparent &&
+                dividerThickness > 0) {
+              contentStrip = DecoratedBox(
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: dividerColor,
+                      width: dividerThickness,
+                    ),
+                  ),
+                ),
+                child: contentStrip,
+              );
+            }
+
+            if (trackRadius != null && trackRadius != BorderRadius.zero) {
+              contentStrip = ClipRRect(
+                borderRadius: trackRadius,
+                child: contentStrip,
+              );
+            }
+
+            return DecoratedBox(
+              decoration: BoxDecoration(
+                color: hasTrackBg ? style.trackColor : null,
+                borderRadius: trackRadius,
+              ),
+              child: DecoratedBox(
+                position: DecorationPosition.foreground,
+                decoration: BoxDecoration(
+                  borderRadius:
+                      trackRadius ?? BorderRadius.circular(OrionRadii.radius8),
+                  border: _focused
+                      ? Border.all(
+                          color: focusRing,
+                          width: 2.0,
+                          strokeAlign: BorderSide.strokeAlignInside,
+                        )
+                      : null,
+                ),
+                child: contentStrip,
+              ),
+            );
+          },
+        ),
+      ),
     );
+  }
+}
 
-    final Widget? iconWidget = tab.icon != null
-        ? IconTheme.merge(
-            data: IconThemeData(color: textColor, size: style.iconSize ?? 18.0),
-            child: tab.icon!,
-          )
-        : null;
+class _OrionTabItem<T> extends StatefulWidget {
+  const _OrionTabItem({
+    required this.tab,
+    required this.index,
+    required this.isSelected,
+    required this.driver,
+    required this.variant,
+    required this.style,
+    required this.scheme,
+    required this.onTap,
+  });
 
-    final Widget content = Row(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        if (iconWidget != null) ...[
-          iconWidget,
-          const SizedBox(width: OrionSpacing.space8),
-        ],
-        labelWidget,
-        if (tab.badge != null) ...[
-          const SizedBox(width: OrionSpacing.space8),
-          tab.badge!,
-        ],
-      ],
-    );
+  final OrionTab<T> tab;
+  final int index;
+  final bool isSelected;
+  final OrionSpringDriver driver;
+  final OrionTabsVariant variant;
+  final OrionTabsStyle style;
+  final ColorScheme scheme;
+  final VoidCallback onTap;
+
+  @override
+  State<_OrionTabItem<T>> createState() => _OrionTabItemState<T>();
+}
+
+class _OrionTabItemState<T> extends State<_OrionTabItem<T>> {
+  bool _hovered = false;
+
+  @override
+  void didUpdateWidget(_OrionTabItem<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.tab.disabled && _hovered) {
+      _hovered = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final OrionTab<T> tab = widget.tab;
+    final OrionTabsStyle style = widget.style;
+    final ColorScheme scheme = widget.scheme;
+    final bool enabled = !tab.disabled;
+    final bool showHover = _hovered && enabled && !widget.isSelected;
+
+    final Color activeColor =
+        style.activeLabelColor ??
+        (widget.variant == OrionTabsVariant.pill
+            ? scheme.onPrimary
+            : scheme.primary);
+    final Color inactiveColor =
+        style.inactiveLabelColor ?? scheme.onSurfaceVariant;
+    final Color hoverLabelColor =
+        style.hoverLabelColor ??
+        Color.lerp(inactiveColor, scheme.onSurface, 0.55)!;
+    final Color disabledColor =
+        style.disabledLabelColor ?? scheme.onSurface.withValues(alpha: 0.38);
+    final Color hoverBg =
+        style.hoverColor ??
+        scheme.onSurface.withValues(
+          alpha: scheme.brightness == Brightness.dark ? 0.06 : 0.04,
+        );
+    final TextStyle baseTextStyle =
+        style.labelStyle ??
+        const TextStyle(fontSize: 14.0, fontWeight: FontWeight.w600);
+    final double iconSize = style.iconSize ?? 18.0;
 
     final EdgeInsetsGeometry effectivePadding =
         style.tabPadding ??
@@ -430,112 +766,118 @@ class OrionTabsState<T> extends State<OrionTabs<T>>
           vertical: OrionSpacing.space12,
         );
 
-    final Widget padded = Padding(padding: effectivePadding, child: content);
+    final BorderRadius hoverRadius = widget.variant == OrionTabsVariant.pill
+        ? (style.indicatorRadius ??
+              BorderRadius.circular(OrionRadii.radiusPill))
+        : BorderRadius.circular(OrionRadii.radius8);
 
-    return Semantics(
+    // Build icon + label ink inside AnimatedBuilder so ink cross-fades cleanly
+    // with the moving indicator / PageView drag, while keeping tab.badge
+    // outside AnimatedBuilder so badge widgets never rebuild on spring ticks.
+    final Widget inkContent = AnimatedBuilder(
+      animation: widget.driver,
+      child: tab.icon,
+      builder: (BuildContext context, Widget? iconChild) {
+        final Color liveColor;
+        if (!enabled) {
+          liveColor = disabledColor;
+        } else {
+          final double proximity =
+              (1.0 - (widget.driver.value - widget.index).abs()).clamp(
+                0.0,
+                1.0,
+              );
+          final Color restColor = showHover ? hoverLabelColor : inactiveColor;
+          liveColor = Color.lerp(restColor, activeColor, proximity)!;
+        }
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            if (iconChild != null) ...<Widget>[
+              IconTheme.merge(
+                data: IconThemeData(color: liveColor, size: iconSize),
+                child: iconChild,
+              ),
+              const SizedBox(width: OrionSpacing.space8),
+            ],
+            Text(
+              tab.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: baseTextStyle.copyWith(color: liveColor),
+            ),
+          ],
+        );
+      },
+    );
+
+    final Widget content = Row(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: <Widget>[
+        inkContent,
+        if (tab.badge != null) ...<Widget>[
+          const SizedBox(width: OrionSpacing.space8),
+          tab.badge!,
+        ],
+      ],
+    );
+
+    Widget result = Semantics(
       container: true,
       button: true,
-      selected: isSelected,
-      enabled: !tab.disabled,
+      selected: widget.isSelected,
+      enabled: enabled,
       inMutuallyExclusiveGroup: true,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: OrionSizing.minHitTarget),
-        child: OrionPressable(
-          onTap: tab.disabled ? null : () => _select(index),
-          pressedScale: style.pressedScale ?? 0.98,
-          springSpec:
-              style.pressSpring ??
-              const OrionSpringSpec(stiffness: 420.0, dampingRatio: 0.85),
-          releaseSpringSpec: style.releaseSpring,
-          hapticType: OrionHapticType.none, // Managed in _select
-          child: padded,
+      excludeSemantics: tab.semanticLabel != null,
+      label: tab.semanticLabel,
+      child: MouseRegion(
+        cursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
+        onEnter: (_) {
+          if (mounted && enabled && !_hovered) {
+            setState(() => _hovered = true);
+          }
+        },
+        onExit: (_) {
+          if (mounted && _hovered) {
+            setState(() => _hovered = false);
+          }
+        },
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            minHeight: OrionSizing.minHitTarget,
+          ),
+          child: OrionPressable(
+            onTap: enabled ? widget.onTap : null,
+            pressedScale: style.pressedScale ?? 0.98,
+            springSpec:
+                style.pressSpring ??
+                const OrionSpringSpec(stiffness: 420.0, dampingRatio: 0.85),
+            releaseSpringSpec: style.releaseSpring,
+            hapticType: OrionHapticType.none, // Managed in _select
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: showHover ? hoverBg : null,
+                borderRadius: hoverRadius,
+              ),
+              child: Padding(padding: effectivePadding, child: content),
+            ),
+          ),
         ),
       ),
     );
-  }
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final style = _resolveStyle(theme);
-    final TextDirection textDirection = Directionality.of(context);
-
-    final List<Widget> tabWidgets = <Widget>[];
-    for (int i = 0; i < widget.tabs.length; i++) {
-      tabWidgets.add(
-        _buildTabItem(
-          tab: widget.tabs[i],
-          index: i,
-          style: style,
-          scheme: scheme,
-        ),
-      );
+    if (tab.tooltip != null && tab.tooltip!.isNotEmpty) {
+      result = Tooltip(message: tab.tooltip!, child: result);
     }
 
-    final bool hasTrackBg =
-        style.trackColor != null && style.trackColor != Colors.transparent;
-    final Color focusRing =
-        style.focusRingColor ?? scheme.primary.withValues(alpha: 0.5);
-
-    return Focus(
-      focusNode: _focusNode,
-      autofocus: widget.autofocus,
-      onFocusChange: (focused) {
-        if (focused != _focused) setState(() => _focused = focused);
-      },
-      onKeyEvent: _onKey,
-      child: LayoutBuilder(
-        builder: (BuildContext context, BoxConstraints constraints) {
-          final double availableWidth = constraints.maxWidth;
-
-          final Widget tabsLayout = _OrionTabsRenderWidget(
-            driver: _driver,
-            tabsCount: widget.tabs.length,
-            distribution: widget.distribution,
-            variant: widget.variant,
-            style: style,
-            scheme: scheme,
-            textDirection: textDirection,
-            availableWidth: availableWidth,
-            tabSpacing: style.tabSpacing ?? OrionSpacing.space4,
-            trackPadding: (style.trackPadding ?? EdgeInsets.zero).resolve(
-              textDirection,
-            ),
-            onLayoutResolved: (rects) {
-              _cachedTabRects = rects;
-            },
-            children: tabWidgets,
-          );
-
-          Widget result = SingleChildScrollView(
-            controller: _scrollController,
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            child: tabsLayout,
-          );
-
-          result = DecoratedBox(
-            decoration: BoxDecoration(
-              color: hasTrackBg ? style.trackColor : null,
-              borderRadius: style.trackBorderRadius,
-              border: _focused
-                  ? Border.all(color: focusRing, width: 2.0)
-                  : null,
-            ),
-            child: result,
-          );
-
-          return result;
-        },
-      ),
-    );
+    return result;
   }
 }
 
 /// Custom multi-child RenderObject that lays out tabs in a single pass on Frame 0
-/// and paints the kinetic stretching indicator behind them with zero widget rebuilds
-/// during spring flight.
+/// and paints the kinetic stretching indicator behind them with zero widget
+/// rebuilds during spring flight.
 class _OrionTabsRenderWidget extends MultiChildRenderObjectWidget {
   const _OrionTabsRenderWidget({
     required this.driver,
@@ -737,11 +1079,11 @@ class _RenderOrionTabs extends RenderBox
   @override
   void performLayout() {
     if (childCount == 0 || tabsCount == 0) {
-      // With no tabs there is nothing to measure: an infinite inner width would be
-      // handed back to the horizontal scroll view and fail layout.
       size = constraints.constrain(
         Size(0.0, constraints.hasBoundedHeight ? constraints.maxHeight : 0.0),
       );
+      _tabRects = const <Rect>[];
+      onLayoutResolved(_tabRects);
       return;
     }
 
@@ -753,11 +1095,9 @@ class _RenderOrionTabs extends RenderBox
     int i = 0;
     double maxNaturalWidth = 0.0;
     double totalNaturalWidth = trackPadding.horizontal;
-    final List<double> naturalWidths = List<double>.filled(tabsCount, 0.0);
 
     while (child != null && i < tabsCount) {
       child.layout(const BoxConstraints(), parentUsesSize: true);
-      naturalWidths[i] = child.size.width;
       maxNaturalWidth = math.max(maxNaturalWidth, child.size.width);
       totalNaturalWidth += child.size.width;
       if (i < tabsCount - 1) totalNaturalWidth += tabSpacing;
@@ -790,7 +1130,6 @@ class _RenderOrionTabs extends RenderBox
       final double equalSlotWidth = totalAvailableWidth / tabsCount;
 
       if (equalSlotWidth >= maxNaturalWidth) {
-        // Fits equally without truncation!
         double currentX = isRtl
             ? boundedContainerWidth - trackPadding.right - equalSlotWidth
             : trackPadding.left;
@@ -828,7 +1167,7 @@ class _RenderOrionTabs extends RenderBox
       }
     }
 
-    // Intrinsic or overflowing layout: preserve natural widths and never crush content!
+    // Intrinsic or overflowing layout: preserve natural widths and scroll cleanly.
     double currentX = isRtl
         ? totalNaturalWidth - trackPadding.right
         : trackPadding.left;
@@ -860,11 +1199,12 @@ class _RenderOrionTabs extends RenderBox
   }
 
   Rect _calculateIndicatorRect() {
-    if (_tabRects.isEmpty) return Rect.zero;
+    final int maxIdx = math.min(tabsCount, _tabRects.length) - 1;
+    if (maxIdx < 0) return Rect.zero;
 
-    final double pos = driver.value.clamp(0.0, (tabsCount - 1).toDouble());
+    final double pos = driver.value.clamp(0.0, maxIdx.toDouble());
     final int baseIndex = pos.floor();
-    final int nextIndex = math.min(tabsCount - 1, baseIndex + 1);
+    final int nextIndex = math.min(maxIdx, baseIndex + 1);
     final double t = pos - baseIndex;
 
     final Rect baseRect = _tabRects[baseIndex];
@@ -893,7 +1233,6 @@ class _RenderOrionTabs extends RenderBox
         top = size.height - h;
         height = h;
       case OrionTabsVariant.pill:
-      case OrionTabsVariant.segment:
         top = baseRect.top;
         height = baseRect.height;
     }
@@ -920,17 +1259,6 @@ class _RenderOrionTabs extends RenderBox
 
     final Paint indPaint = Paint()..color = indColor;
     final RRect indRRect = indRadius.toRRect(indicatorRect);
-
-    // Draw subtle elevation shadow if segment variant
-    if (variant == OrionTabsVariant.segment) {
-      canvas.drawRRect(
-        indRRect.shift(const Offset(0.0, 1.0)),
-        Paint()
-          ..color = Colors.black.withValues(alpha: 0.08)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0),
-      );
-    }
-
     canvas.drawRRect(indRRect, indPaint);
 
     // 2. Paint All Tab Children directly on top of the indicator

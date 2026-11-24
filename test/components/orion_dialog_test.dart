@@ -569,10 +569,10 @@ void main() {
       expect(style.maxWidth, 340.0);
       expect(style.contentSpacing, 16.0);
       expect(style.actionSpacing, 10.0);
-      expect(
-        style.springSpec,
-        const OrionSpringSpec(stiffness: 380.0, dampingRatio: 0.85),
-      );
+      expect(style.backgroundColor, OrionColors.lightScheme.surfaceContainer);
+      expect(style.borderColor, OrionColors.lightScheme.outlineVariant);
+      expect(style.springSpec, OrionDialogPresets.defaultOpenSpring);
+      expect(style.dismissSpringSpec, OrionDialogPresets.defaultDismissSpring);
     });
 
     test('style merge overrides only named fields', () {
@@ -639,5 +639,312 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Themed Dialog'), findsOneWidget);
     });
+  });
+
+  group('OrionDialog Audit Fixes & Features', () {
+    testWidgets(
+      'barrierDismissible: false blocks system Back while dismissOf closes smoothly',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: Builder(
+                builder: (BuildContext context) => ElevatedButton(
+                  onPressed: () {
+                    showOrionAlertDialog(
+                      context: context,
+                      title: 'Guarded Alert',
+                      message: 'Must acknowledge explicitly.',
+                      actionLabel: 'Acknowledge',
+                      barrierDismissible: false,
+                    );
+                  },
+                  child: const Text('Open Guarded'),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.text('Open Guarded'));
+        await tester.pumpAndSettle();
+        expect(find.text('Guarded Alert'), findsOneWidget);
+
+        // Simulate Android system back button (Navigator.maybePop()).
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+        expect(find.text('Guarded Alert'), findsOneWidget);
+
+        // Tapping Acknowledge uses OrionDialog.dismissOf and animates out.
+        await tester.tap(find.text('Acknowledge'));
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(find.text('Guarded Alert'), findsOneWidget);
+
+        await tester.pumpAndSettle();
+        expect(find.text('Guarded Alert'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'showOrionDialog propagates style (e.g. frosted) to descendant OrionDialog',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: Builder(
+                builder: (BuildContext context) => ElevatedButton(
+                  onPressed: () {
+                    showOrionDialog<void>(
+                      context: context,
+                      style: OrionDialogStyle.from(frosted: true),
+                      builder: (BuildContext ctx) => const OrionDialog(
+                        title: 'Propagated Style',
+                        description: 'Inherited from showOrionDialog',
+                      ),
+                    );
+                  },
+                  child: const Text('Open Propagated'),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.text('Open Propagated'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(BackdropFilter), findsOneWidget);
+      },
+    );
+
+    testWidgets('omits border when borderWidth is zero', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: Scaffold(
+            body: Center(
+              child: OrionDialog(
+                title: 'Borderless',
+                style: OrionDialogStyle.from(borderWidth: 0),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final Container container = tester.widget<Container>(
+        find
+            .descendant(
+              of: find.byType(OrionDialog),
+              matching: find.byType(Container),
+            )
+            .first,
+      );
+      expect((container.decoration! as BoxDecoration).border, isNull);
+    });
+
+    testWidgets(
+      'vertical auto-stack places primary/destructive above cancel',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: Center(
+                child: OrionDialog(
+                  title: 'Delete Workspace?',
+                  actions: <OrionDialogAction>[
+                    OrionDialogAction.cancel(onPressed: () {}),
+                    OrionDialogAction.destructive(
+                      label: 'Delete Workspace',
+                      onPressed: () {},
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final double deleteY = tester
+            .getTopLeft(find.text('Delete Workspace'))
+            .dy;
+        final double cancelY = tester.getTopLeft(find.text('Cancel')).dy;
+        expect(deleteY, lessThan(cancelY));
+      },
+    );
+
+    testWidgets(
+      'OrionDialogAction.cancel() with omitted onPressed dismisses dialog',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: Builder(
+                builder: (BuildContext context) => ElevatedButton(
+                  onPressed: () {
+                    showOrionDialog<void>(
+                      context: context,
+                      builder: (BuildContext ctx) => OrionDialog(
+                        title: 'Default Cancel',
+                        actions: <OrionDialogAction>[
+                          OrionDialogAction.cancel(),
+                        ],
+                      ),
+                    );
+                  },
+                  child: const Text('Open Cancel Default'),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.text('Open Cancel Default'));
+        await tester.pumpAndSettle();
+        expect(find.text('Default Cancel'), findsOneWidget);
+
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+        expect(find.text('Default Cancel'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'disabled destructive action renders muted disabled surface instead of error red',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: Center(
+                child: OrionDialog(
+                  title: 'Disabled Destructive',
+                  actions: <OrionDialogAction>[
+                    OrionDialogAction.destructive(
+                      label: 'Delete',
+                      enabled: false,
+                      onPressed: () {},
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final DecoratedBox buttonSurface = tester.widget<DecoratedBox>(
+          find
+              .descendant(
+                of: find.byType(OrionButton),
+                matching: find.byType(DecoratedBox),
+              )
+              .first,
+        );
+        final Color bg = (buttonSurface.decoration as BoxDecoration).color!;
+        expect(bg, OrionColors.lightScheme.onSurface.withValues(alpha: 0.12));
+        expect(bg, isNot(OrionColors.lightScheme.error));
+      },
+    );
+
+    testWidgets(
+      'showCloseButton dismisses dialog and centerContent: false aligns text to start',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: Builder(
+                builder: (BuildContext context) => ElevatedButton(
+                  onPressed: () {
+                    showOrionDialog<void>(
+                      context: context,
+                      builder: (BuildContext ctx) => const OrionDialog(
+                        title: 'Start Aligned',
+                        description: 'Aligned to leading edge.',
+                        centerContent: false,
+                        showCloseButton: true,
+                      ),
+                    );
+                  },
+                  child: const Text('Open Start Aligned'),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.text('Open Start Aligned'));
+        await tester.pumpAndSettle();
+
+        final Text titleWidget = tester.widget<Text>(
+          find.text('Start Aligned'),
+        );
+        expect(titleWidget.textAlign, TextAlign.start);
+
+        await tester.tap(find.byKey(orionDialogCloseButtonKey));
+        await tester.pumpAndSettle();
+        expect(find.text('Start Aligned'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'scrolls tall content without overflow and respects keyboard viewInsets',
+      (tester) async {
+        tester.view.physicalSize = const Size(360, 420);
+        tester.view.devicePixelRatio = 1.0;
+        tester.view.viewInsets = const FakeViewPadding(bottom: 180.0);
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+          tester.view.resetViewInsets();
+        });
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: Builder(
+                builder: (BuildContext context) => ElevatedButton(
+                  onPressed: () {
+                    showOrionDialog<void>(
+                      context: context,
+                      builder: (BuildContext ctx) => OrionDialog(
+                        title: 'Tall Form',
+                        description:
+                            'Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8',
+                        content: const SizedBox(height: 160),
+                        actions: <OrionDialogAction>[
+                          OrionDialogAction.cancel(),
+                          OrionDialogAction.primary(
+                            label: 'Save',
+                            onPressed: () => OrionDialog.dismissOf<void>(ctx),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                  child: const Text('Open Tall'),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.text('Open Tall'));
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(find.text('Save'), findsOneWidget);
+        // Footer remains above the 180pt keyboard inset (420 - 180 = 240).
+        expect(
+          tester.getBottomLeft(find.text('Save')).dy,
+          lessThanOrEqualTo(240),
+        );
+      },
+    );
   });
 }

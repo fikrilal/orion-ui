@@ -23,6 +23,8 @@ class OrionDialogStyle {
     this.maxWidth,
     this.contentSpacing,
     this.actionSpacing,
+    this.titleStyle,
+    this.descriptionStyle,
     this.springSpec,
     this.dismissSpringSpec,
   });
@@ -33,7 +35,7 @@ class OrionDialogStyle {
   /// Dialog border outline color.
   final Color? borderColor;
 
-  /// Dialog border outline width.
+  /// Dialog border outline width. Values `<= 0` omit the border.
   final double? borderWidth;
 
   /// Dialog corner radius.
@@ -60,6 +62,12 @@ class OrionDialogStyle {
   /// Spacing between action buttons (horizontal or vertical).
   final double? actionSpacing;
 
+  /// Typography override for the dialog title.
+  final TextStyle? titleStyle;
+
+  /// Typography override for the dialog description.
+  final TextStyle? descriptionStyle;
+
   /// Spring specification for open transitions.
   final OrionSpringSpec? springSpec;
 
@@ -79,6 +87,8 @@ class OrionDialogStyle {
     double? maxWidth,
     double? contentSpacing,
     double? actionSpacing,
+    TextStyle? titleStyle,
+    TextStyle? descriptionStyle,
     OrionSpringSpec? springSpec,
     OrionSpringSpec? dismissSpringSpec,
   }) {
@@ -94,6 +104,8 @@ class OrionDialogStyle {
       maxWidth: maxWidth,
       contentSpacing: contentSpacing,
       actionSpacing: actionSpacing,
+      titleStyle: titleStyle,
+      descriptionStyle: descriptionStyle,
       springSpec: springSpec,
       dismissSpringSpec: dismissSpringSpec,
     );
@@ -112,6 +124,8 @@ class OrionDialogStyle {
     double? maxWidth,
     double? contentSpacing,
     double? actionSpacing,
+    TextStyle? titleStyle,
+    TextStyle? descriptionStyle,
     OrionSpringSpec? springSpec,
     OrionSpringSpec? dismissSpringSpec,
   }) {
@@ -127,6 +141,8 @@ class OrionDialogStyle {
       maxWidth: maxWidth ?? this.maxWidth,
       contentSpacing: contentSpacing ?? this.contentSpacing,
       actionSpacing: actionSpacing ?? this.actionSpacing,
+      titleStyle: titleStyle ?? this.titleStyle,
+      descriptionStyle: descriptionStyle ?? this.descriptionStyle,
       springSpec: springSpec ?? this.springSpec,
       dismissSpringSpec: dismissSpringSpec ?? this.dismissSpringSpec,
     );
@@ -147,6 +163,16 @@ class OrionDialogStyle {
       maxWidth: other.maxWidth ?? maxWidth,
       contentSpacing: other.contentSpacing ?? contentSpacing,
       actionSpacing: other.actionSpacing ?? actionSpacing,
+      titleStyle: titleStyle == null
+          ? other.titleStyle
+          : (other.titleStyle == null
+                ? titleStyle
+                : titleStyle!.merge(other.titleStyle)),
+      descriptionStyle: descriptionStyle == null
+          ? other.descriptionStyle
+          : (other.descriptionStyle == null
+                ? descriptionStyle
+                : descriptionStyle!.merge(other.descriptionStyle)),
       springSpec: other.springSpec ?? springSpec,
       dismissSpringSpec: other.dismissSpringSpec ?? dismissSpringSpec,
     );
@@ -173,6 +199,12 @@ class OrionDialogStyle {
       maxWidth: lerpDouble(a.maxWidth, b.maxWidth, t),
       contentSpacing: lerpDouble(a.contentSpacing, b.contentSpacing, t),
       actionSpacing: lerpDouble(a.actionSpacing, b.actionSpacing, t),
+      titleStyle: TextStyle.lerp(a.titleStyle, b.titleStyle, t),
+      descriptionStyle: TextStyle.lerp(
+        a.descriptionStyle,
+        b.descriptionStyle,
+        t,
+      ),
       springSpec: t < 0.5 ? a.springSpec : b.springSpec,
       dismissSpringSpec: t < 0.5 ? a.dismissSpringSpec : b.dismissSpringSpec,
     );
@@ -194,6 +226,8 @@ class OrionDialogStyle {
           maxWidth == other.maxWidth &&
           contentSpacing == other.contentSpacing &&
           actionSpacing == other.actionSpacing &&
+          titleStyle == other.titleStyle &&
+          descriptionStyle == other.descriptionStyle &&
           springSpec == other.springSpec &&
           dismissSpringSpec == other.dismissSpringSpec;
 
@@ -210,6 +244,8 @@ class OrionDialogStyle {
     maxWidth,
     contentSpacing,
     actionSpacing,
+    titleStyle,
+    descriptionStyle,
     springSpec,
     dismissSpringSpec,
   );

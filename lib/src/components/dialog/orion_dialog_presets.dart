@@ -7,11 +7,24 @@ import 'package:orion_ui/src/theme/orion_tokens.dart';
 
 /// The built-in defaults for [OrionDialogStyle].
 abstract final class OrionDialogPresets {
+  /// Default spring for modal dialog entrance.
+  static const OrionSpringSpec defaultOpenSpring = OrionSpringSpec(
+    stiffness: 420.0,
+    dampingRatio: 0.88,
+  );
+
+  /// Default critically damped spring for modal dialog dismissal.
+  static const OrionSpringSpec defaultDismissSpring = OrionSpringSpec(
+    stiffness: 440.0,
+    dampingRatio: 1.0,
+    clampOvershoot: true,
+  );
+
   /// Resolves the default dialog style for the active color scheme.
   static OrionDialogStyle resolve({required ColorScheme scheme}) {
     return OrionDialogStyle(
-      backgroundColor: scheme.surface,
-      borderColor: scheme.outlineVariant.withValues(alpha: 0.35),
+      backgroundColor: scheme.surfaceContainer,
+      borderColor: scheme.outlineVariant,
       borderWidth: 1.0,
       borderRadius: BorderRadius.circular(OrionRadii.radius24),
       shadow: OrionThemeData.defaultShadow,
@@ -21,12 +34,8 @@ abstract final class OrionDialogPresets {
       maxWidth: 340.0,
       contentSpacing: 16.0,
       actionSpacing: 10.0,
-      springSpec: const OrionSpringSpec(stiffness: 380.0, dampingRatio: 0.85),
-      dismissSpringSpec: const OrionSpringSpec(
-        stiffness: 340.0,
-        dampingRatio: 1.0,
-        clampOvershoot: true,
-      ),
+      springSpec: defaultOpenSpring,
+      dismissSpringSpec: defaultDismissSpring,
     );
   }
 }

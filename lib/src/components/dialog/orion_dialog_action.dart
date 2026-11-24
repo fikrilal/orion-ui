@@ -24,13 +24,18 @@ class OrionDialogAction {
     this.variant = OrionDialogActionVariant.primary,
     this.leading,
     this.isLoading = false,
+    this.loadingLabel,
     this.enabled = true,
   });
 
   /// The text displayed inside the button.
   final String label;
 
-  /// Callback executed when the button is tapped. If null, the button is disabled.
+  /// Callback executed when the button is tapped.
+  ///
+  /// For [OrionDialogActionVariant.cancel], omitting [onPressed] (null) while
+  /// [enabled] is true automatically dismisses the dialog via
+  /// `OrionDialog.dismissOf`. For all other variants, null disables the button.
   final VoidCallback? onPressed;
 
   /// Visual and semantic role of this action.
@@ -42,6 +47,9 @@ class OrionDialogAction {
   /// Whether the button is displaying an in-flight loading spinner.
   final bool isLoading;
 
+  /// Optional label shown while [isLoading] is true.
+  final String? loadingLabel;
+
   /// Whether the action is interactable.
   final bool enabled;
 
@@ -51,6 +59,7 @@ class OrionDialogAction {
     required VoidCallback? onPressed,
     Widget? leading,
     bool isLoading = false,
+    String? loadingLabel,
     bool enabled = true,
   }) {
     return OrionDialogAction(
@@ -59,6 +68,7 @@ class OrionDialogAction {
       variant: OrionDialogActionVariant.primary,
       leading: leading,
       isLoading: isLoading,
+      loadingLabel: loadingLabel,
       enabled: enabled,
     );
   }
@@ -69,6 +79,7 @@ class OrionDialogAction {
     required VoidCallback? onPressed,
     Widget? leading,
     bool isLoading = false,
+    String? loadingLabel,
     bool enabled = true,
   }) {
     return OrionDialogAction(
@@ -77,6 +88,7 @@ class OrionDialogAction {
       variant: OrionDialogActionVariant.secondary,
       leading: leading,
       isLoading: isLoading,
+      loadingLabel: loadingLabel,
       enabled: enabled,
     );
   }
@@ -87,6 +99,7 @@ class OrionDialogAction {
     required VoidCallback? onPressed,
     Widget? leading,
     bool isLoading = false,
+    String? loadingLabel,
     bool enabled = true,
   }) {
     return OrionDialogAction(
@@ -95,11 +108,15 @@ class OrionDialogAction {
       variant: OrionDialogActionVariant.destructive,
       leading: leading,
       isLoading: isLoading,
+      loadingLabel: loadingLabel,
       enabled: enabled,
     );
   }
 
   /// Convenience factory for a standard dismissive cancel action.
+  ///
+  /// When [onPressed] is omitted and [enabled] is true, tapping the button
+  /// automatically dismisses the enclosing [OrionDialog].
   factory OrionDialogAction.cancel({
     String label = 'Cancel',
     VoidCallback? onPressed,

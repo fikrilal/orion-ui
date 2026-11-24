@@ -24,6 +24,20 @@ enum OrionDropdownVariant {
 /// The size step of the trigger face.
 enum OrionDropdownSize { small, medium, large }
 
+/// How [OrionDropdown] presents its option list when opened.
+enum OrionDropdownPresentation {
+  /// Anchored floating popover panel emerging from the trigger.
+  popover,
+
+  /// Modal `OrionBottomSheet` picker with native drag-to-dismiss and keyboard
+  /// avoidance.
+  sheet,
+
+  /// Uses [sheet] on compact viewports (`width < 600`) when searchable or when
+  /// the option list has more than 6 items, and [popover] otherwise.
+  auto,
+}
+
 /// The visual and physical styling contract for [OrionDropdown].
 ///
 /// Three layers produce the effective style, each overriding the last: the
@@ -33,6 +47,7 @@ enum OrionDropdownSize { small, medium, large }
 class OrionDropdownStyle {
   const OrionDropdownStyle({
     this.fillColor,
+    this.hoverFillColor,
     this.borderColor,
     this.borderWidth,
     this.textColor,
@@ -60,10 +75,12 @@ class OrionDropdownStyle {
     this.rowPadding,
     this.rowTitleStyle,
     this.rowDescriptionStyle,
+    this.groupHeaderStyle,
     this.labelColor,
     this.selectedLabelColor,
     this.descriptionColor,
     this.activeRowColor,
+    this.selectedRowColor,
     this.activeRowRadius,
     this.checkColor,
     this.springSpec,
@@ -79,11 +96,14 @@ class OrionDropdownStyle {
   /// Trigger face fill, resolved through `WidgetState` (disabled, error).
   final WidgetStateProperty<Color?>? fillColor;
 
+  /// Subtle translucent overlay painted over the trigger face on pointer hover.
+  final Color? hoverFillColor;
+
   /// Trigger face border, resolved through `WidgetState` (focused, disabled,
   /// error). Focus steps the line to the resolved focused color.
   final WidgetStateProperty<Color?>? borderColor;
 
-  /// Resting border width. Focus adds half a point on the clamped spring.
+  /// Resting border width. Values `<= 0` omit the border.
   final double? borderWidth;
 
   /// Trigger label color, resolved through `WidgetState`.
@@ -98,8 +118,7 @@ class OrionDropdownStyle {
   /// Internal horizontal padding of the trigger face.
   final EdgeInsetsGeometry? padding;
 
-  /// Trigger corner radius. The edge that faces the panel is pinched flat while
-  /// the panel is attached, whatever this value says.
+  /// Trigger corner radius.
   final BorderRadius? radius;
 
   /// Gap between the field label and the face.
@@ -129,26 +148,26 @@ class OrionDropdownStyle {
   /// Panel border color.
   final Color? panelBorderColor;
 
-  /// Panel border width.
+  /// Panel border width. Values `<= 0` omit the panel border.
   final double? panelBorderWidth;
 
-  /// Panel corner radius. The edge facing the field starts flat and rounds as
-  /// the panel separates.
+  /// Panel corner radius.
   final BorderRadius? panelBorderRadius;
 
-  /// Panel elevation shadow, faded in as the panel separates.
+  /// Panel elevation shadow.
   final List<BoxShadow>? panelShadow;
 
   /// Internal panel padding around the option list.
   final EdgeInsetsGeometry? panelPadding;
 
-  /// Final gap between the field and the separated panel.
+  /// Gap between the trigger face and the popover panel.
   final double? panelGap;
 
-  /// Upper bound of the panel width (the panel matches the field up to this).
+  /// Optional upper bound of the popover panel width. When null, the panel
+  /// matches the trigger width (clamped to the viewport).
   final double? panelMaxWidth;
 
-  /// Upper bound of the panel height; the option list scrolls beyond it.
+  /// Upper bound of the popover panel height; the option list scrolls beyond it.
   final double? panelMaxHeight;
 
   /// Minimum height of an option row (the 44 pt touch target floor).
@@ -163,10 +182,13 @@ class OrionDropdownStyle {
   /// Option description style.
   final TextStyle? rowDescriptionStyle;
 
+  /// Section header style when options define `group`.
+  final TextStyle? groupHeaderStyle;
+
   /// Title color of an unselected, enabled option.
   final Color? labelColor;
 
-  /// Title color of the selected option.
+  /// Title color of a selected option.
   final Color? selectedLabelColor;
 
   /// Description color of an enabled option.
@@ -175,21 +197,22 @@ class OrionDropdownStyle {
   /// Fill of the gliding highlight that follows the keyboard or pointer cursor.
   final Color? activeRowColor;
 
-  /// Corner radius of the gliding highlight.
+  /// Subtle background tint applied to selected option rows.
+  final Color? selectedRowColor;
+
+  /// Corner radius of row highlights.
   final BorderRadius? activeRowRadius;
 
   /// Color of the selected option's trailing check.
   final Color? checkColor;
 
-  /// Spring governing the unfold of the panel extent (a layout edge, so it is
-  /// clamped and never passes its target).
+  /// Spring governing popover entrance.
   final OrionSpringSpec? springSpec;
 
-  /// Spring governing the separation: the gap opening and the facing edges
-  /// rounding back out.
+  /// Legacy alias retained for style backwards-compatibility.
   final OrionSpringSpec? separationSpringSpec;
 
-  /// Spring governing the dismissal of both the separation and the extent.
+  /// Spring governing popover dismissal.
   final OrionSpringSpec? dismissSpringSpec;
 
   /// Spring governing the gliding highlight as the active option moves.
@@ -204,12 +227,13 @@ class OrionDropdownStyle {
   /// Spring governing row release on pointer up.
   final OrionSpringSpec? releaseSpring;
 
-  /// Tactile feedback for opening and for committing a changed value.
+  /// Tactile feedback for opening and committing a selection.
   final OrionHapticType? hapticType;
 
   /// Convenience factory creating a style with only named properties.
   factory OrionDropdownStyle.from({
     WidgetStateProperty<Color?>? fillColor,
+    Color? hoverFillColor,
     WidgetStateProperty<Color?>? borderColor,
     double? borderWidth,
     WidgetStateProperty<Color?>? textColor,
@@ -237,10 +261,12 @@ class OrionDropdownStyle {
     EdgeInsetsGeometry? rowPadding,
     TextStyle? rowTitleStyle,
     TextStyle? rowDescriptionStyle,
+    TextStyle? groupHeaderStyle,
     Color? labelColor,
     Color? selectedLabelColor,
     Color? descriptionColor,
     Color? activeRowColor,
+    Color? selectedRowColor,
     BorderRadius? activeRowRadius,
     Color? checkColor,
     OrionSpringSpec? springSpec,
@@ -254,6 +280,7 @@ class OrionDropdownStyle {
   }) {
     return OrionDropdownStyle(
       fillColor: fillColor,
+      hoverFillColor: hoverFillColor,
       borderColor: borderColor,
       borderWidth: borderWidth,
       textColor: textColor,
@@ -281,10 +308,12 @@ class OrionDropdownStyle {
       rowPadding: rowPadding,
       rowTitleStyle: rowTitleStyle,
       rowDescriptionStyle: rowDescriptionStyle,
+      groupHeaderStyle: groupHeaderStyle,
       labelColor: labelColor,
       selectedLabelColor: selectedLabelColor,
       descriptionColor: descriptionColor,
       activeRowColor: activeRowColor,
+      selectedRowColor: selectedRowColor,
       activeRowRadius: activeRowRadius,
       checkColor: checkColor,
       springSpec: springSpec,
@@ -301,6 +330,7 @@ class OrionDropdownStyle {
   /// Returns a copy with the provided fields replaced.
   OrionDropdownStyle copyWith({
     WidgetStateProperty<Color?>? fillColor,
+    Color? hoverFillColor,
     WidgetStateProperty<Color?>? borderColor,
     double? borderWidth,
     WidgetStateProperty<Color?>? textColor,
@@ -328,10 +358,12 @@ class OrionDropdownStyle {
     EdgeInsetsGeometry? rowPadding,
     TextStyle? rowTitleStyle,
     TextStyle? rowDescriptionStyle,
+    TextStyle? groupHeaderStyle,
     Color? labelColor,
     Color? selectedLabelColor,
     Color? descriptionColor,
     Color? activeRowColor,
+    Color? selectedRowColor,
     BorderRadius? activeRowRadius,
     Color? checkColor,
     OrionSpringSpec? springSpec,
@@ -345,6 +377,7 @@ class OrionDropdownStyle {
   }) {
     return OrionDropdownStyle(
       fillColor: fillColor ?? this.fillColor,
+      hoverFillColor: hoverFillColor ?? this.hoverFillColor,
       borderColor: borderColor ?? this.borderColor,
       borderWidth: borderWidth ?? this.borderWidth,
       textColor: textColor ?? this.textColor,
@@ -372,10 +405,12 @@ class OrionDropdownStyle {
       rowPadding: rowPadding ?? this.rowPadding,
       rowTitleStyle: rowTitleStyle ?? this.rowTitleStyle,
       rowDescriptionStyle: rowDescriptionStyle ?? this.rowDescriptionStyle,
+      groupHeaderStyle: groupHeaderStyle ?? this.groupHeaderStyle,
       labelColor: labelColor ?? this.labelColor,
       selectedLabelColor: selectedLabelColor ?? this.selectedLabelColor,
       descriptionColor: descriptionColor ?? this.descriptionColor,
       activeRowColor: activeRowColor ?? this.activeRowColor,
+      selectedRowColor: selectedRowColor ?? this.selectedRowColor,
       activeRowRadius: activeRowRadius ?? this.activeRowRadius,
       checkColor: checkColor ?? this.checkColor,
       springSpec: springSpec ?? this.springSpec,
@@ -389,11 +424,18 @@ class OrionDropdownStyle {
     );
   }
 
+  static TextStyle? _mergeTextStyle(TextStyle? base, TextStyle? override) {
+    if (base == null) return override;
+    if (override == null) return base;
+    return base.merge(override);
+  }
+
   /// Merges this style with [other], where [other]'s non-null fields win.
   OrionDropdownStyle merge(OrionDropdownStyle? other) {
     if (other == null) return this;
     return copyWith(
       fillColor: other.fillColor,
+      hoverFillColor: other.hoverFillColor,
       borderColor: other.borderColor,
       borderWidth: other.borderWidth,
       textColor: other.textColor,
@@ -403,9 +445,9 @@ class OrionDropdownStyle {
       radius: other.radius,
       labelGap: other.labelGap,
       captionGap: other.captionGap,
-      textStyle: other.textStyle,
-      labelStyle: other.labelStyle,
-      captionStyle: other.captionStyle,
+      textStyle: _mergeTextStyle(textStyle, other.textStyle),
+      labelStyle: _mergeTextStyle(labelStyle, other.labelStyle),
+      captionStyle: _mergeTextStyle(captionStyle, other.captionStyle),
       iconSize: other.iconSize,
       chevronColor: other.chevronColor,
       panelColor: other.panelColor,
@@ -419,12 +461,20 @@ class OrionDropdownStyle {
       panelMaxHeight: other.panelMaxHeight,
       rowMinHeight: other.rowMinHeight,
       rowPadding: other.rowPadding,
-      rowTitleStyle: other.rowTitleStyle,
-      rowDescriptionStyle: other.rowDescriptionStyle,
+      rowTitleStyle: _mergeTextStyle(rowTitleStyle, other.rowTitleStyle),
+      rowDescriptionStyle: _mergeTextStyle(
+        rowDescriptionStyle,
+        other.rowDescriptionStyle,
+      ),
+      groupHeaderStyle: _mergeTextStyle(
+        groupHeaderStyle,
+        other.groupHeaderStyle,
+      ),
       labelColor: other.labelColor,
       selectedLabelColor: other.selectedLabelColor,
       descriptionColor: other.descriptionColor,
       activeRowColor: other.activeRowColor,
+      selectedRowColor: other.selectedRowColor,
       activeRowRadius: other.activeRowRadius,
       checkColor: other.checkColor,
       springSpec: other.springSpec,
@@ -452,6 +502,7 @@ class OrionDropdownStyle {
     if (b == null) return a;
     return OrionDropdownStyle(
       fillColor: t < 0.5 ? a.fillColor : b.fillColor,
+      hoverFillColor: Color.lerp(a.hoverFillColor, b.hoverFillColor, t),
       borderColor: t < 0.5 ? a.borderColor : b.borderColor,
       borderWidth: lerpDouble(a.borderWidth, b.borderWidth, t),
       textColor: t < 0.5 ? a.textColor : b.textColor,
@@ -487,6 +538,11 @@ class OrionDropdownStyle {
         b.rowDescriptionStyle,
         t,
       ),
+      groupHeaderStyle: TextStyle.lerp(
+        a.groupHeaderStyle,
+        b.groupHeaderStyle,
+        t,
+      ),
       labelColor: Color.lerp(a.labelColor, b.labelColor, t),
       selectedLabelColor: Color.lerp(
         a.selectedLabelColor,
@@ -495,6 +551,7 @@ class OrionDropdownStyle {
       ),
       descriptionColor: Color.lerp(a.descriptionColor, b.descriptionColor, t),
       activeRowColor: Color.lerp(a.activeRowColor, b.activeRowColor, t),
+      selectedRowColor: Color.lerp(a.selectedRowColor, b.selectedRowColor, t),
       activeRowRadius: BorderRadius.lerp(
         a.activeRowRadius,
         b.activeRowRadius,
@@ -522,6 +579,7 @@ class OrionDropdownStyle {
       other is OrionDropdownStyle &&
           runtimeType == other.runtimeType &&
           fillColor == other.fillColor &&
+          hoverFillColor == other.hoverFillColor &&
           borderColor == other.borderColor &&
           borderWidth == other.borderWidth &&
           textColor == other.textColor &&
@@ -549,10 +607,12 @@ class OrionDropdownStyle {
           rowPadding == other.rowPadding &&
           rowTitleStyle == other.rowTitleStyle &&
           rowDescriptionStyle == other.rowDescriptionStyle &&
+          groupHeaderStyle == other.groupHeaderStyle &&
           labelColor == other.labelColor &&
           selectedLabelColor == other.selectedLabelColor &&
           descriptionColor == other.descriptionColor &&
           activeRowColor == other.activeRowColor &&
+          selectedRowColor == other.selectedRowColor &&
           activeRowRadius == other.activeRowRadius &&
           checkColor == other.checkColor &&
           springSpec == other.springSpec &&
@@ -565,8 +625,9 @@ class OrionDropdownStyle {
           hapticType == other.hapticType;
 
   @override
-  int get hashCode => Object.hashAll([
+  int get hashCode => Object.hashAll(<Object?>[
     fillColor,
+    hoverFillColor,
     borderColor,
     borderWidth,
     textColor,
@@ -594,10 +655,12 @@ class OrionDropdownStyle {
     rowPadding,
     rowTitleStyle,
     rowDescriptionStyle,
+    groupHeaderStyle,
     labelColor,
     selectedLabelColor,
     descriptionColor,
     activeRowColor,
+    selectedRowColor,
     activeRowRadius,
     checkColor,
     springSpec,

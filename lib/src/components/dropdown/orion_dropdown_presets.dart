@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import 'package:orion_ui/src/components/dropdown/orion_dropdown_style.dart';
-import 'package:orion_ui/src/core/orion_haptics.dart';
 import 'package:orion_ui/src/motion/orion_spring_spec.dart';
 import 'package:orion_ui/src/theme/orion_theme_data.dart';
 import 'package:orion_ui/src/theme/orion_tokens.dart';
@@ -9,39 +8,38 @@ import 'package:orion_ui/src/theme/orion_tokens.dart';
 /// The built-in look and motion for every [OrionDropdownVariant] and
 /// [OrionDropdownSize].
 ///
-/// This is the bottom layer of the dropdown's three-layer resolution. The face
-/// mirrors `OrionTextFieldPresets` value for value so the two controls align in
-/// one form; the panel mirrors the popover surface vocabulary; the springs
-/// follow the kit's choreography laws - the unfold moves a layout edge (clamped,
-/// no pass), the separation is a small underdamped pinch, and the dismissal is
-/// critically damped with zero rebound.
+/// The closed trigger mirrors `OrionTextFieldPresets` so dropdowns and text
+/// fields align seamlessly in forms, while the floating panel elevates onto
+/// `ColorScheme.surfaceContainer` with crisp `outlineVariant` borders in both
+/// light and dark themes.
 abstract final class OrionDropdownPresets {
-  /// Spring governing the panel extent unfolding from the field edge.
-  static const OrionSpringSpec unfoldSpring = OrionSpringSpec(
-    stiffness: 420.0,
-    dampingRatio: 0.85,
+  /// Default spring governing popover panel entrance.
+  static const OrionSpringSpec openSpring = OrionSpringSpec(
+    stiffness: 440.0,
+    dampingRatio: 0.88,
     clampOvershoot: true,
   );
 
-  /// Spring governing the gap opening and the facing edges rounding out.
+  /// Compatibility alias for [openSpring].
+  static const OrionSpringSpec unfoldSpring = openSpring;
+
+  /// Legacy compatibility spring.
   static const OrionSpringSpec separationSpring = OrionSpringSpec(
     stiffness: 460.0,
     dampingRatio: 0.70,
   );
 
-  /// Spring governing dismissal: both the re-attachment and the retraction run
-  /// on it, never passing their targets.
+  /// Critically damped spring governing dismissal with zero rebound.
   static const OrionSpringSpec dismissSpring = OrionSpringSpec(
-    stiffness: 380.0,
+    stiffness: 420.0,
     dampingRatio: 1.0,
     clampOvershoot: true,
   );
 
-  /// Spring governing the gliding highlight as the active option moves. The
-  /// highlight moves a visible edge, so it is clamped.
+  /// Spring governing the gliding highlight as the active option moves.
   static const OrionSpringSpec highlightSpring = OrionSpringSpec(
-    stiffness: 500.0,
-    dampingRatio: 0.85,
+    stiffness: 520.0,
+    dampingRatio: 0.88,
     clampOvershoot: true,
   );
 
@@ -59,7 +57,7 @@ abstract final class OrionDropdownPresets {
       TextStyle? text,
     ) = switch (size) {
       OrionDropdownSize.small => (
-        40,
+        40.0,
         OrionSpacing.space12,
         BorderRadius.circular(OrionRadii.radius8),
         textTheme.bodyMedium,
@@ -71,7 +69,7 @@ abstract final class OrionDropdownPresets {
         textTheme.bodyLarge,
       ),
       OrionDropdownSize.large => (
-        56,
+        56.0,
         OrionSpacing.space16,
         BorderRadius.circular(OrionRadii.radius12),
         textTheme.bodyLarge,
@@ -99,6 +97,7 @@ abstract final class OrionDropdownPresets {
                   : fill)
             : fill,
       ),
+      hoverFillColor: scheme.onSurface.withValues(alpha: 0.03),
       borderColor: WidgetStateProperty.resolveWith<Color?>((
         Set<WidgetState> states,
       ) {
@@ -112,7 +111,7 @@ abstract final class OrionDropdownPresets {
             ? scheme.primary
             : restingBorder;
       }),
-      borderWidth: 1,
+      borderWidth: 1.0,
       textColor: WidgetStateProperty.resolveWith<Color?>(
         (Set<WidgetState> states) => states.contains(WidgetState.disabled)
             ? disabledContent
@@ -133,47 +132,53 @@ abstract final class OrionDropdownPresets {
       textStyle: text,
       labelStyle: textTheme.labelMedium,
       captionStyle: textTheme.bodySmall,
-      iconSize: 18,
+      iconSize: 18.0,
       chevronColor: scheme.onSurfaceVariant,
-      panelColor: scheme.surface,
-      panelBorderColor: scheme.outlineVariant.withValues(alpha: 0.35),
-      panelBorderWidth: 1,
+      panelColor: scheme.surfaceContainer,
+      panelBorderColor: scheme.outlineVariant,
+      panelBorderWidth: 1.0,
       panelBorderRadius: BorderRadius.circular(OrionRadii.radius12),
       panelShadow: OrionThemeData.defaultShadow,
       panelPadding: const EdgeInsets.all(OrionSpacing.space8),
-      panelGap: 8,
-      panelMaxWidth: 320,
-      panelMaxHeight: 320,
-      rowMinHeight: 44,
+      panelGap: 6.0,
+      panelMaxWidth: null,
+      panelMaxHeight: 320.0,
+      rowMinHeight: 44.0,
       rowPadding: const EdgeInsets.symmetric(
         horizontal: OrionSpacing.space12,
         vertical: OrionSpacing.space8,
       ),
-      rowTitleStyle: const TextStyle(
-        fontSize: 14.0,
-        fontWeight: FontWeight.w500,
-      ),
-      rowDescriptionStyle: const TextStyle(
-        fontSize: 12.0,
-        fontWeight: FontWeight.w400,
-      ),
-      labelColor: scheme.onSurfaceVariant,
+      rowTitleStyle:
+          (textTheme.bodyMedium ?? const TextStyle(fontSize: 14.0)).copyWith(
+            fontWeight: FontWeight.w500,
+          ),
+      rowDescriptionStyle:
+          (textTheme.bodySmall ?? const TextStyle(fontSize: 12.0)).copyWith(
+            fontWeight: FontWeight.w400,
+          ),
+      groupHeaderStyle:
+          (textTheme.labelSmall ?? const TextStyle(fontSize: 11.0)).copyWith(
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.4,
+            color: scheme.onSurfaceVariant,
+          ),
+      labelColor: scheme.onSurface,
       selectedLabelColor: scheme.onSurface,
       descriptionColor: scheme.onSurfaceVariant,
       activeRowColor: scheme.onSurface.withValues(alpha: 0.06),
+      selectedRowColor: scheme.primary.withValues(alpha: 0.07),
       activeRowRadius: BorderRadius.circular(OrionRadii.radius8),
       checkColor: scheme.primary,
-      springSpec: unfoldSpring,
+      springSpec: openSpring,
       separationSpringSpec: separationSpring,
       dismissSpringSpec: dismissSpring,
       highlightSpringSpec: highlightSpring,
-      pressScale: 0.98,
-      pressSpring: const OrionSpringSpec(stiffness: 420.0, dampingRatio: 0.85),
+      pressScale: 0.99,
+      pressSpring: const OrionSpringSpec(stiffness: 460.0, dampingRatio: 0.88),
       releaseSpring: const OrionSpringSpec(
-        stiffness: 380.0,
-        dampingRatio: 0.85,
+        stiffness: 420.0,
+        dampingRatio: 0.88,
       ),
-      hapticType: OrionHapticType.selectionClick,
     );
   }
 }

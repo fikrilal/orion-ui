@@ -135,12 +135,30 @@ void main() {
       expect(find.text('Netherlands'), findsOneWidget);
     });
 
-    testWidgets('asserts when the value is not among the options', (
-      WidgetTester tester,
-    ) async {
-      await tester.pumpWidget(const _Host(initialValue: 'zz'));
-      expect(tester.takeException(), isAssertionError);
-    });
+    testWidgets(
+      'handles an async/unknown value gracefully without asserting',
+      (WidgetTester tester) async {
+        await tester.pumpWidget(const _Host(initialValue: 'zz'));
+        expect(tester.takeException(), isNull);
+        expect(find.text('Pick one'), findsOneWidget);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: Center(
+                child: OrionDropdown<String>(
+                  options: _options,
+                  value: 'zz',
+                  unknownValueLabel: (String v) => 'Loading ($v)',
+                ),
+              ),
+            ),
+          ),
+        );
+        expect(find.text('Loading (zz)'), findsOneWidget);
+      },
+    );
 
     testWidgets(
       'opens anchored below the field with rounded borders preserved',
@@ -161,7 +179,7 @@ void main() {
 
         await tester.pumpAndSettle();
         final Rect separated = state.panelRect!;
-        expect((separated.top - (triggerRect.bottom + 8)).abs(), lessThan(0.5));
+        expect((separated.top - (triggerRect.bottom + 6)).abs(), lessThan(0.5));
         expect(state.openDriver.value, closeTo(1.0, 0.001));
 
         // The trigger field maintains its clean rounded borders at all times
@@ -194,7 +212,7 @@ void main() {
 
       final Rect panelRect = _state(tester).panelRect!;
       expect(panelRect.bottom, lessThanOrEqualTo(triggerRect.top + 0.5));
-      expect((triggerRect.top - panelRect.bottom - 8).abs(), lessThan(1.0));
+      expect((triggerRect.top - panelRect.bottom - 6).abs(), lessThan(1.0));
     });
 
     testWidgets('commits the selection once and closes', (
@@ -319,10 +337,9 @@ void main() {
       expect(state.activeIndex, 0);
 
       await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowDown);
-      await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyRepeatEvent(LogicalKeyboardKey.arrowDown);
       await tester.pump();
       expect(state.activeIndex, 3, reason: '0 -> 1 -> 3, skipping disabled');
-      await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowDown);
       await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowDown);
     });
 
@@ -375,7 +392,7 @@ void main() {
       final OrionDropdownState<String> state = _state(tester);
       expect(state.openDriver.value, 1.0);
       final Rect panelRect = state.panelRect!;
-      expect((panelRect.top - (triggerRect.bottom + 8)).abs(), lessThan(1.0));
+      expect((panelRect.top - (triggerRect.bottom + 6)).abs(), lessThan(1.0));
 
       await tester.tapAt(const Offset(5, 5));
       await tester.pump();
@@ -761,7 +778,7 @@ void main() {
       },
     );
 
-    testWidgets('a searchable face shows a search icon', (
+    testWidgets('a searchable dropdown shows a search icon and in-panel field', (
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(const _Host());
@@ -771,7 +788,7 @@ void main() {
       expect(find.byIcon(Icons.search_rounded), findsOneWidget);
 
       await _open(tester);
-      expect(find.byIcon(Icons.search_rounded), findsOneWidget);
+      expect(find.byKey(orionDropdownSearchFieldKey), findsOneWidget);
       expect(find.byType(TextField), findsOneWidget);
     });
 
@@ -893,10 +910,13 @@ void main() {
         await tester.pump();
         expect(_state(tester).activeIndex, 3);
 
-        await tester.enterText(find.byType(TextField), 'ger');
+        await tester.enterText(find.byKey(orionDropdownSearchFieldKey), 'ger');
         await tester.pump();
         expect(find.text('Spain'), findsNothing);
-        expect(find.text('Netherlands'), findsNothing);
+        // Trigger retains the current selected label ('Netherlands') while the
+        // panel list itself filters down to only 'Germany'.
+        expect(find.text('Netherlands'), findsOneWidget);
+        expect(find.text('Germany'), findsOneWidget);
         expect(_state(tester).activeIndex, 1);
 
         await tester.sendKeyEvent(LogicalKeyboardKey.enter);
@@ -969,13 +989,11 @@ void main() {
         await tester.pumpAndSettle();
         expect(state.isOpen, isTrue);
         expect(state.activeIndex, 3);
-        expect(state.triggerFocusNode.hasFocus, isTrue);
 
         await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowDown);
-        await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowDown);
+        await tester.sendKeyRepeatEvent(LogicalKeyboardKey.arrowDown);
         await tester.pump();
         expect(state.activeIndex, 1, reason: 'Spain -> Netherlands -> Germany');
-        await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowDown);
         await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowDown);
 
         await tester.sendKeyEvent(LogicalKeyboardKey.escape);
@@ -985,11 +1003,24 @@ void main() {
       },
     );
 
-    testWidgets('space types into the query', (WidgetTester tester) async {
+    testWidgets('space types into the query when search field is focused', (
+      WidgetTester tester,
+    ) async {
       final List<String> changes = <String>[];
       await tester.pumpWidget(_Host(searchable: true, onChanged: changes.add));
       await _open(tester);
       expect(_state(tester).activeIndex, 0);
+
+      // Opening by tap does not auto-focus the search TextField by default
+      // (avoids popping the soft keyboard on mobile before the user taps Search).
+      final TextField searchField = tester.widget<TextField>(
+        find.byKey(orionDropdownSearchFieldKey),
+      );
+      expect(searchField.focusNode!.hasFocus, isFalse);
+
+      await tester.tap(find.byKey(orionDropdownSearchFieldKey));
+      await tester.pump();
+      expect(searchField.focusNode!.hasFocus, isTrue);
 
       // The hardware key must not commit. A widget test has no IME, so the
       // character arrives through the text input connection.
@@ -1055,5 +1086,433 @@ void main() {
       expect(lerped.pressScale, closeTo(0.675, 0.001));
       expect(lerped.springSpec, OrionDropdownPresets.unfoldSpring);
     });
+  });
+
+  group('OrionDropdown Rework Capabilities', () {
+    testWidgets('panel matches full trigger width beyond 320 pt by default', (
+      WidgetTester tester,
+    ) async {
+      await _setViewport(tester, const Size(440, 700));
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 380,
+                child: OrionDropdown<String>(
+                  options: _options,
+                  placeholder: 'Wide dropdown',
+                  onChanged: (_) {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Wide dropdown'));
+      await tester.pumpAndSettle();
+
+      final Rect panel = _state(tester).panelRect!;
+      expect(panel.width, closeTo(380.0, 0.5));
+    });
+
+    testWidgets(
+      'clearable single-select clears from inside the open menu without a trigger X',
+      (WidgetTester tester) async {
+        String? value = 'nl';
+        bool cleared = false;
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: StatefulBuilder(
+                builder: (BuildContext context, StateSetter setState) {
+                  return Center(
+                    child: SizedBox(
+                      width: 300,
+                      child: OrionDropdown<String>(
+                        options: _options,
+                        value: value,
+                        placeholder: 'Choose',
+                        clearable: true,
+                        onChanged: (String v) => setState(() => value = v),
+                        onCleared: () {
+                          cleared = true;
+                          setState(() => value = null);
+                        },
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+
+        // No clear button on the closed trigger (prevents accidental clears).
+        expect(find.byKey(orionDropdownClearButtonKey), findsNothing);
+        expect(find.byIcon(Icons.close_rounded), findsNothing);
+
+        // Open menu -> Clear selection button appears inside the panel footer.
+        await tester.tap(find.text('Netherlands'));
+        await tester.pumpAndSettle();
+        expect(find.byKey(orionDropdownClearButtonKey), findsOneWidget);
+
+        await tester.tap(find.byKey(orionDropdownClearButtonKey));
+        await tester.pumpAndSettle();
+
+        expect(cleared, isTrue);
+        expect(value, isNull);
+        expect(_state(tester).isOpen, isFalse);
+        expect(find.text('Choose'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'OrionDropdown.multi toggles multiple options, shows tags + overflow, and clears in menu',
+      (WidgetTester tester) async {
+        await _setViewport(tester, const Size(400, 700));
+        Set<String> selected = <String>{'nl'};
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: StatefulBuilder(
+                builder: (BuildContext context, StateSetter setState) {
+                  return Center(
+                    child: SizedBox(
+                      width: 320,
+                      child: OrionDropdown<String>.multi(
+                        options: _options,
+                        values: selected,
+                        placeholder: 'Pick countries',
+                        clearable: true,
+                        maxVisibleTags: 2,
+                        onValuesChanged: (Set<String> next) =>
+                            setState(() => selected = next),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+
+        // No clear X on closed trigger or inline tags.
+        expect(find.byIcon(Icons.close_rounded), findsNothing);
+
+        await tester.tap(find.text('Netherlands'));
+        await tester.pumpAndSettle();
+        expect(_state(tester).isOpen, isTrue);
+
+        // Selecting Germany and Spain keeps the panel open.
+        await tester.tap(find.text('Germany'));
+        await tester.pump();
+        await tester.tap(find.text('Spain'));
+        await tester.pump();
+
+        expect(_state(tester).isOpen, isTrue);
+        expect(selected, <String>{'nl', 'de', 'es'});
+        expect(find.text('3 selected'), findsOneWidget);
+        expect(find.text('+1'), findsOneWidget);
+
+        // Clear button inside footer clears all values while staying open.
+        await tester.tap(find.byKey(orionDropdownMultiClearKey));
+        await tester.pump();
+        expect(selected, isEmpty);
+        expect(find.text('0 selected'), findsOneWidget);
+
+        // Done button closes the panel.
+        await tester.tap(find.byKey(orionDropdownMultiDoneKey));
+        await tester.pumpAndSettle();
+        expect(_state(tester).isOpen, isFalse);
+        expect(find.text('Pick countries'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'bottom sheet presentation opens OrionBottomSheet, filters, and commits',
+      (WidgetTester tester) async {
+        await _setViewport(tester, const Size(400, 800));
+        String? selected;
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: StatefulBuilder(
+                builder: (BuildContext context, StateSetter setState) {
+                  return Center(
+                    child: SizedBox(
+                      width: 320,
+                      child: OrionDropdown<String>(
+                        options: _options,
+                        value: selected,
+                        label: 'Country',
+                        placeholder: 'Pick in sheet',
+                        searchable: true,
+                        presentation: OrionDropdownPresentation.sheet,
+                        onChanged: (String v) => setState(() => selected = v),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.text('Pick in sheet'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(OrionBottomSheet), findsOneWidget);
+        expect(find.byKey(orionDropdownSearchFieldKey), findsOneWidget);
+
+        await tester.enterText(find.byKey(orionDropdownSearchFieldKey), 'spa');
+        await tester.pump();
+        expect(find.text('Spain'), findsOneWidget);
+        expect(find.text('Germany'), findsNothing);
+
+        await tester.tap(find.text('Spain'));
+        await tester.pumpAndSettle();
+
+        expect(selected, 'es');
+        expect(find.byType(OrionBottomSheet), findsNothing);
+        expect(find.text('Spain'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'renders group headers, matches searchTerms aliases, and hides empty groups',
+      (WidgetTester tester) async {
+        const List<OrionDropdownOption<String>> grouped =
+            <OrionDropdownOption<String>>[
+              OrionDropdownOption<String>(
+                value: 'us',
+                label: 'United States',
+                group: 'Americas',
+                searchTerms: <String>['USA', 'America'],
+              ),
+              OrionDropdownOption<String>(
+                value: 'jp',
+                label: 'Japan',
+                group: 'Asia',
+                searchTerms: <String>['Nippon'],
+              ),
+            ];
+
+        await tester.pumpWidget(
+          const _Host(searchable: true, options: grouped),
+        );
+        await _open(tester);
+
+        expect(find.text('Americas'), findsOneWidget);
+        expect(find.text('Asia'), findsOneWidget);
+
+        await tester.enterText(find.byKey(orionDropdownSearchFieldKey), 'usa');
+        await tester.pump();
+        expect(find.text('United States'), findsOneWidget);
+        expect(find.text('Americas'), findsOneWidget);
+        expect(find.text('Japan'), findsNothing);
+        expect(find.text('Asia'), findsNothing);
+
+        // Clear search button restores all groups.
+        await tester.tap(find.byKey(orionDropdownSearchClearKey));
+        await tester.pump();
+        expect(find.text('Japan'), findsOneWidget);
+        expect(find.text('Asia'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'keeps searchable popover above soft keyboard viewInsets and omits border when width <= 0',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(400, 700);
+        tester.view.devicePixelRatio = 1.0;
+        tester.view.viewInsets = const FakeViewPadding(bottom: 300.0);
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+          tester.view.resetViewInsets();
+        });
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: Align(
+                alignment: const Alignment(0, 0.1),
+                child: SizedBox(
+                  width: 300,
+                  child: OrionDropdown<String>(
+                    options: _options,
+                    searchable: true,
+                    placeholder: 'Search above keyboard',
+                    style: OrionDropdownStyle.from(
+                      borderWidth: 0,
+                      panelBorderWidth: 0,
+                    ),
+                    onChanged: (_) {},
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.text('Search above keyboard'));
+        await tester.pumpAndSettle();
+
+        final Rect panel = _state(tester).panelRect!;
+        // Panel must stay above the 300pt keyboard (700 - 300 = 400).
+        expect(panel.bottom, lessThanOrEqualTo(400.0));
+
+        // Zero-width borders are omitted completely (no 1-px hairline).
+        final DecoratedBox triggerBox = tester.widget<DecoratedBox>(
+          find
+              .descendant(
+                of: find.byType(OrionDropdown<String>),
+                matching: find.byType(DecoratedBox),
+              )
+              .first,
+        );
+        expect((triggerBox.decoration as BoxDecoration).border, isNull);
+      },
+    );
+
+    testWidgets(
+      'presets elevate dark panel to surfaceContainer and render crisp onSurface row labels',
+      (WidgetTester tester) async {
+        final OrionDropdownStyle dark = OrionDropdownPresets.resolve(
+          variant: OrionDropdownVariant.outline,
+          size: OrionDropdownSize.medium,
+          scheme: OrionColors.darkScheme,
+          textTheme: OrionTheme.dark().textTheme,
+        );
+        expect(dark.panelColor, OrionColors.darkScheme.surfaceContainer);
+        expect(dark.panelBorderColor, OrionColors.darkScheme.outlineVariant);
+        expect(dark.labelColor, OrionColors.darkScheme.onSurface);
+        expect(dark.panelMaxWidth, isNull);
+      },
+    );
+
+    testWidgets('autofocusSearch: true focuses search field on tap open', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 300,
+                child: OrionDropdown<String>(
+                  options: _options,
+                  placeholder: 'Autofocus search',
+                  searchable: true,
+                  autofocusSearch: true,
+                  onChanged: (_) {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Autofocus search'));
+      await tester.pumpAndSettle();
+
+      final TextField searchField = tester.widget<TextField>(
+        find.byKey(orionDropdownSearchFieldKey),
+      );
+      expect(searchField.focusNode!.hasFocus, isTrue);
+    });
+
+    testWidgets(
+      'searchable multi-select sheet scrolls immediately on first swipe so last item clears footer',
+      (WidgetTester tester) async {
+        await _setViewport(tester, const Size(360, 560));
+        final List<OrionDropdownOption<int>> manyOptions =
+            List<OrionDropdownOption<int>>.generate(
+              12,
+              (int i) => OrionDropdownOption<int>(
+                value: i,
+                label: 'Option $i',
+                description: 'Detail for option $i',
+              ),
+            );
+        Set<int> selected = <int>{};
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: StatefulBuilder(
+                builder: (BuildContext context, StateSetter setState) {
+                  return Center(
+                    child: SizedBox(
+                      width: 300,
+                      child: OrionDropdown<int>.multi(
+                        options: manyOptions,
+                        values: selected,
+                        placeholder: 'Pick items',
+                        searchable: true,
+                        presentation: OrionDropdownPresentation.sheet,
+                        onValuesChanged: (Set<int> next) =>
+                            setState(() => selected = next),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.text('Pick items'));
+        await tester.pumpAndSettle();
+
+        // Drag upward inside the sheet list to reach the final option.
+        await tester.drag(find.text('Option 2'), const Offset(0, -500));
+        await tester.pumpAndSettle();
+
+        final double lastBottom = tester
+            .getBottomLeft(find.text('Detail for option 11'))
+            .dy;
+        final double doneTop = tester
+            .getTopLeft(find.byKey(orionDropdownMultiDoneKey))
+            .dy;
+        expect(lastBottom, lessThan(doneTop));
+
+        await tester.tap(find.text('Option 11'));
+        await tester.pumpAndSettle();
+        expect(selected, contains(11));
+      },
+    );
+
+    testWidgets(
+      'can be re-opened immediately while closing without cooldown',
+      (WidgetTester tester) async {
+        await _setViewport(tester, const Size(400, 700));
+        await tester.pumpWidget(const _Host());
+        await _open(tester);
+
+        // Select an option to start closing the popover.
+        await tester.tap(find.text('Germany'));
+        await tester.pump(const Duration(milliseconds: 50));
+
+        // Re-tap trigger immediately mid-close: barrier must not block it.
+        await tester.tap(find.text('Germany').first);
+        await tester.pumpAndSettle();
+
+        expect(_state(tester).isOpen, isTrue);
+        expect(find.text('Netherlands'), findsOneWidget);
+      },
+    );
   });
 }

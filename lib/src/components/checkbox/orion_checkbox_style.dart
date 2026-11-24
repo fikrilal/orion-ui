@@ -25,6 +25,7 @@ class OrionCheckboxStyle {
     this.markSize,
     this.barWidth,
     this.barHeight,
+    this.pressedScale,
     this.focusOverlayColor,
     this.spring,
   });
@@ -59,12 +60,15 @@ class OrionCheckboxStyle {
   /// Indeterminate bar thickness.
   final double? barHeight;
 
+  /// Target scale while the checkbox is held down (default 0.90 for a crisp
+  /// micro-tactile dip on the compact box).
+  final double? pressedScale;
+
   /// The focus overlay painted under the box. Focus is a translucent
   /// affordance on the surface, not a second border.
   final Color? focusOverlayColor;
 
-  /// Spring the state travel rides. The trip is the whole 0 to 1 change, so
-  /// the spec is the gentler travel spring rather than a press release.
+  /// Spring the state travel rides.
   final OrionSpringSpec? spring;
 
   /// Returns a copy with the provided fields replaced.
@@ -78,6 +82,7 @@ class OrionCheckboxStyle {
     double? markSize,
     double? barWidth,
     double? barHeight,
+    double? pressedScale,
     Color? focusOverlayColor,
     OrionSpringSpec? spring,
   }) {
@@ -91,6 +96,7 @@ class OrionCheckboxStyle {
       markSize: markSize ?? this.markSize,
       barWidth: barWidth ?? this.barWidth,
       barHeight: barHeight ?? this.barHeight,
+      pressedScale: pressedScale ?? this.pressedScale,
       focusOverlayColor: focusOverlayColor ?? this.focusOverlayColor,
       spring: spring ?? this.spring,
     );
@@ -111,6 +117,7 @@ class OrionCheckboxStyle {
       markSize: other.markSize ?? markSize,
       barWidth: other.barWidth ?? barWidth,
       barHeight: other.barHeight ?? barHeight,
+      pressedScale: other.pressedScale ?? pressedScale,
       focusOverlayColor: other.focusOverlayColor ?? focusOverlayColor,
       spring: other.spring ?? spring,
     );
@@ -133,6 +140,7 @@ class OrionCheckboxStyle {
     double? markSize,
     double? barWidth,
     double? barHeight,
+    double? pressedScale,
     Color? focusOverlayColor,
     OrionSpringSpec? spring,
   }) {
@@ -156,6 +164,7 @@ class OrionCheckboxStyle {
       markSize: markSize,
       barWidth: barWidth,
       barHeight: barHeight,
+      pressedScale: pressedScale,
       focusOverlayColor: focusOverlayColor,
       spring: spring,
     );
@@ -176,6 +185,7 @@ class OrionCheckboxStyle {
         other.markSize == markSize &&
         other.barWidth == barWidth &&
         other.barHeight == barHeight &&
+        other.pressedScale == pressedScale &&
         other.focusOverlayColor == focusOverlayColor &&
         other.spring == spring;
   }
@@ -191,6 +201,7 @@ class OrionCheckboxStyle {
     markSize,
     barWidth,
     barHeight,
+    pressedScale,
     focusOverlayColor,
     spring,
   ]);

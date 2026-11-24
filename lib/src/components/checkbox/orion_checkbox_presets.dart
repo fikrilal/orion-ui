@@ -12,6 +12,12 @@ import 'package:orion_ui/src/theme/orion_tokens.dart';
 /// geometry, the medium size reproduces the shipped 24 pt box exactly, and
 /// the state travel keeps the kit's gentle spring.
 abstract final class OrionCheckboxPresets {
+  /// Default crisp spring for checkbox state transitions.
+  static const OrionSpringSpec defaultSpring = OrionSpringSpec(
+    stiffness: 520.0,
+    dampingRatio: 0.80,
+  );
+
   /// Resolves the built-in style against the ambient scheme.
   static OrionCheckboxStyle resolve({
     required OrionCheckboxSize size,
@@ -31,13 +37,13 @@ abstract final class OrionCheckboxPresets {
       ),
       OrionCheckboxSize.medium => (
         OrionSizing.iconMedium,
-        BorderRadius.circular(OrionRadii.radius4),
+        BorderRadius.circular(OrionRadii.radius6),
         OrionSizing.iconSmall,
         OrionSpacing.space12,
       ),
       OrionCheckboxSize.large => (
         28,
-        BorderRadius.circular(OrionRadii.radius6),
+        BorderRadius.circular(OrionRadii.radius8),
         18,
         OrionSpacing.space16,
       ),
@@ -86,12 +92,13 @@ abstract final class OrionCheckboxPresets {
       }),
       size: box,
       radius: radius,
-      borderWidth: 2,
+      borderWidth: 1.75,
       markSize: mark,
       barWidth: bar,
       barHeight: 2,
+      pressedScale: 0.90,
       focusOverlayColor: scheme.onSurface.withValues(alpha: 0.12),
-      spring: OrionSpringSpec.gentle,
+      spring: defaultSpring,
     );
   }
 }

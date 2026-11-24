@@ -96,7 +96,7 @@ void main() {
       expect(_boxDecoration(tester).color, OrionColors.lightScheme.primary);
       expect(_boxBorder(tester).color, OrionColors.lightScheme.primary);
       expect(_markScale(tester), 1);
-      expect(find.byIcon(Icons.check), findsOneWidget);
+      expect(find.byKey(orionCheckboxCheckMarkKey), findsOneWidget);
     });
 
     testWidgets('draws a bar instead of a check when indeterminate', (
@@ -111,7 +111,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.byIcon(Icons.check), findsNothing);
+      expect(find.byKey(orionCheckboxCheckMarkKey), findsNothing);
       expect(tester.getSize(find.byType(DecoratedBox).last), const Size(12, 2));
       expect(_boxDecoration(tester).color, OrionColors.lightScheme.primary);
 
@@ -185,10 +185,7 @@ void main() {
       final Color muted = scheme.onSurface.withValues(alpha: 0.12);
       expect(_boxDecoration(tester).color, muted);
       expect(_boxBorder(tester).color, muted);
-      expect(
-        tester.widget<Icon>(find.byIcon(Icons.check)).color,
-        scheme.onSurface.withValues(alpha: 0.38),
-      );
+      expect(find.byKey(orionCheckboxCheckMarkKey), findsOneWidget);
     });
 
     testWidgets('flips from the keyboard', (tester) async {
@@ -400,7 +397,7 @@ void main() {
     ) async {
       await _pumpCheckbox(tester, value: true, onChanged: (_) {});
       await tester.pumpAndSettle();
-      expect(find.byIcon(Icons.check), findsOneWidget);
+      expect(find.byKey(orionCheckboxCheckMarkKey), findsOneWidget);
 
       // Checked and indeterminate share the travel's filled end, so the spring
       // has nothing to move; the glyph swap is its own transition.
@@ -413,7 +410,7 @@ void main() {
       );
 
       await tester.pumpAndSettle();
-      expect(find.byIcon(Icons.check), findsNothing);
+      expect(find.byKey(orionCheckboxCheckMarkKey), findsNothing);
       expect(tester.getSize(find.byType(DecoratedBox).last), const Size(12, 2));
     });
 
@@ -437,7 +434,7 @@ void main() {
       await tester.pump();
 
       expect(tester.hasRunningAnimations, isFalse);
-      expect(find.byIcon(Icons.check), findsNothing);
+      expect(find.byKey(orionCheckboxCheckMarkKey), findsNothing);
     });
 
     testWidgets('steps the box, radius, mark and bar with the size', (
@@ -458,7 +455,7 @@ void main() {
       );
       expect(
         (_boxDecoration(tester).borderRadius! as BorderRadius).topLeft,
-        const Radius.circular(6),
+        const Radius.circular(8),
       );
       expect(tester.getSize(find.byType(DecoratedBox).last), const Size(16, 2));
 
@@ -475,7 +472,10 @@ void main() {
         tester.getSize(find.byType(DecoratedBox).first),
         const Size(20, 20),
       );
-      expect(tester.widget<Icon>(find.byIcon(Icons.check)).size, 12);
+      expect(
+        tester.getSize(find.byKey(orionCheckboxCheckMarkKey)),
+        const Size(12, 12),
+      );
       expect(
         tester.getSize(find.byType(OrionCheckbox)),
         const Size(OrionSizing.minHitTarget, OrionSizing.minHitTarget),
@@ -563,10 +563,7 @@ void main() {
 
       expect(_boxDecoration(tester).color, scheme.error);
       expect(_boxBorder(tester).color, scheme.error);
-      expect(
-        tester.widget<Icon>(find.byIcon(Icons.check)).color,
-        scheme.onError,
-      );
+      expect(find.byKey(orionCheckboxCheckMarkKey), findsOneWidget);
     });
 
     testWidgets('resolves through the theme and the instance style', (
@@ -743,6 +740,42 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(reported, isNull);
     });
+
+    testWidgets('renders clickable label and subtitle row and toggles on label tap', (
+      tester,
+    ) async {
+      bool? reported;
+      final SemanticsHandle handle = tester.ensureSemantics();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: Scaffold(
+            body: Center(
+              child: OrionCheckbox(
+                value: false,
+                label: 'Accept terms',
+                subtitle: 'Required to create an account',
+                onChanged: (bool? v) => reported = v,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Accept terms'), findsOneWidget);
+      expect(find.text('Required to create an account'), findsOneWidget);
+
+      await tester.tap(find.text('Accept terms'));
+      await tester.pump();
+      expect(reported, isTrue);
+
+      final SemanticsNode node = tester.getSemantics(
+        find.byType(OrionCheckbox),
+      );
+      expect(node.label, 'Accept terms');
+      handle.dispose();
+    });
   });
 
   group('OrionCheckboxStyle', () {
@@ -769,10 +802,12 @@ void main() {
       );
 
       expect(style.size, OrionSizing.iconMedium);
-      expect(style.borderWidth, 2);
+      expect(style.borderWidth, 1.75);
       expect(style.markSize, OrionSizing.iconSmall);
       expect(style.barWidth, OrionSpacing.space12);
-      expect(style.spring, OrionSpringSpec.gentle);
+      expect(style.pressedScale, 0.90);
+      expect(style.radius, BorderRadius.circular(OrionRadii.radius6));
+      expect(style.spring, OrionCheckboxPresets.defaultSpring);
       expect(
         style.borderColor?.resolve(const <WidgetState>{}),
         OrionColors.lightScheme.outline,

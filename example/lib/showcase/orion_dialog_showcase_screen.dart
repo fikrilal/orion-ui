@@ -12,9 +12,9 @@ class OrionDialogShowcaseScreen extends StatefulWidget {
       _OrionDialogShowcaseScreenState();
 }
 
-enum _DialogTypeChoice { confirmation, destructive, info }
+enum _DialogTypeChoice { confirmation, destructive, info, input }
 
-enum _DialogSkinChoice { standard, frosted, bordered }
+enum _DialogSkinChoice { standard, frosted, bordered, borderless }
 
 class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
   _DialogTypeChoice _dialogType = _DialogTypeChoice.confirmation;
@@ -22,6 +22,8 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
   OrionDialogActionLayout _layout = OrionDialogActionLayout.auto;
   bool _frosted = false;
   bool _barrierDismissible = true;
+  bool _centerContent = true;
+  bool _showCloseButton = false;
 
   String _lastActionResult = 'None';
 
@@ -33,6 +35,7 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
         borderWidth: 2.0,
         borderColor: scheme.primary,
       ),
+      _DialogSkinChoice.borderless => OrionDialogStyle.from(borderWidth: 0.0),
     };
     return base.copyWith(
       frosted: _frosted || _skin == _DialogSkinChoice.frosted,
@@ -47,15 +50,22 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
     ];
     if (_frosted || _skin == _DialogSkinChoice.frosted) {
       lines.add('  style: OrionDialogStyle.from(frosted: true),');
+    } else if (_skin == _DialogSkinChoice.borderless) {
+      lines.add('  style: OrionDialogStyle.from(borderWidth: 0),');
     }
     lines.addAll(<String>[
-      '  builder: (context) => OrionDialog(',
-      '    title: "Confirm Action",',
-      '    description: "Are you sure you want to proceed?",',
+      '  builder: (dialogContext) => OrionDialog(',
+      "    title: 'Confirm Action',",
+      "    description: 'Are you sure you want to proceed?',",
+      if (!_centerContent) '    centerContent: false,',
+      if (_showCloseButton) '    showCloseButton: true,',
       '    actionLayout: OrionDialogActionLayout.${_layout.name},',
       '    actions: [',
-      '      OrionDialogAction.cancel(onPressed: () => Navigator.pop(context, false)),',
-      '      OrionDialogAction.primary(label: "Confirm", onPressed: () => Navigator.pop(context, true)),',
+      '      OrionDialogAction.cancel(),',
+      '      OrionDialogAction.primary(',
+      "        label: 'Confirm',",
+      '        onPressed: () => OrionDialog.dismissOf(dialogContext, true),',
+      '      ),',
       '    ],',
       '  ),',
       ');',
@@ -64,13 +74,19 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
   }
 
   void _launchPlaygroundDialog(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final style = _resolveSkinStyle(scheme);
+    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final OrionDialogStyle? style = _resolveSkinStyle(scheme);
+
+    if (_dialogType == _DialogTypeChoice.input) {
+      _launchInputDialog(context, style: style);
+      return;
+    }
 
     final String title = switch (_dialogType) {
       _DialogTypeChoice.confirmation => 'Publish Changes?',
       _DialogTypeChoice.destructive => 'Delete Workspace?',
       _DialogTypeChoice.info => 'Sync Complete',
+      _DialogTypeChoice.input => '',
     };
 
     final String message = switch (_dialogType) {
@@ -80,6 +96,7 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
         'This permanently deletes all repositories, files, and memberships. This cannot be undone.',
       _DialogTypeChoice.info =>
         'All offline files have been reconciled with cloud storage.',
+      _DialogTypeChoice.input => '',
     };
 
     final Widget icon = switch (_dialogType) {
@@ -98,50 +115,106 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
         size: 36,
         color: scheme.primary,
       ),
+      _DialogTypeChoice.input => const SizedBox.shrink(),
     };
 
-    final List<OrionDialogAction> actions = switch (_dialogType) {
-      _DialogTypeChoice.confirmation => [
-        OrionDialogAction.cancel(
-          onPressed: () => Navigator.of(context).maybePop('Cancelled'),
-        ),
-        OrionDialogAction.primary(
-          label: 'Publish Now',
-          onPressed: () => Navigator.of(context).maybePop('Published'),
-        ),
-      ],
-      _DialogTypeChoice.destructive => [
-        OrionDialogAction.cancel(
-          onPressed: () => Navigator.of(context).maybePop('Cancelled'),
-        ),
-        OrionDialogAction.destructive(
-          label: 'Delete Workspace',
-          onPressed: () => Navigator.of(context).maybePop('Deleted'),
-        ),
-      ],
-      _DialogTypeChoice.info => [
-        OrionDialogAction.primary(
-          label: 'Got It',
-          onPressed: () => Navigator.of(context).maybePop('Acknowledged'),
-        ),
-      ],
-    };
-
+    // Pass `style` ONLY to `showOrionDialog` to demonstrate automatic
+    // style propagation to the descendant `OrionDialog`.
     showOrionDialog<String>(
       context: context,
       style: style,
       barrierDismissible: _barrierDismissible,
-      builder: (dialogContext) => OrionDialog(
-        icon: icon,
-        title: title,
-        description: message,
-        style: style,
-        actionLayout: _layout,
-        actions: actions,
-      ),
-    ).then((result) {
+      builder: (BuildContext dialogContext) {
+        final List<OrionDialogAction> actions = switch (_dialogType) {
+          _DialogTypeChoice.confirmation => <OrionDialogAction>[
+            OrionDialogAction.cancel(
+              onPressed: () =>
+                  OrionDialog.dismissOf<String>(dialogContext, 'Cancelled'),
+            ),
+            OrionDialogAction.primary(
+              label: 'Publish Now',
+              onPressed: () =>
+                  OrionDialog.dismissOf<String>(dialogContext, 'Published'),
+            ),
+          ],
+          _DialogTypeChoice.destructive => <OrionDialogAction>[
+            OrionDialogAction.cancel(
+              onPressed: () =>
+                  OrionDialog.dismissOf<String>(dialogContext, 'Cancelled'),
+            ),
+            OrionDialogAction.destructive(
+              label: 'Delete Workspace',
+              onPressed: () =>
+                  OrionDialog.dismissOf<String>(dialogContext, 'Deleted'),
+            ),
+          ],
+          _DialogTypeChoice.info => <OrionDialogAction>[
+            OrionDialogAction.primary(
+              label: 'Got It',
+              onPressed: () =>
+                  OrionDialog.dismissOf<String>(dialogContext, 'Acknowledged'),
+            ),
+          ],
+          _DialogTypeChoice.input => const <OrionDialogAction>[],
+        };
+
+        return OrionDialog(
+          icon: icon,
+          title: title,
+          description: message,
+          centerContent: _centerContent,
+          showCloseButton: _showCloseButton,
+          actionLayout: _layout,
+          actions: actions,
+        );
+      },
+    ).then((String? result) {
       if (mounted) {
-        setState(() => _lastActionResult = result ?? 'Dismissed (outside tap)');
+        setState(
+          () => _lastActionResult = result ?? 'Dismissed (outside / close)',
+        );
+      }
+    });
+  }
+
+  void _launchInputDialog(BuildContext context, {OrionDialogStyle? style}) {
+    final TextEditingController controller = TextEditingController(
+      text: 'orion-ui',
+    );
+    showOrionDialog<String>(
+      context: context,
+      style: style,
+      barrierDismissible: _barrierDismissible,
+      builder: (BuildContext dialogContext) {
+        return OrionDialog(
+          title: 'Rename Project',
+          description:
+              'Enter a new repository name. The dialog lifts cleanly above the keyboard.',
+          centerContent: false,
+          showCloseButton: true,
+          actionLayout: _layout,
+          content: OrionTextField(
+            controller: controller,
+            label: 'Project name',
+            hint: 'my-project',
+            autofocus: true,
+          ),
+          actions: <OrionDialogAction>[
+            OrionDialogAction.cancel(),
+            OrionDialogAction.primary(
+              label: 'Save Name',
+              onPressed: () => OrionDialog.dismissOf<String>(
+                dialogContext,
+                'Renamed to "${controller.text.trim()}"',
+              ),
+            ),
+          ],
+        );
+      },
+    ).then((String? result) {
+      controller.dispose();
+      if (mounted) {
+        setState(() => _lastActionResult = result ?? 'Cancelled rename');
       }
     });
   }
@@ -154,8 +227,9 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
           'This modal surface demonstrates true Gaussian acrylic frosted glass over high-contrast content.',
       confirmLabel: 'Looks Great',
       cancelLabel: 'Close',
+      showCloseButton: true,
       style: OrionDialogStyle.from(frosted: true),
-    ).then((result) {
+    ).then((bool result) {
       if (mounted) {
         setState(
           () => _lastActionResult = result ? 'Confirmed Frosted' : 'Cancelled',
@@ -166,22 +240,22 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme scheme = theme.colorScheme;
+    final bool isDark = theme.brightness == Brightness.dark;
 
     return OrionThemedScaffold(
       title: 'Orion Dialog & Alerts',
-      builder: (context) {
+      builder: (BuildContext context) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+          children: <Widget>[
             // Top Category Header
             Padding(
               padding: const EdgeInsets.only(bottom: OrionSpacing.space20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+                children: <Widget>[
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: OrionSpacing.space8,
@@ -211,7 +285,7 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
                   ),
                   const SizedBox(height: OrionSpacing.space8),
                   Text(
-                    'Physics-driven centered modal surfaces, confirmations, and alerts with micro-scale spring kinematics and isolated frosted acrylic glass.',
+                    'Physics-driven centered modal surfaces with crisp spring kinematics, keyboard lift, safe scrolling, automatic vertical CTA ordering, and frosted acrylic glass.',
                     style: TextStyle(
                       fontSize: 13,
                       height: 1.45,
@@ -226,13 +300,13 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
             OrionShowcaseSection(
               title: 'Interactive Playground',
               subtitle:
-                  'Configure parameters below and launch the modal to test spring entrance and exit physics',
+                  'Configure parameters below and launch the modal to test spring entrance, exit, and keyboard lift',
               card: true,
               child: OrionShowcasePanel(
                 key: const ValueKey<String>('showcase-panel-playground'),
                 preview: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                  children: <Widget>[
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(
@@ -240,9 +314,7 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
                         vertical: OrionSpacing.space24,
                       ),
                       decoration: BoxDecoration(
-                        color: isDark
-                            ? scheme.surfaceContainerLowest
-                            : scheme.surfaceContainerLowest,
+                        color: scheme.surfaceContainerLowest,
                         borderRadius: BorderRadius.circular(OrionRadii.radius12),
                         border: Border.all(
                           color: isDark
@@ -251,7 +323,7 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
                         ),
                       ),
                       child: Column(
-                        children: [
+                        children: <Widget>[
                           Center(
                             child: OrionButton(
                               variant: OrionButtonVariant.solid,
@@ -261,12 +333,12 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
                                 Icons.open_in_browser_rounded,
                                 size: 18,
                               ),
-                              child: const Text('Launch Dialog Modal'),
+                              label: 'Launch Dialog Modal',
                             ),
                           ),
                           const SizedBox(height: OrionSpacing.space12),
                           Text(
-                            'Spring micro-scale 0.94 → 1.0 with 6 pt upward glide',
+                            'Spring micro-scale 0.94 -> 1.0 with 6 pt upward glide',
                             style: TextStyle(
                               fontSize: 11.5,
                               color: scheme.onSurfaceVariant.withValues(
@@ -284,8 +356,9 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
                       label: 'Dialog type',
                       values: _DialogTypeChoice.values,
                       selected: _dialogType,
-                      labelOf: (t) => t.name,
-                      onChanged: (t) => setState(() => _dialogType = t),
+                      labelOf: (_DialogTypeChoice t) => t.name,
+                      onChanged: (_DialogTypeChoice t) =>
+                          setState(() => _dialogType = t),
                     ),
                     const SizedBox(height: OrionSpacing.space16),
 
@@ -293,8 +366,9 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
                       label: 'Action layout',
                       values: OrionDialogActionLayout.values,
                       selected: _layout,
-                      labelOf: (l) => l.name,
-                      onChanged: (l) => setState(() => _layout = l),
+                      labelOf: (OrionDialogActionLayout l) => l.name,
+                      onChanged: (OrionDialogActionLayout l) =>
+                          setState(() => _layout = l),
                     ),
                     const SizedBox(height: OrionSpacing.space16),
 
@@ -302,8 +376,8 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
                       label: 'Skin',
                       values: _DialogSkinChoice.values,
                       selected: _skin,
-                      labelOf: (s) => s.name,
-                      onChanged: (s) => setState(() {
+                      labelOf: (_DialogSkinChoice s) => s.name,
+                      onChanged: (_DialogSkinChoice s) => setState(() {
                         _skin = s;
                         _frosted = s == _DialogSkinChoice.frosted;
                       }),
@@ -311,12 +385,35 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
                     const SizedBox(height: OrionSpacing.space16),
 
                     Row(
-                      children: [
+                      children: <Widget>[
+                        Expanded(
+                          child: OrionShowcaseToggle(
+                            label: 'Center content',
+                            value: _centerContent,
+                            onChanged: (bool val) =>
+                                setState(() => _centerContent = val),
+                          ),
+                        ),
+                        const SizedBox(width: OrionSpacing.space16),
+                        Expanded(
+                          child: OrionShowcaseToggle(
+                            label: 'Close button',
+                            value: _showCloseButton,
+                            onChanged: (bool val) =>
+                                setState(() => _showCloseButton = val),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: OrionSpacing.space12),
+
+                    Row(
+                      children: <Widget>[
                         Expanded(
                           child: OrionShowcaseToggle(
                             label: 'Frosted blur',
                             value: _frosted,
-                            onChanged: (val) => setState(() {
+                            onChanged: (bool val) => setState(() {
                               _frosted = val;
                               if (val) {
                                 _skin = _DialogSkinChoice.frosted;
@@ -331,7 +428,7 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
                           child: OrionShowcaseToggle(
                             label: 'Tap-outside dismiss',
                             value: _barrierDismissible,
-                            onChanged: (val) =>
+                            onChanged: (bool val) =>
                                 setState(() => _barrierDismissible = val),
                           ),
                         ),
@@ -368,16 +465,19 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(OrionRadii.radius12),
                   gradient: LinearGradient(
-                    colors: [scheme.primaryContainer, scheme.tertiaryContainer],
+                    colors: <Color>[
+                      scheme.primaryContainer,
+                      scheme.tertiaryContainer,
+                    ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                  children: <Widget>[
                     Row(
-                      children: [
+                      children: <Widget>[
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
@@ -423,7 +523,7 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
                         size: OrionButtonSize.medium,
                         onPressed: () => _launchFrostedDialog(context),
                         leading: const Icon(Icons.blur_on_rounded, size: 18),
-                        child: const Text('Open Frosted Dialog'),
+                        label: 'Open Frosted Dialog',
                       ),
                     ),
                   ],
@@ -436,13 +536,13 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
             OrionShowcaseSection(
               title: 'Turnkey Helper Functions',
               subtitle:
-                  'One-liner helpers for common confirmation and alert workflows',
+                  'One-liner helpers for confirmation, destructive, alert, and guarded flows',
               card: true,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+                children: <Widget>[
                   Text(
-                    'High-level functions resolve typed results without boilerplate:',
+                    'High-level functions resolve typed results with spring dismissal:',
                     style: TextStyle(
                       fontSize: 13,
                       color: scheme.onSurfaceVariant,
@@ -452,7 +552,7 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
                   Wrap(
                     spacing: OrionSpacing.space12,
                     runSpacing: OrionSpacing.space12,
-                    children: [
+                    children: <Widget>[
                       OrionButton(
                         variant: OrionButtonVariant.bordered,
                         onPressed: () {
@@ -463,7 +563,7 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
                                 'Any unsaved changes will be permanently discarded.',
                             confirmLabel: 'Discard',
                             cancelLabel: 'Keep Editing',
-                          ).then((ok) {
+                          ).then((bool ok) {
                             if (mounted) {
                               setState(
                                 () => _lastActionResult = ok
@@ -477,7 +577,7 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
                           Icons.help_outline_rounded,
                           size: 18,
                         ),
-                        child: const Text('Confirm Helper'),
+                        label: 'Confirm Helper',
                       ),
                       OrionButton(
                         variant: OrionButtonVariant.solid,
@@ -499,7 +599,7 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
                               size: 32,
                               color: scheme.error,
                             ),
-                          ).then((ok) {
+                          ).then((bool ok) {
                             if (mounted) {
                               setState(
                                 () => _lastActionResult = ok
@@ -513,7 +613,7 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
                           Icons.delete_outline_rounded,
                           size: 18,
                         ),
-                        child: const Text('Destructive Helper'),
+                        label: 'Destructive Helper',
                       ),
                       OrionButton(
                         variant: OrionButtonVariant.flat,
@@ -536,7 +636,28 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
                           Icons.info_outline_rounded,
                           size: 18,
                         ),
-                        child: const Text('Alert Helper'),
+                        label: 'Alert Helper',
+                      ),
+                      OrionButton(
+                        variant: OrionButtonVariant.bordered,
+                        onPressed: () {
+                          showOrionAlertDialog(
+                            context: context,
+                            title: 'Required Update',
+                            message:
+                                'Outside taps and system Back are blocked until you explicitly acknowledge.',
+                            actionLabel: 'Acknowledge',
+                            barrierDismissible: false,
+                          ).then((_) {
+                            if (mounted) {
+                              setState(
+                                () => _lastActionResult = 'Guarded Acknowledged',
+                              );
+                            }
+                          });
+                        },
+                        leading: const Icon(Icons.lock_outline_rounded, size: 18),
+                        label: 'Guarded Alert',
                       ),
                     ],
                   ),

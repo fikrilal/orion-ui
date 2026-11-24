@@ -6,9 +6,9 @@ import 'package:orion_ui/orion_ui.dart';
 /// Playground for [OrionNavigationBar].
 ///
 /// The Visible and Disabled flags in the top controls card drive every sample;
-/// the sections below hold the destination matrix, the page-change sample and
-/// the customization skin, and the playground last selects a destination and
-/// generates the call behind the Code tab.
+/// the sections below hold the destination matrix, the page-change sample,
+/// 5-tab dense stress layouts, customization skins (including frosted and
+/// docked), and the playground with live code generation.
 class OrionNavigationShowcaseScreen extends StatefulWidget {
   const OrionNavigationShowcaseScreen({super.key});
 
@@ -18,7 +18,7 @@ class OrionNavigationShowcaseScreen extends StatefulWidget {
 }
 
 /// The instance-level skins the customization section demonstrates.
-enum _BarSkin { standard, filled, dense, icons, expanding }
+enum _BarSkin { standard, frosted, filled, docked, dense, icons, expanding }
 
 class _OrionNavigationShowcaseScreenState
     extends State<OrionNavigationShowcaseScreen>
@@ -27,17 +27,53 @@ class _OrionNavigationShowcaseScreenState
       <OrionNavigationDestination>[
         OrionNavigationDestination(
           icon: Icon(Icons.chat_bubble_outline),
+          selectedIcon: Icon(Icons.chat_bubble),
           label: 'Chats',
-          badge: Text('12'),
+          badgeCount: 12,
+          semanticLabel: 'Chats, 12 unread',
         ),
         OrionNavigationDestination(
           icon: Icon(Icons.people_outline),
+          selectedIcon: Icon(Icons.people),
           label: 'Contacts',
-          badge: Text('!'),
+          badgeDot: true,
         ),
         OrionNavigationDestination(
           icon: Icon(Icons.settings_outlined),
+          selectedIcon: Icon(Icons.settings),
           label: 'Settings',
+        ),
+      ];
+
+  static const List<OrionNavigationDestination> _fiveDestinations =
+      <OrionNavigationDestination>[
+        OrionNavigationDestination(
+          icon: Icon(Icons.home_outlined),
+          selectedIcon: Icon(Icons.home),
+          label: 'Home',
+        ),
+        OrionNavigationDestination(
+          icon: Icon(Icons.search_outlined),
+          selectedIcon: Icon(Icons.search),
+          label: 'Search',
+        ),
+        OrionNavigationDestination(
+          icon: Icon(Icons.inbox_outlined),
+          selectedIcon: Icon(Icons.inbox),
+          label: 'Inbox',
+          badgeCount: 128,
+        ),
+        OrionNavigationDestination(
+          icon: Icon(Icons.lock_outline),
+          selectedIcon: Icon(Icons.lock),
+          label: 'Pro',
+          enabled: false,
+        ),
+        OrionNavigationDestination(
+          icon: Icon(Icons.person_outline),
+          selectedIcon: Icon(Icons.person),
+          label: 'Profile',
+          badgeDot: true,
         ),
       ];
 
@@ -53,6 +89,9 @@ class _OrionNavigationShowcaseScreenState
 
   // Customization: the focused skin choice.
   _BarSkin _skin = _BarSkin.standard;
+
+  // 5-tab sample selection.
+  int _fiveIndex = 0;
 
   // Live sample: the bar follows the pager's selection and drag.
   int _index = 0;
@@ -118,16 +157,16 @@ class _OrionNavigationShowcaseScreenState
     );
   }
 
+  OrionNavigationBarVariant get _skinVariant => _skin == _BarSkin.docked
+      ? OrionNavigationBarVariant.docked
+      : OrionNavigationBarVariant.floating;
+
   OrionNavigationBarStyle? _skinStyle(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
     return switch (_skin) {
       _BarSkin.standard => null,
+      _BarSkin.frosted => OrionNavigationBarStyle.from(frosted: true),
       _BarSkin.filled => OrionNavigationBarStyle(
-        // The palette is neutral and sets no tertiary, so a legible retune
-        // inverts: a solid primary pill with the selected destination in
-        // onPrimary. A role the scheme does not tune is nearly invisible.
-        // The pill mutes with the bar when disabled, like the default; an
-        // All property would keep painting a full-strength pill there.
         selectionColor: WidgetStateProperty.resolveWith<Color?>(
           (Set<WidgetState> states) => states.contains(WidgetState.disabled)
               ? scheme.onSurface.withValues(alpha: 0.04)
@@ -143,7 +182,20 @@ class _OrionNavigationShowcaseScreenState
               ? scheme.onPrimary
               : scheme.onSurfaceVariant;
         }),
+        badge: OrionNavigationBadgeStyle(
+          fill: WidgetStateProperty.resolveWith<Color?>(
+            (Set<WidgetState> states) => states.contains(WidgetState.selected)
+                ? scheme.onPrimary
+                : scheme.primary,
+          ),
+          ink: WidgetStateProperty.resolveWith<Color?>(
+            (Set<WidgetState> states) => states.contains(WidgetState.selected)
+                ? scheme.primary
+                : scheme.onPrimary,
+          ),
+        ),
       ),
+      _BarSkin.docked => null,
       _BarSkin.dense => OrionNavigationBarStyle.from(
         maxWidth: 280,
         minHeight: 52,
@@ -160,19 +212,27 @@ class _OrionNavigationShowcaseScreenState
 
   String _skinLabel(_BarSkin skin) => switch (skin) {
     _BarSkin.standard => 'Standard',
+    _BarSkin.frosted => 'Frosted',
     _BarSkin.filled => 'Filled',
+    _BarSkin.docked => 'Docked',
     _BarSkin.dense => 'Dense',
     _BarSkin.icons => 'Icons',
     _BarSkin.expanding => 'Expanding',
   };
 
   /// One bar under the shared flags.
-  OrionNavigationBar _sampleBar({OrionNavigationBarStyle? style}) {
+  OrionNavigationBar _sampleBar({
+    OrionNavigationBarStyle? style,
+    OrionNavigationBarVariant variant = OrionNavigationBarVariant.floating,
+    bool? useSafeArea,
+  }) {
     return OrionNavigationBar(
       destinations: _destinations,
       selectedIndex: _index,
       dragPosition: _drag,
       visible: _visible,
+      variant: variant,
+      useSafeArea: useSafeArea,
       style: style,
       onChanged: _disabled ? null : _goTo,
     );
@@ -185,6 +245,23 @@ class _OrionNavigationShowcaseScreenState
       '  destinations: _destinations,',
       '  selectedIndex: $_index, // ${_destinations[_index].label}',
     ];
+    if (_skin == _BarSkin.docked) {
+      lines.add('  variant: OrionNavigationBarVariant.docked,');
+    } else if (_skin == _BarSkin.frosted) {
+      lines.add('  style: OrionNavigationBarStyle.from(frosted: true),');
+    } else if (_skin == _BarSkin.icons) {
+      lines.add(
+        '  style: OrionNavigationBarStyle.from(labelMode: OrionNavigationLabelMode.none),',
+      );
+    } else if (_skin == _BarSkin.expanding) {
+      lines.add(
+        '  style: OrionNavigationBarStyle.from(labelMode: OrionNavigationLabelMode.selected),',
+      );
+    } else if (_skin == _BarSkin.dense) {
+      lines.add(
+        '  style: OrionNavigationBarStyle.from(maxWidth: 280, minHeight: 52, iconSize: 18),',
+      );
+    }
     if (!_visible) {
       lines.add('  visible: false,');
     }
@@ -199,8 +276,9 @@ class _OrionNavigationShowcaseScreenState
 
   Widget _page(BuildContext context, int index) {
     final ThemeData theme = Theme.of(context);
+    final ColorScheme scheme = theme.colorScheme;
     return ColoredBox(
-      color: theme.colorScheme.surface,
+      color: scheme.surface,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
           OrionSpacing.space24,
@@ -214,14 +292,35 @@ class _OrionNavigationShowcaseScreenState
             IconTheme.merge(
               data: IconThemeData(
                 size: OrionSizing.iconLarge,
-                color: theme.colorScheme.onSurfaceVariant,
+                color: scheme.onSurfaceVariant,
               ),
-              child: _destinations[index].icon,
+              child: _destinations[index].selectedIcon ??
+                  _destinations[index].icon,
             ),
             const SizedBox(height: OrionSpacing.space12),
             Text(
               _destinations[index].label,
               style: theme.textTheme.headlineSmall,
+            ),
+            const SizedBox(height: OrionSpacing.space16),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: <Widget>[
+                  for (var row = 0; row < 3; row++)
+                    Container(
+                      margin: const EdgeInsets.only(top: OrionSpacing.space8),
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: scheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(
+                          OrionRadii.radius12,
+                        ),
+                        border: Border.all(color: scheme.outlineVariant),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ],
         ),
@@ -265,7 +364,7 @@ class _OrionNavigationShowcaseScreenState
                       ),
                     ),
                     child: Text(
-                      'SURFACE CAPSULE • TRAVEL SPRING',
+                      'SURFACE CAPSULE • DOCKED • TRAVEL SPRING',
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
@@ -276,7 +375,7 @@ class _OrionNavigationShowcaseScreenState
                   ),
                   const SizedBox(height: OrionSpacing.space8),
                   Text(
-                    'Floating navigation capsule with sliding selection pill, top-right cut-out badges, label modes (all/none/selected), and pager drag tracking.',
+                    'Floating or docked navigation bar with sliding pill, selectedIcon cross-fade, count/dot badges, frosted glass, and pager drag tracking.',
                     style: TextStyle(
                       fontSize: 13.5,
                       height: 1.4,
@@ -316,20 +415,40 @@ class _OrionNavigationShowcaseScreenState
             OrionShowcaseSection(
               title: 'Destinations',
               subtitle:
-                  'Floating surface capsule with active destination travel pill and badges',
+                  'Floating capsule with selectedIcon cross-fade, tabular badgeCount, and compact badgeDot',
               card: true,
               child: _sampleBar(),
             ),
             const SizedBox(height: OrionSpacing.space20),
 
+            // 5-Tab Expanding + Disabled Item Card
+            OrionShowcaseSection(
+              title: '5 Destinations & Disabled Tab',
+              subtitle:
+                  'Adaptive expanding layout with 99+ cap, status dot, and per-destination enabled: false',
+              card: true,
+              child: OrionNavigationBar(
+                destinations: _fiveDestinations,
+                selectedIndex: _fiveIndex,
+                visible: _visible,
+                style: OrionNavigationBarStyle.from(
+                  labelMode: OrionNavigationLabelMode.selected,
+                ),
+                onChanged: _disabled
+                    ? null
+                    : (int index) => setState(() => _fiveIndex = index),
+              ),
+            ),
+            const SizedBox(height: OrionSpacing.space20),
+
             // Page change Card
             OrionShowcaseSection(
-              title: 'Page change',
+              title: 'Page change & Frosted glass',
               subtitle:
-                  'Live PageView integration tracking fractional dragPosition and jumping',
+                  'Live PageView tracking fractional dragPosition with translucent BackdropFilter capsule',
               card: true,
               child: SizedBox(
-                height: 480,
+                height: 380,
                 child: LayoutBuilder(
                   builder: (BuildContext context, BoxConstraints constraints) {
                     final double width = constraints.maxWidth;
@@ -393,7 +512,11 @@ class _OrionNavigationShowcaseScreenState
                               OrionSpacing.space24,
                               OrionSpacing.space16,
                             ),
-                            child: _sampleBar(),
+                            child: _sampleBar(
+                              style: OrionNavigationBarStyle.from(
+                                frosted: true,
+                              ),
+                            ),
                           ),
                         ),
                       ],
@@ -408,7 +531,7 @@ class _OrionNavigationShowcaseScreenState
             OrionShowcaseSection(
               title: 'Customization',
               subtitle:
-                  'Three-layer style contract: Presets -> OrionNavigationTheme -> Instance OrionNavigationBarStyle',
+                  'Floating & docked variants, frosted glass, inverted badges, and label modes',
               card: true,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -421,7 +544,11 @@ class _OrionNavigationShowcaseScreenState
                     onChanged: (value) => setState(() => _skin = value),
                   ),
                   const SizedBox(height: OrionSpacing.space24),
-                  _sampleBar(style: _skinStyle(context)),
+                  _sampleBar(
+                    variant: _skinVariant,
+                    useSafeArea: false,
+                    style: _skinStyle(context),
+                  ),
                 ],
               ),
             ),
@@ -433,7 +560,11 @@ class _OrionNavigationShowcaseScreenState
               subtitle: 'Interactive bar specimen with live code generator',
               child: OrionShowcasePanel(
                 key: const ValueKey<String>('showcase-panel-playground'),
-                preview: _sampleBar(),
+                preview: _sampleBar(
+                  variant: _skinVariant,
+                  useSafeArea: false,
+                  style: _skinStyle(context),
+                ),
                 code: _snippet,
               ),
             ),

@@ -47,13 +47,17 @@ class _OrionCheckboxShowcaseScreenState
   /// one, and `Disabled` takes the tap away.
   OrionCheckbox _sample({
     required bool? value,
-    required String semanticLabel,
+    String? label,
+    String? subtitle,
+    String? semanticLabel,
     required ValueChanged<bool?> onChanged,
     OrionCheckboxSize size = OrionCheckboxSize.medium,
     OrionCheckboxStyle? style,
   }) {
     return OrionCheckbox(
       value: _indeterminate ? null : value,
+      label: label,
+      subtitle: subtitle,
       semanticLabel: semanticLabel,
       error: _error,
       size: size,
@@ -198,16 +202,14 @@ class _OrionCheckboxShowcaseScreenState
             OrionShowcaseSection(
               title: 'Confirm',
               subtitle:
-                  'Binary boolean confirmation with tactile travel feedback',
+                  'Built-in clickable label and subtitle row with stroke-drawn check animation',
               card: true,
-              child: _CheckboxRow(
+              child: _sample(
+                value: _remember,
                 label: _rememberLabel,
-                child: _sample(
-                  value: _remember,
-                  semanticLabel: _rememberLabel,
-                  onChanged: (bool? value) =>
-                      setState(() => _remember = value ?? false),
-                ),
+                subtitle: 'Keep me signed in on this device for 30 days',
+                onChanged: (bool? value) =>
+                    setState(() => _remember = value ?? false),
               ),
             ),
             const SizedBox(height: OrionSpacing.space20),
@@ -248,22 +250,16 @@ class _OrionCheckboxShowcaseScreenState
               subtitle:
                   'Indeterminate middle state cross-fading smoothly to checked or unchecked',
               card: true,
-              child: _CheckboxRow(
+              child: _sample(
+                value: _selectAll,
                 label: _selectAllLabel,
-                child: _sample(
-                  value: _selectAll,
-                  semanticLabel: _selectAllLabel,
-                  // The gallery cycles in the host's order - unchecked, then
-                  // checked, then indeterminate - so the order matches what a
-                  // Material tristate box does and every look stays reachable.
-                  onChanged: (bool? _) => setState(() {
-                    _selectAll = switch (_selectAll) {
-                      null => false,
-                      false => true,
-                      true => null,
-                    };
-                  }),
-                ),
+                onChanged: (bool? _) => setState(() {
+                  _selectAll = switch (_selectAll) {
+                    null => false,
+                    false => true,
+                    true => null,
+                  };
+                }),
               ),
             ),
             const SizedBox(height: OrionSpacing.space20),
@@ -315,7 +311,7 @@ class _OrionCheckboxShowcaseScreenState
                     preview: Center(
                       child: _sample(
                         value: _playground,
-                        semanticLabel: _rememberLabel,
+                        label: _rememberLabel,
                         size: _size,
                         onChanged: (bool? value) =>
                             setState(() => _playground = value ?? false),
@@ -329,31 +325,6 @@ class _OrionCheckboxShowcaseScreenState
           ],
         );
       },
-    );
-  }
-}
-
-/// The box owns no label, so the page composes the row the way a screen would.
-///
-/// The box carries the spoken name, so the visible label stays out of the
-/// semantics tree and is not announced twice.
-class _CheckboxRow extends StatelessWidget {
-  const _CheckboxRow({required this.label, required this.child});
-
-  final String label;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        child,
-        const SizedBox(width: OrionSpacing.space4),
-        ExcludeSemantics(
-          child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
-        ),
-      ],
     );
   }
 }

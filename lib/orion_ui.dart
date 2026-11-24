@@ -83,6 +83,7 @@ export 'src/components/swipe/orion_swipe_scope.dart';
 export 'src/components/swipe/orion_swipe_style.dart';
 export 'src/components/swipe/orion_swipe_theme.dart';
 export 'src/components/switch/orion_switch.dart';
+export 'src/components/switch/orion_switch_presets.dart';
 export 'src/components/switch/orion_switch_style.dart';
 export 'src/components/switch/orion_switch_theme.dart';
 export 'src/components/tabs/orion_tab.dart';

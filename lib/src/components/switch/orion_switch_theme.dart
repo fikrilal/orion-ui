@@ -7,9 +7,9 @@ import 'package:orion_ui/src/components/switch/orion_switch_style.dart';
 /// Installed through the theme's extension list - typically
 /// `OrionTheme.apply(base, extensions: [OrionSwitchTheme(...)])` - so a
 /// project re-skins its switches in one place. The effective style resolves
-/// the built-in defaults, then [defaultStyle], then the instance style passed
+/// `OrionSwitchPresets`, then [defaultStyle], then the instance style passed
 /// to the widget; when no extension is registered the switch falls back to
-/// [fallback] and behaves exactly as it does without this class.
+/// [fallback].
 @immutable
 class OrionSwitchTheme extends ThemeExtension<OrionSwitchTheme> {
   const OrionSwitchTheme({this.defaultStyle});
@@ -26,14 +26,14 @@ class OrionSwitchTheme extends ThemeExtension<OrionSwitchTheme> {
     return OrionSwitchTheme(defaultStyle: defaultStyle ?? this.defaultStyle);
   }
 
-  /// Styles are discrete specs, not interpolable numbers; the theme animation
-  /// swaps at the midpoint, the same way the kit's springs do.
   @override
   OrionSwitchTheme lerp(ThemeExtension<OrionSwitchTheme>? other, double t) {
     if (other is! OrionSwitchTheme) {
       return this;
     }
-    return t < 0.5 ? this : other;
+    return OrionSwitchTheme(
+      defaultStyle: OrionSwitchStyle.lerp(defaultStyle, other.defaultStyle, t),
+    );
   }
 
   @override

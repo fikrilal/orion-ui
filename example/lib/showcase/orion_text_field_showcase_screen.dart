@@ -1,14 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:orion_ui/orion_ui.dart';
 import 'package:orion_ui_example/showcase/orion_showcase_kit.dart';
 import 'package:orion_ui_example/showcase/orion_showcase_scaffold.dart';
-import 'package:orion_ui/orion_ui.dart';
 
-/// Playground for [OrionTextField].
-///
-/// The `Disabled`, `Error` and `Obscured` flags in the top controls card drive
-/// every sample; the sections below are the reference matrices - faces, sizes,
-/// types, content - and the playground last drives one field through its axes
-/// with the generated call behind the Code tab.
+/// Playground and verification showcase for [OrionTextField].
 class OrionTextFieldShowcaseScreen extends StatefulWidget {
   const OrionTextFieldShowcaseScreen({super.key});
 
@@ -17,75 +12,47 @@ class OrionTextFieldShowcaseScreen extends StatefulWidget {
       _OrionTextFieldShowcaseScreenState();
 }
 
-/// The instance-level skins the customization section demonstrates.
-enum _FieldSkin { standard, accent, square }
-
 class _OrionTextFieldShowcaseScreenState
     extends State<OrionTextFieldShowcaseScreen> {
-  // Flags: shared by every sample on the page.
-  bool _disabled = false;
-  bool _error = false;
-  bool _obscured = false;
-
-  // Customization: the focused skin choice.
-  _FieldSkin _skin = _FieldSkin.standard;
-
-  // Playground: the focused specimen's axes.
+  // Playground state
+  final TextEditingController _playgroundController = TextEditingController();
   OrionTextFieldVariant _variant = OrionTextFieldVariant.outline;
   OrionTextFieldSize _size = OrionTextFieldSize.medium;
   OrionTextFieldType _type = OrionTextFieldType.text;
+  bool _clearable = true;
+  bool _required = false;
+  bool _error = false;
+  bool _disabled = false;
 
-  /// One sample under the shared flags.
-  OrionTextField _sample({
-    required String label,
-    required String hint,
-    String? error,
-    OrionTextFieldVariant? variant,
-    OrionTextFieldSize? size,
-    OrionTextFieldType type = OrionTextFieldType.text,
-    Widget? prefix,
-    Widget? suffix,
-    int? maxLength,
-    bool reserveCaption = false,
-    bool readOnly = false,
-  }) {
-    return OrionTextField(
-      label: label,
-      hint: hint,
-      variant: variant ?? _variant,
-      size: size ?? _size,
-      type: type,
-      enabled: !_disabled,
-      error: _error ? error : null,
-      obscureText: _obscured || type == OrionTextFieldType.password,
-      prefix: prefix,
-      suffix: suffix,
-      maxLength: maxLength,
-      reserveCaption: reserveCaption,
-      readOnly: readOnly,
-      onChanged: _disabled ? null : (String _) {},
-    );
+  // Live form demo state
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final TextEditingController _formEmailController = TextEditingController();
+  final TextEditingController _formAmountController = TextEditingController();
+  final TextEditingController _formBioController = TextEditingController();
+  String _formStatus = 'Fill out the form or tap Prefill to test sync.';
+
+  // Patterns demo state
+  final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _pickerController = TextEditingController(
+    text: 'Pro Workspace',
+  );
+  int _pickerIndex = 0;
+  static const List<String> _workspaces = <String>[
+    'Pro Workspace',
+    'Design Systems',
+    'Mobile Core',
+  ];
+
+  @override
+  void dispose() {
+    _playgroundController.dispose();
+    _formEmailController.dispose();
+    _formAmountController.dispose();
+    _formBioController.dispose();
+    _searchController.dispose();
+    _pickerController.dispose();
+    super.dispose();
   }
-
-  OrionTextFieldStyle? _skinStyle(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
-    return switch (_skin) {
-      _FieldSkin.standard => null,
-      _FieldSkin.accent => OrionTextFieldStyle.from(
-        borderColor: scheme.primary,
-      ),
-      _FieldSkin.square => OrionTextFieldStyle.from(
-        radius: BorderRadius.zero,
-        borderWidth: 2,
-      ),
-    };
-  }
-
-  String _skinLabel(_FieldSkin skin) => switch (skin) {
-    _FieldSkin.standard => 'Standard',
-    _FieldSkin.accent => 'Accent',
-    _FieldSkin.square => 'Square',
-  };
 
   String _variantLabel(OrionTextFieldVariant variant) => switch (variant) {
     OrionTextFieldVariant.outline => 'Outline',
@@ -110,52 +77,67 @@ class _OrionTextFieldShowcaseScreenState
     OrionTextFieldType.search => 'Search',
   };
 
-  /// The exact call the current controls produce.
+  String _hintForType(OrionTextFieldType type) => switch (type) {
+    OrionTextFieldType.text => 'Ada Lovelace',
+    OrionTextFieldType.email => 'ada@orion.dev',
+    OrionTextFieldType.password => 'Enter your password',
+    OrionTextFieldType.number => '42',
+    OrionTextFieldType.phone => '+1 (555) 234-5678',
+    OrionTextFieldType.url => 'https://orion.dev',
+    OrionTextFieldType.multiline => 'Write a short release note...',
+    OrionTextFieldType.search => 'Search components...',
+  };
+
+  Widget? _prefixForType(OrionTextFieldType type) => switch (type) {
+    OrionTextFieldType.email => const Icon(Icons.mail_outline_rounded),
+    OrionTextFieldType.password => const Icon(Icons.lock_outline_rounded),
+    OrionTextFieldType.phone => const Icon(Icons.phone_outlined),
+    OrionTextFieldType.url => const Icon(Icons.link_rounded),
+    OrionTextFieldType.search => const Icon(Icons.search_rounded),
+    _ => null,
+  };
+
   String get _snippet {
     final List<String> lines = <String>[
       'OrionTextField(',
-      "  label: 'Name',",
-      "  hint: 'Ada Lovelace',",
+      "  label: '${_typeLabel(_type)}',",
+      "  hint: '${_hintForType(_type)}',",
+      if (_variant != OrionTextFieldVariant.outline)
+        '  variant: OrionTextFieldVariant.${_variant.name},',
+      if (_size != OrionTextFieldSize.medium)
+        '  size: OrionTextFieldSize.${_size.name},',
+      if (_type != OrionTextFieldType.text)
+        '  type: OrionTextFieldType.${_type.name},',
+      if (_clearable && _type != OrionTextFieldType.search)
+        '  showClearButton: true,',
+      if (!_clearable && _type == OrionTextFieldType.search)
+        '  showClearButton: false,',
+      if (_required) '  required: true,',
+      if (_disabled) '  enabled: false,',
+      if (_error) "  error: 'Please enter a valid value',",
+      ');',
     ];
-    if (_variant != OrionTextFieldVariant.outline) {
-      lines.add('  variant: OrionTextFieldVariant.${_variant.name},');
-    }
-    if (_size != OrionTextFieldSize.medium) {
-      lines.add('  size: OrionTextFieldSize.${_size.name},');
-    }
-    if (_type != OrionTextFieldType.text) {
-      lines.add('  type: OrionTextFieldType.${_type.name},');
-    }
-    if (_disabled) {
-      lines.add('  enabled: false,');
-    }
-    if (_error) {
-      lines.add("  error: 'Name is required',");
-    }
-    if (_obscured) {
-      lines.add('  obscureText: true,');
-    }
-    lines.add(');');
     return lines.join('\n');
   }
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme scheme = theme.colorScheme;
+    final bool isDark = theme.brightness == Brightness.dark;
 
     return OrionThemedScaffold(
-      title: 'Orion Text field',
-      builder: (context) {
+      title: 'Orion Text Field',
+      builder: (BuildContext context) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+          children: <Widget>[
             // Top Intro Header
             Padding(
               padding: const EdgeInsets.only(bottom: OrionSpacing.space20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+                children: <Widget>[
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: OrionSpacing.space8,
@@ -165,7 +147,9 @@ class _OrionTextFieldShowcaseScreenState
                       color: isDark
                           ? scheme.onSurface.withValues(alpha: 0.10)
                           : scheme.onSurface.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(OrionRadii.radiusPill),
+                      borderRadius: BorderRadius.circular(
+                        OrionRadii.radiusPill,
+                      ),
                       border: Border.all(
                         color: isDark
                             ? scheme.outlineVariant.withValues(alpha: 0.20)
@@ -174,7 +158,7 @@ class _OrionTextFieldShowcaseScreenState
                       ),
                     ),
                     child: Text(
-                      'INPUT • EXPANDING FOCUS HAIRLINE',
+                      'INPUT • FORM-SYNCED TEXT FIELD',
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
@@ -185,7 +169,10 @@ class _OrionTextFieldShowcaseScreenState
                   ),
                   const SizedBox(height: OrionSpacing.space8),
                   Text(
-                    'Single-line or expanding multiline field. Hairline focus steps to primary and expands half a point wider on clamped critically damped spring without flash-back.',
+                    'Refined 13 / 14 / 15 pt input typography with full-box '
+                    'caret hit-testing, critically damped hairline focus, '
+                    'synchronized FormField reset/validate, animated clear '
+                    'actions, and crash-safe multiline support.',
                     style: TextStyle(
                       fontSize: 13.5,
                       height: 1.4,
@@ -196,232 +183,294 @@ class _OrionTextFieldShowcaseScreenState
               ),
             ),
 
-            OrionShowcaseControls(
-              children: [
-                Row(
+            // Interactive Playground
+            OrionShowcaseSection(
+              title: 'Interactive Playground',
+              subtitle:
+                  'Test variants, sizes, semantic presets, clear button, and validation states',
+              card: true,
+              child: OrionShowcasePanel(
+                key: const ValueKey<String>('showcase-panel-playground'),
+                code: _snippet,
+                preview: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: OrionShowcaseToggle(
-                        label: 'Disabled',
-                        value: _disabled,
-                        onChanged: (value) => setState(() => _disabled = value),
-                      ),
+                  children: <Widget>[
+                    OrionTextField(
+                      controller: _playgroundController,
+                      variant: _variant,
+                      size: _size,
+                      type: _type,
+                      label: _typeLabel(_type),
+                      hint: _hintForType(_type),
+                      helper: 'Tap the label or anywhere inside to focus.',
+                      error: _error ? 'Please enter a valid value' : null,
+                      prefix: _prefixForType(_type),
+                      showClearButton: _clearable,
+                      required: _required,
+                      enabled: !_disabled,
+                      reserveCaption: true,
                     ),
-                    Expanded(
-                      child: OrionShowcaseToggle(
-                        label: 'Error',
-                        value: _error,
-                        onChanged: (value) => setState(() => _error = value),
-                      ),
+                    const SizedBox(height: OrionSpacing.space16),
+                    OrionShowcaseControls(
+                      children: <Widget>[
+                        OrionShowcaseChoice<OrionTextFieldVariant>(
+                          label: 'Variant',
+                          values: OrionTextFieldVariant.values,
+                          selected: _variant,
+                          labelOf: _variantLabel,
+                          onChanged: (OrionTextFieldVariant v) =>
+                              setState(() => _variant = v),
+                        ),
+                        OrionShowcaseChoice<OrionTextFieldSize>(
+                          label: 'Size',
+                          values: OrionTextFieldSize.values,
+                          selected: _size,
+                          labelOf: _sizeLabel,
+                          onChanged: (OrionTextFieldSize s) =>
+                              setState(() => _size = s),
+                        ),
+                        OrionShowcaseChoice<OrionTextFieldType>(
+                          label: 'Type',
+                          values: OrionTextFieldType.values,
+                          selected: _type,
+                          labelOf: _typeLabel,
+                          onChanged: (OrionTextFieldType t) =>
+                              setState(() => _type = t),
+                        ),
+                        Wrap(
+                          spacing: OrionSpacing.space20,
+                          runSpacing: OrionSpacing.space12,
+                          children: <Widget>[
+                            OrionShowcaseToggle(
+                              label: 'Clearable',
+                              value: _clearable,
+                              onChanged: (bool v) =>
+                                  setState(() => _clearable = v),
+                            ),
+                            OrionShowcaseToggle(
+                              label: 'Required',
+                              value: _required,
+                              onChanged: (bool v) =>
+                                  setState(() => _required = v),
+                            ),
+                            OrionShowcaseToggle(
+                              label: 'Error',
+                              value: _error,
+                              onChanged: (bool v) => setState(() => _error = v),
+                            ),
+                            OrionShowcaseToggle(
+                              label: 'Disabled',
+                              value: _disabled,
+                              onChanged: (bool v) =>
+                                  setState(() => _disabled = v),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                    Expanded(
-                      child: OrionShowcaseToggle(
-                        label: 'Obscured',
-                        value: _obscured,
-                        onChanged: (value) => setState(() => _obscured = value),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: OrionSpacing.space20),
+
+            // Variants & Sizes Card
+            OrionShowcaseSection(
+              title: 'Variants & Sizes',
+              subtitle:
+                  'Small (40 pt / 13 pt), Medium (48 pt / 14 pt), and Large (56 pt / 15 pt)',
+              card: true,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  const OrionTextField(
+                    variant: OrionTextFieldVariant.outline,
+                    size: OrionTextFieldSize.small,
+                    label: 'Outline • Small',
+                    hint: 'Compact 40 pt field',
+                  ),
+                  const SizedBox(height: OrionSpacing.space12),
+                  const OrionTextField(
+                    variant: OrionTextFieldVariant.filled,
+                    size: OrionTextFieldSize.medium,
+                    label: 'Filled • Medium',
+                    hint: 'Standard 48 pt filled field',
+                  ),
+                  const SizedBox(height: OrionSpacing.space12),
+                  const OrionTextField(
+                    variant: OrionTextFieldVariant.underline,
+                    size: OrionTextFieldSize.large,
+                    label: 'Underline • Large',
+                    hint: 'Generous 56 pt underline field',
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: OrionSpacing.space20),
+
+            // Live Form Validation & Sync Card
+            OrionShowcaseSection(
+              title: 'Form Validation & Controller Sync',
+              subtitle:
+                  'Validates programmatic prefills, supports decimal numbers, and resets both controller and errors',
+              card: true,
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    OrionTextField(
+                      controller: _formEmailController,
+                      type: OrionTextFieldType.email,
+                      label: 'Work email',
+                      hint: 'ada@orion.dev',
+                      required: true,
+                      showClearButton: true,
+                      prefix: const Icon(Icons.mail_outline_rounded),
+                      reserveCaption: true,
+                      validator: (String? value) {
+                        final String v = (value ?? '').trim();
+                        if (v.isEmpty) return 'Email is required';
+                        if (!v.contains('@')) return 'Enter a valid email';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: OrionSpacing.space12),
+                    OrionTextField(
+                      controller: _formAmountController,
+                      type: OrionTextFieldType.number,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      label: 'Budget (decimal allowed)',
+                      hint: '1250.50',
+                      prefix: const Text(r'$'),
+                      suffix: const Text('USD'),
+                      reserveCaption: true,
+                      validator: (String? value) {
+                        final String v = (value ?? '').trim();
+                        if (v.isEmpty) return 'Amount is required';
+                        if (double.tryParse(v) == null) {
+                          return 'Enter a valid decimal number';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: OrionSpacing.space12),
+                    OrionTextField(
+                      controller: _formBioController,
+                      type: OrionTextFieldType.multiline,
+                      label: 'Release summary',
+                      hint: 'Multi-line notes with proper vertical padding...',
+                      maxLength: 140,
+                      reserveCaption: true,
+                    ),
+                    const SizedBox(height: OrionSpacing.space12),
+                    Wrap(
+                      spacing: OrionSpacing.space8,
+                      runSpacing: OrionSpacing.space8,
+                      children: <Widget>[
+                        OrionButton(
+                          label: 'Validate',
+                          size: OrionButtonSize.small,
+                          onPressed: () {
+                            final bool ok =
+                                _formKey.currentState?.validate() ?? false;
+                            setState(() {
+                              _formStatus = ok
+                                  ? 'Form is valid (${_formEmailController.text}, \$${_formAmountController.text})'
+                                  : 'Validation failed — see highlighted errors above.';
+                            });
+                          },
+                        ),
+                        OrionButton(
+                          label: 'Prefill',
+                          variant: OrionButtonVariant.bordered,
+                          size: OrionButtonSize.small,
+                          onPressed: () {
+                            _formEmailController.text = 'ada@orion.dev';
+                            _formAmountController.text = '249.95';
+                            _formBioController.text =
+                                'Upgraded OrionTextField with synced FormField state and refined typography.';
+                            setState(() {
+                              _formStatus =
+                                  'Prefilled via controllers — tap Validate to confirm sync.';
+                            });
+                          },
+                        ),
+                        OrionButton(
+                          label: 'Reset',
+                          variant: OrionButtonVariant.flat,
+                          size: OrionButtonSize.small,
+                          onPressed: () {
+                            _formKey.currentState?.reset();
+                            setState(() {
+                              _formStatus = 'Form & controllers reset cleanly.';
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: OrionSpacing.space8),
+                    Text(
+                      _formStatus,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: scheme.onSurfaceVariant,
                       ),
                     ),
                   ],
                 ),
-              ],
-            ),
-            const SizedBox(height: OrionSpacing.space24),
-
-            // Variants Card
-            OrionShowcaseSection(
-              title: 'Variants',
-              subtitle:
-                  'Outline (default hairline), Filled (container fill), and Underline (classic bottom line)',
-              card: true,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  for (final OrionTextFieldVariant variant
-                      in OrionTextFieldVariant.values) ...<Widget>[
-                    OrionShowcaseLabeledRow(
-                      label: _variantLabel(variant),
-                      child: _sample(
-                        label: 'Name',
-                        hint: 'Ada Lovelace',
-                        error: 'Name is required',
-                        variant: variant,
-                      ),
-                    ),
-                    if (variant != OrionTextFieldVariant.values.last)
-                      const SizedBox(height: OrionSpacing.space12),
-                  ],
-                ],
               ),
             ),
             const SizedBox(height: OrionSpacing.space20),
 
-            // Sizes Card
+            // Common Input Patterns Card
             OrionShowcaseSection(
-              title: 'Sizes',
+              title: 'Input Patterns',
               subtitle:
-                  'Small (36 pt), Medium (44 pt), and Large (52 pt) container heights',
+                  'Auto-clearable search, balanced password reveal, picker trigger mode, and disabled state',
               card: true,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  for (final OrionTextFieldSize size
-                      in OrionTextFieldSize.values) ...<Widget>[
-                    OrionShowcaseLabeledRow(
-                      label: _sizeLabel(size),
-                      child: _sample(
-                        label: 'Name',
-                        hint: 'Ada Lovelace',
-                        error: 'Name is required',
-                        size: size,
-                      ),
-                    ),
-                    if (size != OrionTextFieldSize.values.last)
-                      const SizedBox(height: OrionSpacing.space12),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(height: OrionSpacing.space20),
-
-            // Types Card
-            OrionShowcaseSection(
-              title: 'Types',
-              subtitle:
-                  'Semantic keyboard presets, action types, input filters, and reveal toggles',
-              card: true,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _sample(
-                    label: 'Email',
-                    hint: 'ada@example.com',
-                    error: 'Enter a valid email',
-                    type: OrionTextFieldType.email,
-                  ),
-                  const SizedBox(height: OrionSpacing.space16),
-                  _sample(
-                    label: 'Password',
-                    hint: 'Your password',
-                    error: 'At least 8 characters',
-                    type: OrionTextFieldType.password,
-                  ),
-                  const SizedBox(height: OrionSpacing.space16),
-                  _sample(
-                    label: 'Search',
-                    hint: 'Search chats',
-                    type: OrionTextFieldType.search,
-                    prefix: const Icon(Icons.search, size: 20),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: OrionSpacing.space20),
-
-            // Content Card
-            OrionShowcaseSection(
-              title: 'Content',
-              subtitle:
-                  'Slot composition: prefix/suffix widgets, character counter, and read-only mode',
-              card: true,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _sample(
-                    label: 'Prefix and suffix',
-                    hint: 'orion.dev',
-                    prefix: const Icon(Icons.link, size: 20),
-                    suffix: const Text('@'),
-                  ),
-                  const SizedBox(height: OrionSpacing.space16),
-                  _sample(
-                    label: 'Counter',
-                    hint: 'Keep it short',
-                    maxLength: 20,
-                    reserveCaption: true,
-                  ),
-                  const SizedBox(height: OrionSpacing.space16),
-                  _sample(
-                    label: 'Read only',
-                    hint: 'Tap to change',
-                    readOnly: true,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: OrionSpacing.space20),
-
-            // Customization Card
-            OrionShowcaseSection(
-              title: 'Customization',
-              subtitle:
-                  'Three-layer style contract: Presets -> OrionTextFieldTheme -> Instance OrionTextFieldStyle',
-              card: true,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  OrionShowcaseChoice<_FieldSkin>(
-                    label: 'Skin',
-                    values: _FieldSkin.values,
-                    selected: _skin,
-                    labelOf: _skinLabel,
-                    onChanged: (value) => setState(() => _skin = value),
-                  ),
-                  const SizedBox(height: OrionSpacing.space24),
+                children: <Widget>[
                   OrionTextField(
-                    label: 'Name',
-                    hint: 'Ada Lovelace',
-                    enabled: !_disabled,
-                    error: _error ? 'Name is required' : null,
-                    obscureText: _obscured,
-                    style: _skinStyle(context),
-                    onChanged: _disabled ? null : (String _) {},
+                    controller: _searchController,
+                    type: OrionTextFieldType.search,
+                    variant: OrionTextFieldVariant.filled,
+                    label: 'Search',
+                    hint: 'Type to reveal animated clear button',
+                    prefix: const Icon(Icons.search_rounded),
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: OrionSpacing.space20),
-
-            // Playground Card
-            OrionShowcaseSection(
-              title: 'Playground',
-              subtitle: 'Interactive text field with live code generator',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  OrionShowcaseChoice<OrionTextFieldVariant>(
-                    label: 'Variant',
-                    values: OrionTextFieldVariant.values,
-                    selected: _variant,
-                    labelOf: _variantLabel,
-                    onChanged: (value) => setState(() => _variant = value),
+                  const SizedBox(height: OrionSpacing.space16),
+                  const OrionTextField(
+                    type: OrionTextFieldType.password,
+                    size: OrionTextFieldSize.small,
+                    label: 'Small password (40 pt)',
+                    hint: 'Eye toggle fits cleanly without stretching',
+                    prefix: Icon(Icons.lock_outline_rounded),
                   ),
-                  const SizedBox(height: OrionSpacing.space12),
-                  OrionShowcaseChoice<OrionTextFieldSize>(
-                    label: 'Size',
-                    values: OrionTextFieldSize.values,
-                    selected: _size,
-                    labelOf: _sizeLabel,
-                    onChanged: (value) => setState(() => _size = value),
+                  const SizedBox(height: OrionSpacing.space16),
+                  OrionTextField(
+                    controller: _pickerController,
+                    readOnly: true,
+                    label: 'Workspace (Read-only picker)',
+                    helper: 'Tap to cycle workspace — click cursor, no caret.',
+                    prefix: const Icon(Icons.workspaces_outline),
+                    suffix: const Icon(Icons.keyboard_arrow_down_rounded),
+                    onTap: () {
+                      setState(() {
+                        _pickerIndex = (_pickerIndex + 1) % _workspaces.length;
+                        _pickerController.text = _workspaces[_pickerIndex];
+                      });
+                    },
                   ),
-                  const SizedBox(height: OrionSpacing.space12),
-                  OrionShowcaseChoice<OrionTextFieldType>(
-                    label: 'Type',
-                    values: OrionTextFieldType.values,
-                    selected: _type,
-                    labelOf: _typeLabel,
-                    onChanged: (value) => setState(() => _type = value),
-                  ),
-                  const SizedBox(height: OrionSpacing.space24),
-                  OrionShowcasePanel(
-                    key: const ValueKey<String>('showcase-panel-playground'),
-                    preview: _sample(
-                      label: 'Name',
-                      hint: 'Ada Lovelace',
-                      error: 'Name is required',
-                      type: _type,
-                    ),
-                    code: _snippet,
+                  const SizedBox(height: OrionSpacing.space16),
+                  const OrionTextField(
+                    initialValue: 'Locked account setting',
+                    label: 'Disabled field',
+                    enabled: false,
+                    prefix: Icon(Icons.shield_outlined),
                   ),
                 ],
               ),

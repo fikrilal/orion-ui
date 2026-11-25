@@ -45,7 +45,7 @@ class OrionOtpController extends ChangeNotifier {
     _unfocusCallback?.call();
   }
 
-  /// Internal attachment method called by [OrionOtpFieldState].
+  /// Internal attachment method called by the host `OrionOtpField` state.
   void attach({
     required VoidCallback onShake,
     required VoidCallback onFocus,
@@ -58,7 +58,7 @@ class OrionOtpController extends ChangeNotifier {
     _clearCallback = onClear;
   }
 
-  /// Internal detachment method called when [OrionOtpFieldState] unmounts.
+  /// Internal detachment method called when the host `OrionOtpField` state unmounts.
   void detach() {
     _shakeCallback = null;
     _focusCallback = null;

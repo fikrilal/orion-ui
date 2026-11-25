@@ -3,6 +3,12 @@ description: A tactile, physics-driven design engineering component kit for Flut
 version: 0.2.0
 repository: https://github.com/fikrilal/orion-ui
 issue_tracker: https://github.com/fikrilal/orion-ui/issues
+topics:
+  - ui
+  - widgets
+  - animation
+  - design-system
+  - components
 
 environment:
   sdk: ^3.10.3

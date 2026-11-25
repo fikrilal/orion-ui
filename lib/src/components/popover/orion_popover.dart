@@ -24,7 +24,8 @@ typedef OrionPopoverContentBuilder =
     Widget Function(BuildContext context, OrionSpringDriver driver);
 
 /// Computes safe viewport insets including status bar, home indicator, and
-/// soft-keyboard [viewInsets] so popovers and menus never clip behind chrome.
+/// soft-keyboard [MediaQueryData.viewInsets] so popovers and menus never clip
+/// behind chrome.
 EdgeInsets resolveOrionPopoverViewportPadding(BuildContext context) {
   final MediaQueryData media = MediaQuery.of(context);
   final FlutterView? view = View.maybeOf(context);

@@ -19,7 +19,7 @@ enum OrionSwitchSize {
   large,
 }
 
-/// Where the switch pill sits relative to its [label] and [subtitle].
+/// Where the switch pill sits relative to its `label` and `subtitle`.
 enum OrionSwitchControlAffinity {
   /// Switch on the start edge, label and subtitle after it.
   leading,

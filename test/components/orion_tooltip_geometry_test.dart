@@ -187,5 +187,148 @@ void main() {
         ),
       );
     });
+
+    test('resolves RTL-aware start and end placements', () {
+      const Rect triggerRect = Rect.fromLTWH(350.0, 250.0, 100.0, 40.0);
+
+      final ltrStart = OrionTooltipGeometry.resolve(
+        triggerRect: triggerRect,
+        tooltipSize: tooltipSize,
+        viewportSize: viewportSize,
+        preferredPlacement: OrionTooltipPlacement.start,
+        textDirection: TextDirection.ltr,
+      );
+      final rtlStart = OrionTooltipGeometry.resolve(
+        triggerRect: triggerRect,
+        tooltipSize: tooltipSize,
+        viewportSize: viewportSize,
+        preferredPlacement: OrionTooltipPlacement.start,
+        textDirection: TextDirection.rtl,
+      );
+      final rtlEnd = OrionTooltipGeometry.resolve(
+        triggerRect: triggerRect,
+        tooltipSize: tooltipSize,
+        viewportSize: viewportSize,
+        preferredPlacement: OrionTooltipPlacement.end,
+        textDirection: TextDirection.rtl,
+      );
+
+      expect(ltrStart.placement, OrionTooltipPlacement.left);
+      expect(rtlStart.placement, OrionTooltipPlacement.right);
+      expect(rtlEnd.placement, OrionTooltipPlacement.left);
+    });
+
+    test(
+      'falls back across axes to top/bottom on narrow mobile screens when neither horizontal side fits',
+      () {
+        const Size mobileViewport = Size(360.0, 780.0);
+        // Wide centered button leaving only ~72px on each side
+        const Rect wideTrigger = Rect.fromLTWH(80.0, 340.0, 200.0, 44.0);
+        const Size wideTooltip = Size(220.0, 36.0);
+
+        final fromLeft = OrionTooltipGeometry.resolve(
+          triggerRect: wideTrigger,
+          tooltipSize: wideTooltip,
+          viewportSize: mobileViewport,
+          preferredPlacement: OrionTooltipPlacement.left,
+        );
+        expect(fromLeft.placement, OrionTooltipPlacement.top);
+        expect(fromLeft.isFlipped, isTrue);
+        // Must sit cleanly above the trigger without overlapping it
+        expect(
+          fromLeft.offset.dy + wideTooltip.height,
+          lessThan(wideTrigger.top),
+        );
+
+        // Near top edge where top also cannot fit -> falls back to bottom
+        const Rect topTrigger = Rect.fromLTWH(80.0, 12.0, 200.0, 44.0);
+        final fromRightNearTop = OrionTooltipGeometry.resolve(
+          triggerRect: topTrigger,
+          tooltipSize: wideTooltip,
+          viewportSize: mobileViewport,
+          preferredPlacement: OrionTooltipPlacement.right,
+        );
+        expect(fromRightNearTop.placement, OrionTooltipPlacement.bottom);
+        expect(fromRightNearTop.isFlipped, isTrue);
+        expect(fromRightNearTop.offset.dy, greaterThan(topTrigger.bottom));
+      },
+    );
+
+    test(
+      'clamps arrow offset inside corner-radius inset and stays safe on narrow tooltips',
+      () {
+        // Trigger pinned to extreme left edge
+        const Rect edgeTrigger = Rect.fromLTWH(2.0, 250.0, 12.0, 32.0);
+        final layout = OrionTooltipGeometry.resolve(
+          triggerRect: edgeTrigger,
+          tooltipSize: const Size(160.0, 36.0),
+          viewportSize: viewportSize,
+          preferredPlacement: OrionTooltipPlacement.top,
+          showArrow: true,
+          arrowSize: const Size(10.0, 5.0),
+          arrowEdgeInset: 12.0,
+        );
+        expect(layout.arrowOffset!.dx, greaterThanOrEqualTo(12.0));
+
+        // Very short tooltip in left placement where height < 2*inset + arrowWidth
+        const Rect centerTrigger = Rect.fromLTWH(400.0, 250.0, 40.0, 40.0);
+        final shortLayout = OrionTooltipGeometry.resolve(
+          triggerRect: centerTrigger,
+          tooltipSize: const Size(100.0, 22.0),
+          viewportSize: viewportSize,
+          preferredPlacement: OrionTooltipPlacement.left,
+          showArrow: true,
+          arrowSize: const Size(10.0, 5.0),
+          arrowEdgeInset: 12.0,
+        );
+        // Safely centers arrow at (22 - 10) / 2 = 6.0 without RangeError
+        expect(shortLayout.arrowOffset!.dy, closeTo(6.0, 0.01));
+      },
+    );
+
+    test(
+      'flips bottom to top when viewportPadding includes keyboard inset',
+      () {
+        const Rect triggerRect = Rect.fromLTWH(140.0, 440.0, 100.0, 44.0);
+        final layout = OrionTooltipGeometry.resolve(
+          triggerRect: triggerRect,
+          tooltipSize: tooltipSize,
+          viewportSize: const Size(400.0, 800.0),
+          viewportPadding: const EdgeInsets.fromLTRB(8.0, 52.0, 8.0, 320.0),
+          preferredPlacement: OrionTooltipPlacement.bottom,
+        );
+
+        expect(layout.placement, OrionTooltipPlacement.top);
+        expect(layout.isFlipped, isTrue);
+      },
+    );
+
+    test('OrionTooltipResolvedLayout value equality and hashCode', () {
+      const a = OrionTooltipResolvedLayout(
+        offset: Offset(10, 20),
+        transformOrigin: Alignment.bottomCenter,
+        isFlipped: false,
+        placement: OrionTooltipPlacement.top,
+        arrowOffset: Offset(45, 30),
+      );
+      const b = OrionTooltipResolvedLayout(
+        offset: Offset(10, 20),
+        transformOrigin: Alignment.bottomCenter,
+        isFlipped: false,
+        placement: OrionTooltipPlacement.top,
+        arrowOffset: Offset(45, 30),
+      );
+      const c = OrionTooltipResolvedLayout(
+        offset: Offset(10, 20),
+        transformOrigin: Alignment.topCenter,
+        isFlipped: true,
+        placement: OrionTooltipPlacement.bottom,
+        arrowOffset: Offset(45, -5),
+      );
+
+      expect(a, equals(b));
+      expect(a.hashCode, equals(b.hashCode));
+      expect(a, isNot(equals(c)));
+    });
   });
 }

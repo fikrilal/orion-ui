@@ -5,6 +5,18 @@ import 'package:flutter/material.dart';
 
 import 'package:orion_ui/src/motion/orion_spring_spec.dart';
 
+/// Visual surface tone for an [OrionTooltip].
+enum OrionTooltipTone {
+  /// High-contrast inverted pill (`inverseSurface` / `onInverseSurface`).
+  /// Ideal for concise icon labels and keyboard shortcuts.
+  inverted,
+
+  /// Elevated card surface with a hairline border (`surface` in light mode,
+  /// `surfaceContainerHighest` in dark mode). Ideal for rich contextual
+  /// bubbles containing avatars, status lines, or multi-line explanations.
+  surface,
+}
+
 /// The visual and physical styling contract for [OrionTooltip].
 ///
 /// Three layers produce the effective style, each overriding the last: the
@@ -14,6 +26,8 @@ import 'package:orion_ui/src/motion/orion_spring_spec.dart';
 class OrionTooltipStyle {
   const OrionTooltipStyle({
     this.backgroundColor,
+    this.borderColor,
+    this.borderWidth,
     this.borderRadius,
     this.shadow,
     this.frosted,
@@ -30,6 +44,12 @@ class OrionTooltipStyle {
   /// Tooltip container background fill color.
   final Color? backgroundColor;
 
+  /// Optional hairline border stroke color around the tooltip and arrow.
+  final Color? borderColor;
+
+  /// Stroke width of the tooltip border (`0.0` disables the border).
+  final double? borderWidth;
+
   /// Tooltip container border radius.
   final BorderRadius? borderRadius;
 
@@ -42,7 +62,8 @@ class OrionTooltipStyle {
   /// Internal padding for tooltip text or rich content.
   final EdgeInsetsGeometry? padding;
 
-  /// Typography style for the tooltip message.
+  /// Typography style for the tooltip message and default foreground color for
+  /// `richMessage` subtrees.
   final TextStyle? textStyle;
 
   /// Space in logical pixels between trigger boundary and tooltip surface.
@@ -66,6 +87,8 @@ class OrionTooltipStyle {
   /// Convenience factory creating a style with only named properties.
   factory OrionTooltipStyle.from({
     Color? backgroundColor,
+    Color? borderColor,
+    double? borderWidth,
     BorderRadius? borderRadius,
     List<BoxShadow>? shadow,
     bool? frosted,
@@ -80,6 +103,8 @@ class OrionTooltipStyle {
   }) {
     return OrionTooltipStyle(
       backgroundColor: backgroundColor,
+      borderColor: borderColor,
+      borderWidth: borderWidth,
       borderRadius: borderRadius,
       shadow: shadow,
       frosted: frosted,
@@ -97,6 +122,8 @@ class OrionTooltipStyle {
   /// Returns a copy with the provided fields replaced.
   OrionTooltipStyle copyWith({
     Color? backgroundColor,
+    Color? borderColor,
+    double? borderWidth,
     BorderRadius? borderRadius,
     List<BoxShadow>? shadow,
     bool? frosted,
@@ -111,6 +138,8 @@ class OrionTooltipStyle {
   }) {
     return OrionTooltipStyle(
       backgroundColor: backgroundColor ?? this.backgroundColor,
+      borderColor: borderColor ?? this.borderColor,
+      borderWidth: borderWidth ?? this.borderWidth,
       borderRadius: borderRadius ?? this.borderRadius,
       shadow: shadow ?? this.shadow,
       frosted: frosted ?? this.frosted,
@@ -126,15 +155,23 @@ class OrionTooltipStyle {
   }
 
   /// Merges this style with [other], where [other]'s non-null fields take precedence.
+  ///
+  /// When both styles provide a [textStyle], they are merged via
+  /// [TextStyle.merge] so partial overrides (e.g. changing only `fontSize`)
+  /// preserve the preset foreground color and typography defaults.
   OrionTooltipStyle merge(OrionTooltipStyle? other) {
     if (other == null) return this;
     return OrionTooltipStyle(
       backgroundColor: other.backgroundColor ?? backgroundColor,
+      borderColor: other.borderColor ?? borderColor,
+      borderWidth: other.borderWidth ?? borderWidth,
       borderRadius: other.borderRadius ?? borderRadius,
       shadow: other.shadow ?? shadow,
       frosted: other.frosted ?? frosted,
       padding: other.padding ?? padding,
-      textStyle: other.textStyle ?? textStyle,
+      textStyle: textStyle != null && other.textStyle != null
+          ? textStyle!.merge(other.textStyle)
+          : (other.textStyle ?? textStyle),
       gap: other.gap ?? gap,
       showArrow: other.showArrow ?? showArrow,
       arrowSize: other.arrowSize ?? arrowSize,
@@ -151,10 +188,13 @@ class OrionTooltipStyle {
     double t,
   ) {
     if (identical(a, b)) return a;
-    if (a == null) return b;
-    if (b == null) return a;
+    if (a == null && b == null) return null;
+    if (a == null) return t < 0.5 ? null : b;
+    if (b == null) return t < 0.5 ? a : null;
     return OrionTooltipStyle(
       backgroundColor: Color.lerp(a.backgroundColor, b.backgroundColor, t),
+      borderColor: Color.lerp(a.borderColor, b.borderColor, t),
+      borderWidth: lerpDouble(a.borderWidth, b.borderWidth, t),
       borderRadius: BorderRadius.lerp(a.borderRadius, b.borderRadius, t),
       shadow: BoxShadow.lerpList(a.shadow, b.shadow, t),
       frosted: t < 0.5 ? a.frosted : b.frosted,
@@ -175,6 +215,8 @@ class OrionTooltipStyle {
       other is OrionTooltipStyle &&
           runtimeType == other.runtimeType &&
           backgroundColor == other.backgroundColor &&
+          borderColor == other.borderColor &&
+          borderWidth == other.borderWidth &&
           borderRadius == other.borderRadius &&
           listEquals(shadow, other.shadow) &&
           frosted == other.frosted &&
@@ -190,6 +232,8 @@ class OrionTooltipStyle {
   @override
   int get hashCode => Object.hashAll([
     backgroundColor,
+    borderColor,
+    borderWidth,
     borderRadius,
     shadow == null ? null : Object.hashAll(shadow!),
     frosted,

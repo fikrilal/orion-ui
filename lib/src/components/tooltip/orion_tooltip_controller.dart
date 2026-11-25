@@ -3,13 +3,13 @@ import 'package:flutter/foundation.dart';
 /// Programmatic controller for [OrionTooltip].
 ///
 /// Exposes imperative methods to show, hide, or toggle the tooltip
-/// surface and monitors its open state.
+/// surface and monitors its logical open state.
 class OrionTooltipController extends ChangeNotifier {
   bool _isOpen = false;
   VoidCallback? _showCallback;
   VoidCallback? _hideCallback;
 
-  /// Whether the tooltip is currently open and visible.
+  /// Whether the tooltip is currently open (or animating open).
   bool get isOpen => _isOpen;
 
   /// Shows the tooltip programmatically.
@@ -44,9 +44,15 @@ class OrionTooltipController extends ChangeNotifier {
   }
 
   /// Internal state updater called by the host tooltip.
-  void updateOpenState(bool open) {
+  ///
+  /// Pass `notify: false` during tree teardown or `didUpdateWidget` swaps to
+  /// avoid triggering synchronous listener rebuilds while the widget tree is
+  /// locked.
+  void updateOpenState(bool open, {bool notify = true}) {
     if (_isOpen == open) return;
     _isOpen = open;
-    notifyListeners();
+    if (notify) {
+      notifyListeners();
+    }
   }
 }

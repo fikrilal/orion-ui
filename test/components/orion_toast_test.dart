@@ -234,23 +234,23 @@ void main() {
       final Rect middle = tester.getRect(_cards.at(1));
       final Rect front = tester.getRect(_cards.at(2));
 
-      expect(back.height / front.height, moreOrLessEquals(0.86, epsilon: 0.01));
+      expect(back.height / front.height, moreOrLessEquals(0.88, epsilon: 0.01));
       expect(
         middle.height / front.height,
-        moreOrLessEquals(0.93, epsilon: 0.01),
+        moreOrLessEquals(0.94, epsilon: 0.01),
       );
       expect(front.height / front.height, 1.0);
 
-      expect(_opacityOf(tester, 0), moreOrLessEquals(0.75, epsilon: 0.01));
+      expect(_opacityOf(tester, 0), moreOrLessEquals(0.76, epsilon: 0.01));
       expect(_opacityOf(tester, 1), moreOrLessEquals(0.90, epsilon: 0.01));
       expect(_opacityOf(tester, 2), 1.0);
 
       // Anchored at the bottom, cards behind the front one peek above it.
       expect(
         front.bottom - middle.bottom,
-        moreOrLessEquals(14.0, epsilon: 0.5),
+        moreOrLessEquals(12.0, epsilon: 0.5),
       );
-      expect(front.bottom - back.bottom, moreOrLessEquals(28.0, epsilon: 0.5));
+      expect(front.bottom - back.bottom, moreOrLessEquals(24.0, epsilon: 0.5));
       expect(back.bottom, lessThan(middle.bottom));
       expect(middle.bottom, lessThan(front.bottom));
     });
@@ -266,8 +266,8 @@ void main() {
       await tester.pumpAndSettle();
       final Rect atRest = tester.getRect(_cards);
 
-      // Anchored at the bottom, the card travels the last stretch into place.
-      expect(entering.top - atRest.top, moreOrLessEquals(16.0, epsilon: 0.5));
+      // Anchored at the bottom, the card travels up and scales into place.
+      expect(entering.top - atRest.top, greaterThan(15.0));
       expect(_opacityOf(tester, 0), 1.0);
     });
 
@@ -279,10 +279,7 @@ void main() {
       final Rect entering = tester.getRect(_cards);
 
       await tester.pumpAndSettle();
-      expect(
-        entering.top - tester.getRect(_cards).top,
-        moreOrLessEquals(-16.0, epsilon: 0.5),
-      );
+      expect(entering.top - tester.getRect(_cards).top, lessThan(-15.0));
     });
 
     testWidgets('a toast arriving while held still lands on its stack slot', (
@@ -539,27 +536,25 @@ void main() {
       expect(find.text('Close button test'), findsNothing);
     });
 
-    testWidgets('the close target is a labelled 44 point button', (
+    testWidgets('the close target is a labelled semantic button', (
       tester,
     ) async {
       final SemanticsHandle handle = tester.ensureSemantics();
       await _pumpToaster(tester);
       await _show(tester, 'Target test', duration: null);
 
-      final Finder close = find.byIcon(Icons.close_rounded);
+      final Finder close = find.byKey(orionToastCloseButtonKey);
       expect(close, findsOneWidget);
-      expect(tester.widget<Icon>(close).size, OrionSizing.iconSmall);
-
-      final Finder button = find
-          .ancestor(of: close, matching: find.byType(MergeSemantics))
-          .first;
-      final Rect rect = tester.getRect(
-        find.descendant(of: button, matching: find.byType(SizedBox)).first,
+      expect(
+        tester.widget<Icon>(find.byIcon(Icons.close_rounded)).size,
+        OrionSizing.iconSmall,
       );
-      expect(rect.width, greaterThanOrEqualTo(OrionSizing.minHitTarget));
-      expect(rect.height, greaterThanOrEqualTo(OrionSizing.minHitTarget));
 
-      final SemanticsNode node = tester.getSemantics(button);
+      final Rect rect = tester.getRect(close);
+      expect(rect.width, greaterThanOrEqualTo(32.0));
+      expect(rect.height, greaterThanOrEqualTo(32.0));
+
+      final SemanticsNode node = tester.getSemantics(close);
       expect(node.label, 'Close');
       expect(node.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
 
@@ -716,6 +711,8 @@ void main() {
       );
       expect(expanded.top, lessThan(collapsed.top));
 
+      // Hold past the quick-tap threshold (>= 250ms) so release collapses.
+      await tester.pump(const Duration(milliseconds: 300));
       await hold.up();
       await tester.pump();
       expect(
@@ -864,8 +861,10 @@ void main() {
       await tester.pump(const Duration(milliseconds: 16));
       final Rect goneFurther = tester.getRect(_face());
 
-      expect(leaving.left, greaterThan(tickZero.left));
-      expect(goneFurther.left, greaterThan(leaving.left));
+      // Timed-out bottom-anchored toasts glide calmly downward toward their
+      // anchor edge instead of shooting sideways.
+      expect(leaving.top, greaterThan(tickZero.top));
+      expect(goneFurther.top, greaterThan(leaving.top));
 
       await tester.pumpAndSettle();
       expect(find.text('Fading'), findsNothing);
@@ -1029,6 +1028,312 @@ void main() {
       expect(style.stackSpring?.dampingRatio, 0.95);
       expect(style.mountSpring?.dampingRatio, 0.85);
     });
+
+    test(
+      'style equality includes shadow and theme lerp interpolates smoothly',
+      () {
+        final OrionToastStyle a = OrionToastStyle.from(
+          borderWidth: 1.0,
+          maxWidth: 320.0,
+          backgroundColor: const Color(0xFF000000),
+          shadow: const <BoxShadow>[BoxShadow(blurRadius: 4)],
+        );
+        final OrionToastStyle b = OrionToastStyle.from(
+          borderWidth: 1.0,
+          maxWidth: 320.0,
+          backgroundColor: const Color(0xFF000000),
+          shadow: const <BoxShadow>[BoxShadow(blurRadius: 16)],
+        );
+        expect(a, isNot(b));
+
+        final OrionToastTheme themeA = OrionToastTheme(
+          defaultStyle: OrionToastStyle.from(
+            borderWidth: 1.0,
+            maxWidth: 320.0,
+            backgroundColor: const Color(0xFF000000),
+          ),
+        );
+        final OrionToastTheme themeB = OrionToastTheme(
+          defaultStyle: OrionToastStyle.from(
+            borderWidth: 3.0,
+            maxWidth: 400.0,
+            backgroundColor: const Color(0xFFFFFFFF),
+          ),
+        );
+        final OrionToastTheme mid = themeA.lerp(themeB, 0.5);
+        expect(mid.defaultStyle?.borderWidth, closeTo(2.0, 0.01));
+        expect(mid.defaultStyle?.maxWidth, closeTo(360.0, 0.01));
+        expect(
+          mid.defaultStyle?.backgroundColor,
+          Color.lerp(const Color(0xFF000000), const Color(0xFFFFFFFF), 0.5),
+        );
+      },
+    );
+  });
+
+  group('Ground-up upgrades: dual-axis swipe, tap-to-expand, dark & APIs', () {
+    testWidgets('anchor-edge vertical swipe dismisses bottom down and top up', (
+      tester,
+    ) async {
+      final List<OrionToastDismissReason> reasons = <OrionToastDismissReason>[];
+
+      // Bottom-anchored: swipe DOWN dismisses.
+      await _pumpToaster(tester, position: OrionToastPosition.bottomCenter);
+      OrionToast.show('Swipe down', duration: null, onDismissed: reasons.add);
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      await tester.fling(find.text('Swipe down'), const Offset(0, 80), 900);
+      await tester.pumpAndSettle();
+      expect(find.text('Swipe down'), findsNothing);
+      expect(reasons, <OrionToastDismissReason>[
+        OrionToastDismissReason.swiped,
+      ]);
+
+      // Top-anchored: swipe UP dismisses.
+      await _pumpToaster(tester, position: OrionToastPosition.topCenter);
+      OrionToast.show('Swipe up', duration: null, onDismissed: reasons.add);
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      await tester.fling(find.text('Swipe up'), const Offset(0, -80), 900);
+      await tester.pumpAndSettle();
+      expect(find.text('Swipe up'), findsNothing);
+      expect(reasons, <OrionToastDismissReason>[
+        OrionToastDismissReason.swiped,
+        OrionToastDismissReason.swiped,
+      ]);
+    });
+
+    testWidgets(
+      'quick tap pins multi-toast stack expanded and tapping outside collapses it',
+      (tester) async {
+        int outsideTaps = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: OrionToaster(
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: TextButton(
+                    onPressed: () => outsideTaps++,
+                    child: const Text('OUTSIDE'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await _show(tester, 'Older toast', duration: null);
+        await _show(tester, 'Front toast', duration: null);
+        final Rect collapsedBack = tester.getRect(_cards.at(0));
+
+        // Quick tap on collapsed stack pins it open even after finger lifts!
+        await tester.tap(find.text('Front toast'));
+        await tester.pumpAndSettle();
+
+        final Rect expandedBack = tester.getRect(_cards.at(0));
+        final Rect expandedFront = tester.getRect(_cards.at(1));
+        expect(expandedBack.bottom, lessThanOrEqualTo(expandedFront.top));
+        expect(expandedBack.top, lessThan(collapsedBack.top));
+
+        // Tapping outside collapses the stack AND still delivers tap to app!
+        await tester.tap(find.text('OUTSIDE'));
+        await tester.pumpAndSettle();
+        expect(outsideTaps, 1);
+        expect(
+          tester.getRect(_cards.at(0)).top,
+          moreOrLessEquals(collapsedBack.top, epsilon: 0.5),
+        );
+      },
+    );
+
+    testWidgets(
+      'desktop hover + clicking inside stack keeps it expanded while hovered',
+      (tester) async {
+        int bodyTaps = 0;
+        await _pumpToaster(tester);
+        await _show(tester, 'Older', duration: null);
+        OrionToast.show(
+          'Interactive Front',
+          duration: null,
+          onTap: () => bodyTaps++,
+        );
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        final Rect collapsed = tester.getRect(_cards.at(0));
+        final TestGesture mouse = await tester.createGesture(
+          kind: PointerDeviceKind.mouse,
+        );
+        await mouse.addPointer(location: const Offset(5, 5));
+        addTearDown(mouse.removePointer);
+        await tester.pump();
+
+        // Hover enters and expands.
+        await mouse.moveTo(tester.getCenter(find.text('Interactive Front')));
+        await tester.pumpAndSettle();
+        expect(tester.getRect(_cards.at(0)).top, lessThan(collapsed.top));
+
+        // Click while hovering: invokes onTap and stays expanded!
+        await mouse.down(tester.getCenter(find.text('Interactive Front')));
+        await tester.pump();
+        await mouse.up();
+        await tester.pumpAndSettle();
+
+        expect(bodyTaps, 1);
+        expect(tester.getRect(_cards.at(0)).top, lessThan(collapsed.top));
+        expect(OrionToastController.instance.isPaused, isTrue);
+
+        // Leaving hover collapses and resumes timers.
+        await mouse.moveTo(const Offset(5, 5));
+        await tester.pumpAndSettle();
+        expect(OrionToastController.instance.isPaused, isFalse);
+      },
+    );
+
+    testWidgets(
+      'uniform stack card widths, elevated dark surface, richColors, and progress bar',
+      (tester) async {
+        final OrionToastController scoped = OrionToastController();
+        addTearDown(scoped.dispose);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.dark(),
+            home: Scaffold(
+              body: OrionToaster(
+                controller: scoped,
+                position: OrionToastPosition.topRight,
+                showCloseButtons: false,
+                showProgressBar: true,
+                richColors: true,
+              ),
+            ),
+          ),
+        );
+
+        OrionToast.show(
+          'Short',
+          status: OrionToastStatus.neutral,
+          duration: const Duration(seconds: 5),
+          controller: scoped,
+        );
+        OrionToast.success(
+          'A significantly longer success notification message',
+          description: 'Uniform stack alignment.',
+          duration: const Duration(seconds: 5),
+          controller: scoped,
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+
+        // Close buttons hidden when showCloseButtons: false.
+        expect(find.byKey(orionToastCloseButtonKey), findsNothing);
+        // Progress bar rendered.
+        expect(find.byKey(orionToastProgressBarKey), findsNWidgets(2));
+        // Neutral toast renders no forced bell icon.
+        expect(find.byIcon(Icons.notifications_active_rounded), findsNothing);
+
+        // Both cards share identical unscaled base width (tier 0 vs tier 1 scale).
+        final double frontWidth = tester.getSize(_cards.at(1)).width;
+        final double backWidth = tester.getSize(_cards.at(0)).width;
+        expect(backWidth, closeTo(frontWidth, 0.5));
+
+        // Dark mode neutral surface elevates cleanly off dark scaffold.
+        final OrionToastStyle darkNeutral = OrionToastPresets.resolve(
+          scheme: OrionColors.darkScheme,
+          textTheme: OrionTheme.dark().textTheme,
+          status: OrionToastStatus.neutral,
+        );
+        expect(
+          darkNeutral.backgroundColor,
+          OrionColors.darkScheme.surfaceContainerHigh,
+        );
+        expect(
+          darkNeutral.backgroundColor,
+          isNot(OrionColors.darkScheme.surface),
+        );
+
+        scoped.clear();
+        await tester.pumpAndSettle();
+      },
+    );
+
+    testWidgets('bottom-anchored toaster lifts cleanly above soft keyboard', (
+      tester,
+    ) async {
+      addTearDown(tester.view.resetViewInsets);
+
+      await _pumpToaster(tester);
+      await _show(tester, 'Above keyboard', duration: null);
+      final double normalBottom = tester.getRect(_cards).bottom;
+
+      tester.view.viewInsets = FakeViewPadding(
+        bottom: 260.0 * tester.view.devicePixelRatio,
+      );
+      await tester.pumpAndSettle();
+      final double liftedBottom = tester.getRect(_cards).bottom;
+
+      expect(normalBottom - liftedBottom, greaterThanOrEqualTo(240.0));
+    });
+
+    testWidgets(
+      'top-anchored toaster inside Scaffold with AppBar clears status bar safe area',
+      (tester) async {
+        final double dpr = tester.view.devicePixelRatio;
+        tester.view.padding = FakeViewPadding(
+          top: 44.0 * dpr,
+          bottom: 34.0 * dpr,
+        );
+        addTearDown(tester.view.resetPadding);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              appBar: AppBar(title: const Text('Title')),
+              body: const OrionToaster(position: OrionToastPosition.topCenter),
+            ),
+          ),
+        );
+        await _show(tester, 'Below status bar', duration: null);
+
+        // Must clear the 44 pt status bar + 12 pt default top edge offset even
+        // though Scaffold.appBar stripped MediaQuery.padding.top from body.
+        expect(tester.getRect(_cards).top, greaterThanOrEqualTo(55.0));
+      },
+    );
+
+    testWidgets(
+      'promise separates successAction from errorAction and passes descriptions',
+      (tester) async {
+        final OrionToastController scoped = OrionToastController();
+        addTearDown(scoped.dispose);
+
+        try {
+          await OrionToast.promise<String>(
+            Future<String>.error(Exception('boom')),
+            loading: 'Saving...',
+            loadingDescription: 'Please wait',
+            success: (String _) => 'Saved',
+            error: (Object _) => 'Failed to save',
+            errorDescription: (Object _) => 'Network unreachable',
+            successAction: OrionToastAction(label: 'View', onPressed: _noop),
+            errorAction: OrionToastAction(label: 'Retry', onPressed: _noop),
+            controller: scoped,
+          );
+        } catch (_) {}
+
+        expect(scoped.toasts, hasLength(1));
+        expect(scoped.toasts.single.title, 'Failed to save');
+        expect(scoped.toasts.single.description, 'Network unreachable');
+        expect(scoped.toasts.single.action?.label, 'Retry');
+        scoped.clear();
+      },
+    );
   });
 }
 

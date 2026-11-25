@@ -10,7 +10,7 @@ import 'package:orion_ui/src/components/toast/orion_toast_style.dart';
 class OrionToastTheme extends ThemeExtension<OrionToastTheme> {
   const OrionToastTheme({this.defaultStyle});
 
-  /// Style applied before any per-instance toast overrides.
+  /// Style applied before any stack or per-instance toast overrides.
   final OrionToastStyle? defaultStyle;
 
   /// Neutral fallback used when no [OrionToastTheme] is registered.
@@ -24,7 +24,9 @@ class OrionToastTheme extends ThemeExtension<OrionToastTheme> {
   @override
   OrionToastTheme lerp(ThemeExtension<OrionToastTheme>? other, double t) {
     if (other is! OrionToastTheme) return this;
-    return t < 0.5 ? this : other;
+    return OrionToastTheme(
+      defaultStyle: OrionToastStyle.lerp(defaultStyle, other.defaultStyle, t),
+    );
   }
 
   @override

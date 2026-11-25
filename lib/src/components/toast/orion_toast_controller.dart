@@ -3,12 +3,17 @@ import 'package:flutter/foundation.dart';
 
 import 'package:orion_ui/src/components/toast/orion_toast_data.dart';
 
-/// State controller and timer manager for the active toast stack.
+/// State controller and pauseable timer manager for an `OrionToaster` stack.
+///
+/// Most apps use the shared [OrionToastController.instance] through the
+/// [OrionToast] facade, while scoped widgets and tests may instantiate their
+/// own [OrionToastController] and pass it to `OrionToaster(controller: ...)`.
 class OrionToastController extends ChangeNotifier {
-  OrionToastController._();
+  /// Creates an isolated toast controller.
+  OrionToastController();
 
-  /// The shared default instance.
-  static final OrionToastController instance = OrionToastController._();
+  /// The shared default instance used by the `OrionToast` facade.
+  static final OrionToastController instance = OrionToastController();
 
   final List<OrionToastData> _toasts = <OrionToastData>[];
   final Map<String, Timer> _timers = <String, Timer>{};
@@ -18,19 +23,38 @@ class OrionToastController extends ChangeNotifier {
   DateTime? _pausedAt;
   int _idCounter = 0;
 
-  /// The list of active toasts, in addition order (oldest first, newest last).
+  /// Active toasts in insertion order (oldest first, newest last).
   List<OrionToastData> get toasts => List<OrionToastData>.unmodifiable(_toasts);
 
-  /// Shows or updates a toast. Returns the assigned toast id.
+  /// Whether auto-dismiss timers are currently paused by hover or hold/expand.
+  bool get isPaused => _paused;
+
+  /// Whether a toast with [id] is currently active in the queue.
+  bool contains(String id) => _toasts.any((OrionToastData t) => t.id == id);
+
+  /// Remaining auto-dismiss duration snapshot for [id], or null if persistent.
+  Duration? remainingDurationOf(String id) {
+    final Duration? base = _remaining[id];
+    if (base == null) return null;
+    if (_paused) return base;
+    final DateTime? start = _timerStarts[id];
+    if (start == null) return base;
+    final Duration rem = base - DateTime.now().difference(start);
+    return rem > Duration.zero ? rem : Duration.zero;
+  }
+
+  /// Shows a new toast or updates an existing toast with the same [id] in place.
+  /// Returns the assigned toast id.
   String show(OrionToastData data) {
     final String toastId = data.id.isNotEmpty
         ? data.id
         : 'toast-${++_idCounter}';
     final OrionToastData effective = data.copyWith(id: toastId);
 
-    final int existingIndex = _toasts.indexWhere((t) => t.id == toastId);
+    final int existingIndex = _toasts.indexWhere(
+      (OrionToastData t) => t.id == toastId,
+    );
     if (existingIndex >= 0) {
-      // Update in place without altering stack position
       _toasts[existingIndex] = effective;
       _cancelTimer(toastId);
       _scheduleAutoDismiss(effective);
@@ -44,27 +68,28 @@ class OrionToastController extends ChangeNotifier {
     return toastId;
   }
 
-  /// Dismisses a toast by [id]. If [id] is null, dismisses the frontmost toast.
-  ///
-  /// The toast leaves the queue here and now; the card that was showing it keeps
-  /// its place for one more glide and is gone once that glide lands.
-  void dismiss([String? id]) {
+  /// Dismisses a toast by [id] (or the newest/frontmost toast when [id] is
+  /// null), reporting [reason] to its `onDismissed` callback.
+  void dismiss([
+    String? id,
+    OrionToastDismissReason reason = OrionToastDismissReason.programmatic,
+  ]) {
     if (id == null) {
       if (_toasts.isNotEmpty) {
-        final String frontId = _toasts.last.id;
-        _removeToast(frontId);
+        _removeToast(_toasts.last.id, reason: reason);
       }
       return;
     }
-    _removeToast(id);
+    _removeToast(id, reason: reason);
   }
 
   /// Dismisses and clears all active toasts immediately.
-  ///
-  /// The queue is empty on return; any cards on screen leave with their exit
-  /// motion. The hold is released with them, because nothing is left to hold.
   void clear() {
-    for (final timer in _timers.values) {
+    if (_toasts.isEmpty && _timers.isEmpty && !_paused) {
+      return;
+    }
+    final List<OrionToastData> removed = List<OrionToastData>.of(_toasts);
+    for (final Timer timer in _timers.values) {
       timer.cancel();
     }
     _timers.clear();
@@ -74,15 +99,19 @@ class OrionToastController extends ChangeNotifier {
     _paused = false;
     _pausedAt = null;
     notifyListeners();
+    for (final OrionToastData toast in removed) {
+      toast.onDismissed?.call(OrionToastDismissReason.cleared);
+    }
   }
 
-  /// Pauses auto-dismiss timers while an interaction (press/drag) is ongoing.
+  /// Pauses auto-dismiss timers while an interaction (hover, press, or pinned
+  /// expansion) is active.
   void pauseTimers() {
     if (_paused) return;
     _paused = true;
     final DateTime now = DateTime.now();
     _pausedAt = now;
-    for (final entry in _timers.entries) {
+    for (final MapEntry<String, Timer> entry in _timers.entries) {
       final String id = entry.key;
       entry.value.cancel();
       final DateTime? start = _timerStarts[id];
@@ -94,15 +123,10 @@ class OrionToastController extends ChangeNotifier {
       }
     }
     _timers.clear();
+    notifyListeners();
   }
 
-  /// Resumes auto-dismiss timers once touch interaction completes.
-  ///
-  /// Pausing holds the clock still for the toasts already on screen. A toast
-  /// that arrives while the stack is held is different: it was never given a
-  /// running timer, so the time it spent waiting is spent budget, and releasing
-  /// the stack dismisses it if that budget is already gone. Leaving it out would
-  /// hand such a toast a timer it can never outlive.
+  /// Resumes auto-dismiss timers once all hold/hover/expand interactions end.
   void resumeTimers() {
     if (!_paused) return;
     _paused = false;
@@ -110,7 +134,7 @@ class OrionToastController extends ChangeNotifier {
     final DateTime? pausedAt = _pausedAt;
     _pausedAt = null;
     final List<String> spent = <String>[];
-    for (final toast in _toasts) {
+    for (final OrionToastData toast in _toasts) {
       final Duration? rem = _remaining[toast.id];
       if (rem == null) {
         continue;
@@ -122,14 +146,21 @@ class OrionToastController extends ChangeNotifier {
           : Duration.zero;
       final Duration left = rem - held;
       if (left > Duration.zero) {
+        _remaining[toast.id] = left;
         _timerStarts[toast.id] = now;
-        _timers[toast.id] = Timer(left, () => dismiss(toast.id));
+        _timers[toast.id] = Timer(
+          left,
+          () => dismiss(toast.id, OrionToastDismissReason.timeout),
+        );
       } else {
         spent.add(toast.id);
       }
     }
     for (final String id in spent) {
-      _removeToast(id);
+      _removeToast(id, reason: OrionToastDismissReason.timeout);
+    }
+    if (spent.isEmpty) {
+      notifyListeners();
     }
   }
 
@@ -144,7 +175,10 @@ class OrionToastController extends ChangeNotifier {
     _timerStarts[data.id] = DateTime.now();
 
     if (!_paused) {
-      _timers[data.id] = Timer(duration, () => dismiss(data.id));
+      _timers[data.id] = Timer(
+        duration,
+        () => dismiss(data.id, OrionToastDismissReason.timeout),
+      );
     }
   }
 
@@ -155,12 +189,25 @@ class OrionToastController extends ChangeNotifier {
     _timerStarts.remove(id);
   }
 
-  void _removeToast(String id) {
+  void _removeToast(String id, {required OrionToastDismissReason reason}) {
     _cancelTimer(id);
-    final int index = _toasts.indexWhere((t) => t.id == id);
+    final int index = _toasts.indexWhere((OrionToastData t) => t.id == id);
     if (index >= 0) {
-      _toasts.removeAt(index);
+      final OrionToastData removed = _toasts.removeAt(index);
       notifyListeners();
+      removed.onDismissed?.call(reason);
     }
+  }
+
+  @override
+  void dispose() {
+    for (final Timer timer in _timers.values) {
+      timer.cancel();
+    }
+    _timers.clear();
+    _remaining.clear();
+    _timerStarts.clear();
+    _toasts.clear();
+    super.dispose();
   }
 }

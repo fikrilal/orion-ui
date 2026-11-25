@@ -46,7 +46,9 @@ class _OrionShowcasePanelState extends State<OrionShowcasePanel> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: OrionSpacing.space16),
+            padding: const EdgeInsets.symmetric(
+              horizontal: OrionSpacing.space16,
+            ),
             // The panel's painted surface would sit over the tab ink; a
             // transparent Material above the InkWells keeps the ripple visible.
             child: Material(

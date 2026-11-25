@@ -633,9 +633,7 @@ class _OrionOtpFieldState extends State<OrionOtpField>
 
     final Iterable<String>? effectiveAutofillHints =
         widget.autofillHints ??
-        (widget.obscureText
-            ? null
-            : const <String>[AutofillHints.oneTimeCode]);
+        (widget.obscureText ? null : const <String>[AutofillHints.oneTimeCode]);
 
     final Widget slotField = MouseRegion(
       cursor: widget.enabled
@@ -885,7 +883,8 @@ class _OrionOtpFieldState extends State<OrionOtpField>
             style: widget.enabled
                 ? effectiveLabelStyle
                 : effectiveLabelStyle.copyWith(
-                    color: style.disabledTextColor ??
+                    color:
+                        style.disabledTextColor ??
                         scheme.onSurface.withValues(alpha: 0.38),
                   ),
           ),

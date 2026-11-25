@@ -624,10 +624,7 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
     if (widget.isDismissible) {
       clamped = candidate.clamp(0.0, maxRubberH);
     } else {
-      clamped = candidate.clamp(
-        math.max(0.0, minH - 40.0),
-        maxRubberH,
-      );
+      clamped = candidate.clamp(math.max(0.0, minH - 40.0), maxRubberH);
     }
     _driver.jumpTo(clamped);
   }
@@ -747,7 +744,9 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
         },
         child: Container(
           width: double.infinity,
-          constraints: const BoxConstraints(minHeight: OrionSizing.minHitTarget),
+          constraints: const BoxConstraints(
+            minHeight: OrionSizing.minHitTarget,
+          ),
           alignment: Alignment.center,
           child: Container(
             width: size.width,
@@ -837,11 +836,15 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
               .resolve(Directionality.of(context))
         : EdgeInsets.zero;
 
-    final double keyboardInset = widget.hasBarrier ? media.viewInsets.bottom : 0.0;
-    final double bottomSafeInset =
-        widget.useSafeArea && widget.hasBarrier ? media.padding.bottom : 0.0;
-    final double topClearance =
-        widget.useSafeArea && widget.hasBarrier ? media.padding.top : 0.0;
+    final double keyboardInset = widget.hasBarrier
+        ? media.viewInsets.bottom
+        : 0.0;
+    final double bottomSafeInset = widget.useSafeArea && widget.hasBarrier
+        ? media.padding.bottom
+        : 0.0;
+    final double topClearance = widget.useSafeArea && widget.hasBarrier
+        ? media.padding.top
+        : 0.0;
 
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
@@ -851,7 +854,10 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
             (isFloating ? bottomSafeInset : 0.0);
         final double maxAvailable = math.max(
           0.0,
-          constraints.maxHeight - topClearance - keyboardInset - verticalMargins,
+          constraints.maxHeight -
+              topClearance -
+              keyboardInset -
+              verticalMargins,
         );
 
         if (_availableHeight != maxAvailable && maxAvailable > 0) {
@@ -1091,12 +1097,7 @@ class OrionBottomSheetState extends State<OrionBottomSheet>
               );
             }
 
-            return Stack(
-              children: <Widget>[
-                ?barrier,
-                positionedSheet,
-              ],
-            );
+            return Stack(children: <Widget>[?barrier, positionedSheet]);
           },
         );
       },

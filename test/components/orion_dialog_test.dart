@@ -745,36 +745,35 @@ void main() {
       expect((container.decoration! as BoxDecoration).border, isNull);
     });
 
-    testWidgets(
-      'vertical auto-stack places primary/destructive above cancel',
-      (tester) async {
-        await tester.pumpWidget(
-          MaterialApp(
-            theme: OrionTheme.light(),
-            home: Scaffold(
-              body: Center(
-                child: OrionDialog(
-                  title: 'Delete Workspace?',
-                  actions: <OrionDialogAction>[
-                    OrionDialogAction.cancel(onPressed: () {}),
-                    OrionDialogAction.destructive(
-                      label: 'Delete Workspace',
-                      onPressed: () {},
-                    ),
-                  ],
-                ),
+    testWidgets('vertical auto-stack places primary/destructive above cancel', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: Scaffold(
+            body: Center(
+              child: OrionDialog(
+                title: 'Delete Workspace?',
+                actions: <OrionDialogAction>[
+                  OrionDialogAction.cancel(onPressed: () {}),
+                  OrionDialogAction.destructive(
+                    label: 'Delete Workspace',
+                    onPressed: () {},
+                  ),
+                ],
               ),
             ),
           ),
-        );
+        ),
+      );
 
-        final double deleteY = tester
-            .getTopLeft(find.text('Delete Workspace'))
-            .dy;
-        final double cancelY = tester.getTopLeft(find.text('Cancel')).dy;
-        expect(deleteY, lessThan(cancelY));
-      },
-    );
+      final double deleteY = tester
+          .getTopLeft(find.text('Delete Workspace'))
+          .dy;
+      final double cancelY = tester.getTopLeft(find.text('Cancel')).dy;
+      expect(deleteY, lessThan(cancelY));
+    });
 
     testWidgets(
       'OrionDialogAction.cancel() with omitted onPressed dismisses dialog',

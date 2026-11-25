@@ -37,7 +37,10 @@ int _nextInteractiveIndex(
   return -1;
 }
 
-int _edgeInteractiveIndex(List<OrionMenuItem> items, {required bool fromStart}) {
+int _edgeInteractiveIndex(
+  List<OrionMenuItem> items, {
+  required bool fromStart,
+}) {
   if (fromStart) {
     for (int i = 0; i < items.length; i++) {
       if (items[i].isInteractive) return i;
@@ -418,7 +421,8 @@ class _OrionMenuItemRowState extends State<_OrionMenuItemRow> {
               : scheme.onSurfaceVariant)
         : scheme.onSurface.withValues(alpha: 0.38);
 
-    final bool activeHighlight = item.enabled && (_hovered || widget.highlighted);
+    final bool activeHighlight =
+        item.enabled && (_hovered || widget.highlighted);
     final bool activePress = item.enabled && _pressed;
 
     final Color rowBackground;
@@ -991,9 +995,7 @@ class _OrionModalMenuOverlayState<T> extends State<_OrionModalMenuOverlay<T>>
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: () => _dismiss(),
-                  onPanStart: widget.dismissOnScroll
-                      ? (_) => _dismiss()
-                      : null,
+                  onPanStart: widget.dismissOnScroll ? (_) => _dismiss() : null,
                 ),
               ),
             ),

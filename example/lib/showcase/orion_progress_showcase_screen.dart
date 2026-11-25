@@ -112,7 +112,9 @@ class _OrionProgressShowcaseScreenState
                       color: isDark
                           ? scheme.onSurface.withValues(alpha: 0.10)
                           : scheme.onSurface.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(OrionRadii.radiusPill),
+                      borderRadius: BorderRadius.circular(
+                        OrionRadii.radiusPill,
+                      ),
                       border: Border.all(
                         color: isDark
                             ? scheme.outlineVariant.withValues(alpha: 0.20)
@@ -202,7 +204,9 @@ class _OrionProgressShowcaseScreenState
                                   ),
                                 ),
                                 Text(
-                                  _linearValue == null ? '—' : '$linearPercent%',
+                                  _linearValue == null
+                                      ? '—'
+                                      : '$linearPercent%',
                                   style: textTheme.labelSmall?.copyWith(
                                     color: scheme.onSurfaceVariant,
                                     fontFeatures: const <FontFeature>[
@@ -249,7 +253,9 @@ class _OrionProgressShowcaseScreenState
                           _linearValue = _linearValue == null ? 0.25 : null;
                         }),
                         child: Text(
-                          _linearValue == null ? 'Determinate' : 'Indeterminate',
+                          _linearValue == null
+                              ? 'Determinate'
+                              : 'Indeterminate',
                         ),
                       ),
                       OrionButton(
@@ -391,7 +397,9 @@ class _OrionProgressShowcaseScreenState
                         color: isDark
                             ? scheme.surface
                             : scheme.surfaceContainerLowest,
-                        borderRadius: BorderRadius.circular(OrionRadii.radius12),
+                        borderRadius: BorderRadius.circular(
+                          OrionRadii.radius12,
+                        ),
                         border: Border.all(color: scheme.outlineVariant),
                       ),
                       child: OrionSegmentedProgress(

@@ -148,9 +148,11 @@ void main() {
       driver.stop();
       expect(driver.status, AnimationStatus.completed);
       expect(driver.isAnimating, isFalse);
-      expect(statuses, <AnimationStatus>[
-        AnimationStatus.forward,
-      ], reason: 'an interruption is not an arrival, so nothing is announced');
+      expect(
+        statuses,
+        <AnimationStatus>[AnimationStatus.forward],
+        reason: 'an interruption is not an arrival, so nothing is announced',
+      );
     });
 
     testWidgets('a retarget after a mid-flight jump announces nothing new', (

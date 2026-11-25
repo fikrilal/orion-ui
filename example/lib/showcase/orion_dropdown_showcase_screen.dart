@@ -162,52 +162,34 @@ class _OrionDropdownShowcaseScreenState
         ),
       ];
 
-  static const List<OrionDropdownOption<String>> _timezones =
-      <OrionDropdownOption<String>>[
-        OrionDropdownOption<String>(
-          value: 'los-angeles',
-          label: 'UTC-08:00 Los Angeles',
-        ),
-        OrionDropdownOption<String>(value: 'denver', label: 'UTC-07:00 Denver'),
-        OrionDropdownOption<String>(
-          value: 'chicago',
-          label: 'UTC-06:00 Chicago',
-        ),
-        OrionDropdownOption<String>(
-          value: 'new-york',
-          label: 'UTC-05:00 New York',
-        ),
-        OrionDropdownOption<String>(
-          value: 'sao-paulo',
-          label: 'UTC-03:00 Sao Paulo',
-        ),
-        OrionDropdownOption<String>(value: 'london', label: 'UTC+00:00 London'),
-        OrionDropdownOption<String>(value: 'berlin', label: 'UTC+01:00 Berlin'),
-        OrionDropdownOption<String>(
-          value: 'helsinki',
-          label: 'UTC+02:00 Helsinki',
-        ),
-        OrionDropdownOption<String>(
-          value: 'istanbul',
-          label: 'UTC+03:00 Istanbul',
-        ),
-        OrionDropdownOption<String>(value: 'dubai', label: 'UTC+04:00 Dubai'),
-        OrionDropdownOption<String>(value: 'mumbai', label: 'UTC+05:30 Mumbai'),
-        OrionDropdownOption<String>(
-          value: 'jakarta',
-          label: 'UTC+07:00 Jakarta',
-        ),
-        OrionDropdownOption<String>(
-          value: 'singapore',
-          label: 'UTC+08:00 Singapore',
-        ),
-        OrionDropdownOption<String>(value: 'tokyo', label: 'UTC+09:00 Tokyo'),
-        OrionDropdownOption<String>(value: 'sydney', label: 'UTC+10:00 Sydney'),
-        OrionDropdownOption<String>(
-          value: 'auckland',
-          label: 'UTC+13:00 Auckland',
-        ),
-      ];
+  static const List<OrionDropdownOption<String>>
+  _timezones = <OrionDropdownOption<String>>[
+    OrionDropdownOption<String>(
+      value: 'los-angeles',
+      label: 'UTC-08:00 Los Angeles',
+    ),
+    OrionDropdownOption<String>(value: 'denver', label: 'UTC-07:00 Denver'),
+    OrionDropdownOption<String>(value: 'chicago', label: 'UTC-06:00 Chicago'),
+    OrionDropdownOption<String>(value: 'new-york', label: 'UTC-05:00 New York'),
+    OrionDropdownOption<String>(
+      value: 'sao-paulo',
+      label: 'UTC-03:00 Sao Paulo',
+    ),
+    OrionDropdownOption<String>(value: 'london', label: 'UTC+00:00 London'),
+    OrionDropdownOption<String>(value: 'berlin', label: 'UTC+01:00 Berlin'),
+    OrionDropdownOption<String>(value: 'helsinki', label: 'UTC+02:00 Helsinki'),
+    OrionDropdownOption<String>(value: 'istanbul', label: 'UTC+03:00 Istanbul'),
+    OrionDropdownOption<String>(value: 'dubai', label: 'UTC+04:00 Dubai'),
+    OrionDropdownOption<String>(value: 'mumbai', label: 'UTC+05:30 Mumbai'),
+    OrionDropdownOption<String>(value: 'jakarta', label: 'UTC+07:00 Jakarta'),
+    OrionDropdownOption<String>(
+      value: 'singapore',
+      label: 'UTC+08:00 Singapore',
+    ),
+    OrionDropdownOption<String>(value: 'tokyo', label: 'UTC+09:00 Tokyo'),
+    OrionDropdownOption<String>(value: 'sydney', label: 'UTC+10:00 Sydney'),
+    OrionDropdownOption<String>(value: 'auckland', label: 'UTC+13:00 Auckland'),
+  ];
 
   static const List<OrionDropdownOption<String>> _roles =
       <OrionDropdownOption<String>>[
@@ -259,9 +241,7 @@ class _OrionDropdownShowcaseScreenState
   String get _snippet {
     final List<String> lines = <String>[
       'OrionDropdown<String>(',
-      _environment == null
-          ? '  value: null,'
-          : "  value: '$_environment',",
+      _environment == null ? '  value: null,' : "  value: '$_environment',",
       "  placeholder: 'Choose environment',",
       '  variant: OrionDropdownVariant.${_variant.name},',
       '  size: OrionDropdownSize.${_size.name},',
@@ -309,7 +289,9 @@ class _OrionDropdownShowcaseScreenState
                       color: isDark
                           ? scheme.onSurface.withValues(alpha: 0.10)
                           : scheme.onSurface.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(OrionRadii.radiusPill),
+                      borderRadius: BorderRadius.circular(
+                        OrionRadii.radiusPill,
+                      ),
                       border: Border.all(
                         color: isDark
                             ? scheme.outlineVariant.withValues(alpha: 0.20)
@@ -360,7 +342,9 @@ class _OrionDropdownShowcaseScreenState
                       ),
                       decoration: BoxDecoration(
                         color: scheme.surfaceContainerLowest,
-                        borderRadius: BorderRadius.circular(OrionRadii.radius12),
+                        borderRadius: BorderRadius.circular(
+                          OrionRadii.radius12,
+                        ),
                         border: Border.all(
                           color: scheme.outlineVariant.withValues(alpha: 0.25),
                         ),

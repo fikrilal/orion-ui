@@ -134,7 +134,9 @@ class _OrionAccordionShowcaseScreenState
                       color: isDark
                           ? scheme.onSurface.withValues(alpha: 0.10)
                           : scheme.onSurface.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(OrionRadii.radiusPill),
+                      borderRadius: BorderRadius.circular(
+                        OrionRadii.radiusPill,
+                      ),
                       border: Border.all(
                         color: isDark
                             ? scheme.outlineVariant.withValues(alpha: 0.20)
@@ -183,7 +185,9 @@ class _OrionAccordionShowcaseScreenState
                         color: isDark
                             ? scheme.surfaceContainerLowest
                             : scheme.surfaceContainerLowest,
-                        borderRadius: BorderRadius.circular(OrionRadii.radius12),
+                        borderRadius: BorderRadius.circular(
+                          OrionRadii.radius12,
+                        ),
                         border: Border.all(
                           color: isDark
                               ? scheme.outlineVariant.withValues(alpha: 0.15)

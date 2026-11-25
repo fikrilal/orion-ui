@@ -859,77 +859,77 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('omits negative and positive signs when rounded value is zero', (
+    testWidgets(
+      'omits negative and positive signs when rounded value is zero',
+      (tester) async {
+        final SemanticsHandle handle = tester.ensureSemantics();
+        await _pumpCounter(
+          tester,
+          value: -0.001,
+          fractionDigits: 2,
+          prefix: r'$',
+          showPositiveSign: true,
+        );
+        await tester.pumpAndSettle();
+
+        expect(tester.getSemantics(find.byType(OrionCounter)).value, r'$0.00');
+        expect(find.text('-'), findsNothing);
+        expect(find.text('+'), findsNothing);
+        handle.dispose();
+      },
+    );
+
+    testWidgets('formats currency with decimals, grouping, prefix, and sign', (
       tester,
     ) async {
       final SemanticsHandle handle = tester.ensureSemantics();
       await _pumpCounter(
         tester,
-        value: -0.001,
+        value: 1240.5,
         fractionDigits: 2,
+        thousandSeparator: ',',
         prefix: r'$',
         showPositiveSign: true,
       );
       await tester.pumpAndSettle();
 
-      expect(tester.getSemantics(find.byType(OrionCounter)).value, r'$0.00');
-      expect(find.text('-'), findsNothing);
-      expect(find.text('+'), findsNothing);
+      expect(_read(tester), '124050');
+      expect(find.text('+'), findsOneWidget);
+      expect(find.text(r'$'), findsOneWidget);
+      expect(find.text(','), findsOneWidget);
+      expect(find.text('.'), findsOneWidget);
+      expect(
+        tester.getSemantics(find.byType(OrionCounter)).value,
+        r'+$1,240.50',
+      );
+
+      // Carrying across the decimal point: 1240.99 -> 1241.00.
+      await _pumpCounter(
+        tester,
+        value: 1240.99,
+        fractionDigits: 2,
+        thousandSeparator: ',',
+        prefix: r'$',
+        showPositiveSign: true,
+      );
+      await tester.pumpAndSettle();
+      await _pumpCounter(
+        tester,
+        value: 1241.00,
+        fractionDigits: 2,
+        thousandSeparator: ',',
+        prefix: r'$',
+        showPositiveSign: true,
+      );
+      await tester.pumpAndSettle();
+
+      expect(_read(tester), '124100');
+      expect(
+        tester.getSemantics(find.byType(OrionCounter)).value,
+        r'+$1,241.00',
+      );
       handle.dispose();
     });
-
-    testWidgets(
-      'formats currency with decimals, grouping, prefix, and sign',
-      (tester) async {
-        final SemanticsHandle handle = tester.ensureSemantics();
-        await _pumpCounter(
-          tester,
-          value: 1240.5,
-          fractionDigits: 2,
-          thousandSeparator: ',',
-          prefix: r'$',
-          showPositiveSign: true,
-        );
-        await tester.pumpAndSettle();
-
-        expect(_read(tester), '124050');
-        expect(find.text('+'), findsOneWidget);
-        expect(find.text(r'$'), findsOneWidget);
-        expect(find.text(','), findsOneWidget);
-        expect(find.text('.'), findsOneWidget);
-        expect(
-          tester.getSemantics(find.byType(OrionCounter)).value,
-          r'+$1,240.50',
-        );
-
-        // Carrying across the decimal point: 1240.99 -> 1241.00.
-        await _pumpCounter(
-          tester,
-          value: 1240.99,
-          fractionDigits: 2,
-          thousandSeparator: ',',
-          prefix: r'$',
-          showPositiveSign: true,
-        );
-        await tester.pumpAndSettle();
-        await _pumpCounter(
-          tester,
-          value: 1241.00,
-          fractionDigits: 2,
-          thousandSeparator: ',',
-          prefix: r'$',
-          showPositiveSign: true,
-        );
-        await tester.pumpAndSettle();
-
-        expect(_read(tester), '124100');
-        expect(
-          tester.getSemantics(find.byType(OrionCounter)).value,
-          r'+$1,241.00',
-        );
-        handle.dispose();
-      },
-    );
 
     testWidgets('supports minDigits zero-padding, suffix, and textStyle', (
       tester,

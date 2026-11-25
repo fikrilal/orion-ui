@@ -144,7 +144,9 @@ class _OrionOtpShowcaseScreenState extends State<OrionOtpShowcaseScreen> {
                       color: isDark
                           ? scheme.onSurface.withValues(alpha: 0.10)
                           : scheme.onSurface.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(OrionRadii.radiusPill),
+                      borderRadius: BorderRadius.circular(
+                        OrionRadii.radiusPill,
+                      ),
                       border: Border.all(
                         color: isDark
                             ? scheme.outlineVariant.withValues(alpha: 0.20)
@@ -196,7 +198,9 @@ class _OrionOtpShowcaseScreenState extends State<OrionOtpShowcaseScreen> {
                         color: isDark
                             ? scheme.surface
                             : scheme.surfaceContainerLowest,
-                        borderRadius: BorderRadius.circular(OrionRadii.radius12),
+                        borderRadius: BorderRadius.circular(
+                          OrionRadii.radius12,
+                        ),
                         border: Border.all(color: scheme.outlineVariant),
                       ),
                       child: Center(
@@ -243,11 +247,12 @@ class _OrionOtpShowcaseScreenState extends State<OrionOtpShowcaseScreen> {
                           size: OrionButtonSize.small,
                           variant: OrionButtonVariant.bordered,
                           onPressed: () {
-                            _playgroundController.value = switch (_activeLength) {
-                              4 => '1234',
-                              6 => '123-456',
-                              _ => '1234-5678',
-                            };
+                            _playgroundController.value =
+                                switch (_activeLength) {
+                                  4 => '1234',
+                                  6 => '123-456',
+                                  _ => '1234-5678',
+                                };
                           },
                           leading: const Icon(
                             Icons.auto_fix_high_rounded,

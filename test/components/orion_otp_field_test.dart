@@ -777,51 +777,50 @@ void main() {
       },
     );
 
-    testWidgets(
-      'toggling delayedObscure off mid-peek masks immediately',
-      (tester) async {
-        bool delayed = true;
-        late StateSetter setHostState;
+    testWidgets('toggling delayedObscure off mid-peek masks immediately', (
+      tester,
+    ) async {
+      bool delayed = true;
+      late StateSetter setHostState;
 
-        await tester.pumpWidget(
-          MaterialApp(
-            theme: OrionTheme.light(),
-            home: StatefulBuilder(
-              builder: (BuildContext context, StateSetter setState) {
-                setHostState = setState;
-                return Scaffold(
-                  body: Center(
-                    child: OrionOtpField(
-                      length: 4,
-                      obscureText: true,
-                      delayedObscure: delayed,
-                      delayedObscureDuration: const Duration(milliseconds: 500),
-                    ),
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: StatefulBuilder(
+            builder: (BuildContext context, StateSetter setState) {
+              setHostState = setState;
+              return Scaffold(
+                body: Center(
+                  child: OrionOtpField(
+                    length: 4,
+                    obscureText: true,
+                    delayedObscure: delayed,
+                    delayedObscureDuration: const Duration(milliseconds: 500),
                   ),
-                );
-              },
-            ),
+                ),
+              );
+            },
           ),
-        );
+        ),
+      );
 
-        await tester.tap(find.byType(OrionOtpField));
-        await tester.pump();
-        await tester.enterText(find.byType(TextField), '5');
-        await tester.pump();
-        expect(
-          find.byWidgetPredicate((Widget w) => w is Text && w.data == '5'),
-          findsOneWidget,
-        );
+      await tester.tap(find.byType(OrionOtpField));
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), '5');
+      await tester.pump();
+      expect(
+        find.byWidgetPredicate((Widget w) => w is Text && w.data == '5'),
+        findsOneWidget,
+      );
 
-        setHostState(() => delayed = false);
-        await tester.pump();
-        expect(
-          find.byWidgetPredicate((Widget w) => w is Text && w.data == '5'),
-          findsNothing,
-        );
-        expect(find.text('●'), findsOneWidget);
-      },
-    );
+      setHostState(() => delayed = false);
+      await tester.pump();
+      expect(
+        find.byWidgetPredicate((Widget w) => w is Text && w.data == '5'),
+        findsNothing,
+      );
+      expect(find.text('●'), findsOneWidget);
+    });
 
     testWidgets(
       'supports outline, filled, underline variants, placeholder, label, helper, and error',
@@ -924,35 +923,49 @@ void main() {
   });
 
   group('OrionOtpStyle & Themes', () {
-    test('presets reproduce light defaults and provide crisp dark & success roles', () {
-      final style = OrionOtpPresets.resolve(scheme: OrionColors.lightScheme);
+    test(
+      'presets reproduce light defaults and provide crisp dark & success roles',
+      () {
+        final style = OrionOtpPresets.resolve(scheme: OrionColors.lightScheme);
 
-      expect(style.slotWidth, 42.0);
-      expect(style.slotHeight, 52.0);
-      expect(style.slotBorderWidth, 1.0);
-      expect(style.activeBorderWidth, 2.0);
-      expect(style.slotSpacing, 6.0);
-      expect(style.groupSpacing, 14.0);
-      expect(style.borderColor, OrionColors.lightScheme.outline);
-      expect(style.successBorderColor, isNot(OrionColors.lightScheme.primary));
+        expect(style.slotWidth, 42.0);
+        expect(style.slotHeight, 52.0);
+        expect(style.slotBorderWidth, 1.0);
+        expect(style.activeBorderWidth, 2.0);
+        expect(style.slotSpacing, 6.0);
+        expect(style.groupSpacing, 14.0);
+        expect(style.borderColor, OrionColors.lightScheme.outline);
+        expect(
+          style.successBorderColor,
+          isNot(OrionColors.lightScheme.primary),
+        );
 
-      final darkStyle = OrionOtpPresets.resolve(scheme: OrionColors.darkScheme);
-      expect(darkStyle.backgroundColor, OrionColors.darkScheme.surfaceContainer);
-      expect(darkStyle.borderColor, OrionColors.darkScheme.outline);
-      expect(darkStyle.successBorderColor, isNot(OrionColors.darkScheme.primary));
+        final darkStyle = OrionOtpPresets.resolve(
+          scheme: OrionColors.darkScheme,
+        );
+        expect(
+          darkStyle.backgroundColor,
+          OrionColors.darkScheme.surfaceContainer,
+        );
+        expect(darkStyle.borderColor, OrionColors.darkScheme.outline);
+        expect(
+          darkStyle.successBorderColor,
+          isNot(OrionColors.darkScheme.primary),
+        );
 
-      final filledStyle = OrionOtpPresets.resolve(
-        scheme: OrionColors.lightScheme,
-        variant: OrionOtpVariant.filled,
-      );
-      expect(filledStyle.slotBorderWidth, 0.0);
+        final filledStyle = OrionOtpPresets.resolve(
+          scheme: OrionColors.lightScheme,
+          variant: OrionOtpVariant.filled,
+        );
+        expect(filledStyle.slotBorderWidth, 0.0);
 
-      final underlineStyle = OrionOtpPresets.resolve(
-        scheme: OrionColors.lightScheme,
-        variant: OrionOtpVariant.underline,
-      );
-      expect(underlineStyle.slotBorderRadius, BorderRadius.zero);
-    });
+        final underlineStyle = OrionOtpPresets.resolve(
+          scheme: OrionColors.lightScheme,
+          variant: OrionOtpVariant.underline,
+        );
+        expect(underlineStyle.slotBorderRadius, BorderRadius.zero);
+      },
+    );
 
     test('style merge overrides only named fields and merges TextStyle', () {
       final base = OrionOtpPresets.resolve(scheme: OrionColors.darkScheme);

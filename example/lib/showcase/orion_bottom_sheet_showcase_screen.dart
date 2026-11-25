@@ -112,8 +112,10 @@ class _OrionBottomSheetShowcaseScreenState
                         label: 'Cancel',
                         variant: OrionButtonVariant.bordered,
                         isExpanded: true,
-                        onPressed: () =>
-                            OrionBottomSheet.dismissOf(sheetContext, 'Cancelled'),
+                        onPressed: () => OrionBottomSheet.dismissOf(
+                          sheetContext,
+                          'Cancelled',
+                        ),
                       ),
                     ),
                     const SizedBox(width: OrionSpacing.space12),
@@ -122,8 +124,10 @@ class _OrionBottomSheetShowcaseScreenState
                         label: 'Confirm',
                         variant: OrionButtonVariant.solid,
                         isExpanded: true,
-                        onPressed: () =>
-                            OrionBottomSheet.dismissOf(sheetContext, 'Confirmed'),
+                        onPressed: () => OrionBottomSheet.dismissOf(
+                          sheetContext,
+                          'Confirmed',
+                        ),
                       ),
                     ),
                   ],
@@ -511,25 +515,27 @@ class _OrionBottomSheetShowcaseScreenState
                                       const OrionBottomSheetStyle())
                                   .copyWith(frosted: _frosted),
                           builder:
-                              (BuildContext context, ScrollController scroll) =>
-                                  ListView(
-                                    controller: scroll,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
+                              (
+                                BuildContext context,
+                                ScrollController scroll,
+                              ) => ListView(
+                                controller: scroll,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
+                                children: const <Widget>[
+                                  Text(
+                                    'Inline Tray Content',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
                                     ),
-                                    children: const <Widget>[
-                                      Text(
-                                        'Inline Tray Content',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      SizedBox(height: 8),
-                                      Text(
-                                        'Swipe or use the buttons above to animate detents.',
-                                      ),
-                                    ],
                                   ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'Swipe or use the buttons above to animate detents.',
+                                  ),
+                                ],
+                              ),
                         ),
                       ],
                     ),

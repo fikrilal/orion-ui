@@ -5,32 +5,33 @@ import 'package:orion_ui/orion_ui.dart';
 
 void main() {
   group('OrionCircularProgress', () {
-    testWidgets('sizes to default 40 and respects size/strokeWidth shorthands', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: OrionTheme.light(),
-          home: const Scaffold(
-            body: Column(
-              children: <Widget>[
-                OrionCircularProgress(value: 0.5),
-                OrionCircularProgress(value: 0.75, size: 64, strokeWidth: 6),
-              ],
+    testWidgets(
+      'sizes to default 40 and respects size/strokeWidth shorthands',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: const Scaffold(
+              body: Column(
+                children: <Widget>[
+                  OrionCircularProgress(value: 0.5),
+                  OrionCircularProgress(value: 0.75, size: 64, strokeWidth: 6),
+                ],
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      expect(
-        tester.getSize(find.byType(OrionCircularProgress).at(0)),
-        const Size(40, 40),
-      );
-      expect(
-        tester.getSize(find.byType(OrionCircularProgress).at(1)),
-        const Size(64, 64),
-      );
-    });
+        expect(
+          tester.getSize(find.byType(OrionCircularProgress).at(0)),
+          const Size(40, 40),
+        );
+        expect(
+          tester.getSize(find.byType(OrionCircularProgress).at(1)),
+          const Size(64, 64),
+        );
+      },
+    );
 
     testWidgets(
       'animates determinate value without rebuilding child on spring ticks',
@@ -108,10 +109,7 @@ void main() {
             home: const Scaffold(
               body: Column(
                 children: <Widget>[
-                  OrionCircularProgress(
-                    value: 0.64,
-                    semanticLabel: 'Syncing',
-                  ),
+                  OrionCircularProgress(value: 0.64, semanticLabel: 'Syncing'),
                   OrionCircularProgress(
                     value: double.nan,
                     tone: OrionProgressTone.error,

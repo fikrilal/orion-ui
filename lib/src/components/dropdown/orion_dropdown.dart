@@ -698,11 +698,7 @@ class OrionDropdownState<T> extends State<OrionDropdown<T>>
     return indices;
   }
 
-  void _setActive(
-    int? index, {
-    bool glide = true,
-    bool showHighlight = false,
-  }) {
+  void _setActive(int? index, {bool glide = true, bool showHighlight = false}) {
     final bool changed = index != _activeIndex;
     final bool highlightChanged = showHighlight && !_showActiveHighlight;
     _activeIndex = index;
@@ -893,7 +889,8 @@ class OrionDropdownState<T> extends State<OrionDropdown<T>>
       fitContent: fitContent,
       detents: detents,
       maxHeightFraction: 0.88,
-      title: widget.sheetTitle ?? widget.label ?? widget.placeholder ?? 'Select',
+      title:
+          widget.sheetTitle ?? widget.label ?? widget.placeholder ?? 'Select',
       showCloseButton: true,
       builder: (BuildContext sheetContext, ScrollController scrollController) {
         return _OrionDropdownSheetBody<T>(
@@ -1595,7 +1592,9 @@ class OrionDropdownState<T> extends State<OrionDropdown<T>>
     required bool enabled,
   }) {
     final int maxTags = math.max(1, widget.maxVisibleTags);
-    final List<OrionDropdownOption<T>> visible = selected.take(maxTags).toList();
+    final List<OrionDropdownOption<T>> visible = selected
+        .take(maxTags)
+        .toList();
     final int overflow = selected.length - visible.length;
     final TextStyle tagStyle =
         (Theme.of(context).textTheme.labelSmall ??
@@ -1669,10 +1668,7 @@ class OrionDropdownState<T> extends State<OrionDropdown<T>>
       0.0,
       mq.size.height - bottomInset - triggerRect.bottom - gap,
     );
-    final double spaceAbove = math.max(
-      0.0,
-      triggerRect.top - topInset - gap,
-    );
+    final double spaceAbove = math.max(0.0, triggerRect.top - topInset - gap);
     final double maxAvailable = widget.autoFlip
         ? math.max(spaceBelow, spaceAbove)
         : (_panelIsAbove ? spaceAbove : spaceBelow);
@@ -2364,12 +2360,7 @@ List<Widget> _buildGroupedItems<T>({
       addedHeader = true;
       widgets.add(
         Padding(
-          padding: EdgeInsets.fromLTRB(
-            12.0,
-            i == 0 ? 4.0 : 12.0,
-            12.0,
-            4.0,
-          ),
+          padding: EdgeInsets.fromLTRB(12.0, i == 0 ? 4.0 : 12.0, 12.0, 4.0),
           child: Text(
             group,
             maxLines: 1,
@@ -2693,10 +2684,7 @@ class _OrionDropdownRowState<T> extends State<_OrionDropdownRow<T>> {
           );
 
     final Widget content = DecoratedBox(
-      decoration: BoxDecoration(
-        color: rowBackground,
-        borderRadius: rowRadius,
-      ),
+      decoration: BoxDecoration(color: rowBackground, borderRadius: rowRadius),
       child: Container(
         constraints: BoxConstraints(minHeight: style.rowMinHeight ?? 44.0),
         alignment: AlignmentDirectional.centerStart,

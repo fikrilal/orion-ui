@@ -148,10 +148,8 @@ abstract final class OrionDropdownPresets {
         horizontal: OrionSpacing.space12,
         vertical: OrionSpacing.space8,
       ),
-      rowTitleStyle:
-          (textTheme.bodyMedium ?? const TextStyle(fontSize: 14.0)).copyWith(
-            fontWeight: FontWeight.w500,
-          ),
+      rowTitleStyle: (textTheme.bodyMedium ?? const TextStyle(fontSize: 14.0))
+          .copyWith(fontWeight: FontWeight.w500),
       rowDescriptionStyle:
           (textTheme.bodySmall ?? const TextStyle(fontSize: 12.0)).copyWith(
             fontWeight: FontWeight.w400,

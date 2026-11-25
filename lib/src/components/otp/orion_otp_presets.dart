@@ -18,7 +18,9 @@ abstract final class OrionOtpPresets {
     final Color successColor = isDark
         ? const Color(0xFF22C55E)
         : const Color(0xFF16A34A);
-    final Color errorTint = scheme.error.withValues(alpha: isDark ? 0.12 : 0.06);
+    final Color errorTint = scheme.error.withValues(
+      alpha: isDark ? 0.12 : 0.06,
+    );
     final Color successTint = successColor.withValues(
       alpha: isDark ? 0.12 : 0.06,
     );

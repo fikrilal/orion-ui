@@ -265,7 +265,9 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
                       color: isDark
                           ? scheme.onSurface.withValues(alpha: 0.10)
                           : scheme.onSurface.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(OrionRadii.radiusPill),
+                      borderRadius: BorderRadius.circular(
+                        OrionRadii.radiusPill,
+                      ),
                       border: Border.all(
                         color: isDark
                             ? scheme.outlineVariant.withValues(alpha: 0.20)
@@ -315,7 +317,9 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
                       ),
                       decoration: BoxDecoration(
                         color: scheme.surfaceContainerLowest,
-                        borderRadius: BorderRadius.circular(OrionRadii.radius12),
+                        borderRadius: BorderRadius.circular(
+                          OrionRadii.radius12,
+                        ),
                         border: Border.all(
                           color: isDark
                               ? scheme.outlineVariant.withValues(alpha: 0.15)
@@ -651,12 +655,16 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
                           ).then((_) {
                             if (mounted) {
                               setState(
-                                () => _lastActionResult = 'Guarded Acknowledged',
+                                () =>
+                                    _lastActionResult = 'Guarded Acknowledged',
                               );
                             }
                           });
                         },
-                        leading: const Icon(Icons.lock_outline_rounded, size: 18),
+                        leading: const Icon(
+                          Icons.lock_outline_rounded,
+                          size: 18,
+                        ),
                         label: 'Guarded Alert',
                       ),
                     ],

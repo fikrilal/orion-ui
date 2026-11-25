@@ -247,7 +247,8 @@ class _OrionCounterState extends State<OrionCounter>
               : OrionCounterStyle(fadeEdges: widget.fadeEdges),
         );
     for (final _DigitSlot slot in _slots) {
-      slot.driver.springSpec = _style.spring ?? OrionCounterPresets.defaultSpring;
+      slot.driver.springSpec =
+          _style.spring ?? OrionCounterPresets.defaultSpring;
     }
   }
 
@@ -727,8 +728,8 @@ class _DigitWindow extends StatelessWidget {
             // How far this digit is from resting on a row: zero at rest, at
             // most a half mid-roll. A rolling digit squashes and recovers so
             // travel reads as weight rather than a flat slide.
-            final double motion =
-                (driver.value - driver.value.roundToDouble()).abs();
+            final double motion = (driver.value - driver.value.roundToDouble())
+                .abs();
             final double squash = (motion * 2).clamp(0.0, 1.0);
             return _EdgeFadeMask(
               intensity: fadeEdges ? squash : 0.0,

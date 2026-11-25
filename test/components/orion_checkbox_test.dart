@@ -741,41 +741,42 @@ void main() {
       expect(reported, isNull);
     });
 
-    testWidgets('renders clickable label and subtitle row and toggles on label tap', (
-      tester,
-    ) async {
-      bool? reported;
-      final SemanticsHandle handle = tester.ensureSemantics();
+    testWidgets(
+      'renders clickable label and subtitle row and toggles on label tap',
+      (tester) async {
+        bool? reported;
+        final SemanticsHandle handle = tester.ensureSemantics();
 
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: OrionTheme.light(),
-          home: Scaffold(
-            body: Center(
-              child: OrionCheckbox(
-                value: false,
-                label: 'Accept terms',
-                subtitle: 'Required to create an account',
-                onChanged: (bool? v) => reported = v,
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: Center(
+                child: OrionCheckbox(
+                  value: false,
+                  label: 'Accept terms',
+                  subtitle: 'Required to create an account',
+                  onChanged: (bool? v) => reported = v,
+                ),
               ),
             ),
           ),
-        ),
-      );
+        );
 
-      expect(find.text('Accept terms'), findsOneWidget);
-      expect(find.text('Required to create an account'), findsOneWidget);
+        expect(find.text('Accept terms'), findsOneWidget);
+        expect(find.text('Required to create an account'), findsOneWidget);
 
-      await tester.tap(find.text('Accept terms'));
-      await tester.pump();
-      expect(reported, isTrue);
+        await tester.tap(find.text('Accept terms'));
+        await tester.pump();
+        expect(reported, isTrue);
 
-      final SemanticsNode node = tester.getSemantics(
-        find.byType(OrionCheckbox),
-      );
-      expect(node.label, 'Accept terms');
-      handle.dispose();
-    });
+        final SemanticsNode node = tester.getSemantics(
+          find.byType(OrionCheckbox),
+        );
+        expect(node.label, 'Accept terms');
+        handle.dispose();
+      },
+    );
   });
 
   group('OrionCheckboxStyle', () {

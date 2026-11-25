@@ -225,7 +225,8 @@ class _OrionDatePickerSheetState extends State<OrionDatePickerSheet> {
 
   bool get _hasSelection => switch (widget.mode) {
     OrionCalendarSelectionMode.single => _selectedDate != null,
-    OrionCalendarSelectionMode.range => _rangeStart != null || _rangeEnd != null,
+    OrionCalendarSelectionMode.range =>
+      _rangeStart != null || _rangeEnd != null,
   };
 
   bool get _hasValidSelection => switch (widget.mode) {
@@ -538,9 +539,7 @@ class _RangeSummaryBar extends StatelessWidget {
             ),
             const SizedBox(height: 2),
             Text(
-              date == null
-                  ? 'Add date'
-                  : localizations.formatMediumDate(date),
+              date == null ? 'Add date' : localizations.formatMediumDate(date),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodyMedium?.copyWith(
@@ -563,9 +562,7 @@ class _RangeSummaryBar extends StatelessWidget {
           active: !pickingEnd && endDate == null,
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: OrionSpacing.space12,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: OrionSpacing.space12),
           child: AnimatedSwitcher(
             duration: const Duration(milliseconds: 160),
             switchInCurve: Curves.easeOutCubic,

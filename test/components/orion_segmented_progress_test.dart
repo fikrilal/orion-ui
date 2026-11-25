@@ -293,30 +293,33 @@ void main() {
   });
 
   group('OrionProgressStyle', () {
-    test('a merge only changes the fields it names and theme lerp interpolates', () {
-      const OrionProgressStyle base = OrionProgressStyle(
-        trackColor: Color(0xFF111111),
-        fillColor: Color(0xFF222222),
-        height: 8,
-      );
-      final OrionProgressStyle merged = base.merge(
-        OrionProgressStyle.from(fillColor: const Color(0xFF333333)),
-      );
+    test(
+      'a merge only changes the fields it names and theme lerp interpolates',
+      () {
+        const OrionProgressStyle base = OrionProgressStyle(
+          trackColor: Color(0xFF111111),
+          fillColor: Color(0xFF222222),
+          height: 8,
+        );
+        final OrionProgressStyle merged = base.merge(
+          OrionProgressStyle.from(fillColor: const Color(0xFF333333)),
+        );
 
-      expect(merged.fillColor, const Color(0xFF333333));
-      expect(merged.trackColor, const Color(0xFF111111));
-      expect(merged.height, 8);
+        expect(merged.fillColor, const Color(0xFF333333));
+        expect(merged.trackColor, const Color(0xFF111111));
+        expect(merged.height, 8);
 
-      final OrionProgressTheme a = OrionProgressTheme(
-        defaultStyle: OrionProgressStyle.from(height: 4, gap: 4),
-      );
-      final OrionProgressTheme b = OrionProgressTheme(
-        defaultStyle: OrionProgressStyle.from(height: 12, gap: 12),
-      );
-      final OrionProgressTheme lerped = a.lerp(b, 0.5);
-      expect(lerped.defaultStyle?.height, 8.0);
-      expect(lerped.defaultStyle?.gap, 8.0);
-    });
+        final OrionProgressTheme a = OrionProgressTheme(
+          defaultStyle: OrionProgressStyle.from(height: 4, gap: 4),
+        );
+        final OrionProgressTheme b = OrionProgressTheme(
+          defaultStyle: OrionProgressStyle.from(height: 12, gap: 12),
+        );
+        final OrionProgressTheme lerped = a.lerp(b, 0.5);
+        expect(lerped.defaultStyle?.height, 8.0);
+        expect(lerped.defaultStyle?.gap, 8.0);
+      },
+    );
 
     test('defaults reproduce the shipped geometry', () {
       final OrionProgressStyle style = OrionProgressStyle.defaults(

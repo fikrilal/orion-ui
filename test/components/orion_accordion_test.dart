@@ -92,12 +92,11 @@ double _extent(WidgetTester tester) => tester.getSize(_panelClip()).height;
 /// The content's own size including the default content padding, which the clip
 /// never changes: it is laid out at its natural height whether the panel is
 /// open, closed, or mid-travel.
-double _naturalHeight(WidgetTester tester) =>
-    tester
-        .getSize(
-          find.ancestor(of: _panelBody(), matching: find.byType(Padding)).first,
-        )
-        .height;
+double _naturalHeight(WidgetTester tester) => tester
+    .getSize(
+      find.ancestor(of: _panelBody(), matching: find.byType(Padding)).first,
+    )
+    .height;
 
 /// Rotation of the default chevron. Positive is clockwise, matching
 /// `Transform.rotate` around the two states.

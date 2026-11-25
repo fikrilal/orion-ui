@@ -386,10 +386,7 @@ class _OrionAccordionState extends State<OrionAccordion>
               return Align(
                 alignment: Alignment.topLeft,
                 heightFactor: factor,
-                child: Opacity(
-                  opacity: factor.clamp(0.0, 1.0),
-                  child: child,
-                ),
+                child: Opacity(opacity: factor.clamp(0.0, 1.0), child: child),
               );
             },
           ),

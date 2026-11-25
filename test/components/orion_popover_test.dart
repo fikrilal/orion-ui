@@ -655,11 +655,12 @@ void main() {
                   const SizedBox(height: 24),
                   OrionPopover(
                     controller: controller,
-                    triggerBuilder: (BuildContext context, OrionPopoverController c) =>
-                        ElevatedButton(
-                          onPressed: c.toggle,
-                          child: const Text('Zero Cooldown Trigger'),
-                        ),
+                    triggerBuilder:
+                        (BuildContext context, OrionPopoverController c) =>
+                            ElevatedButton(
+                              onPressed: c.toggle,
+                              child: const Text('Zero Cooldown Trigger'),
+                            ),
                     content: const Text('Zero Cooldown Body'),
                   ),
                 ],
@@ -766,32 +767,38 @@ void main() {
       final darkStyle = OrionPopoverPresets.resolve(
         scheme: OrionColors.darkScheme,
       );
-      expect(darkStyle.backgroundColor, OrionColors.darkScheme.surfaceContainer);
+      expect(
+        darkStyle.backgroundColor,
+        OrionColors.darkScheme.surfaceContainer,
+      );
       expect(darkStyle.backgroundColor, isNot(OrionColors.darkScheme.surface));
       expect(darkStyle.borderColor, OrionColors.darkScheme.outlineVariant);
     });
 
-    test('style merge overrides only named fields and theme lerp interpolates', () {
-      final base = OrionPopoverStyle.from(
-        borderWidth: 2.0,
-        backgroundColor: Colors.white,
-      );
+    test(
+      'style merge overrides only named fields and theme lerp interpolates',
+      () {
+        final base = OrionPopoverStyle.from(
+          borderWidth: 2.0,
+          backgroundColor: Colors.white,
+        );
 
-      final merged = base.merge(
-        OrionPopoverStyle.from(backgroundColor: Colors.blue),
-      );
+        final merged = base.merge(
+          OrionPopoverStyle.from(backgroundColor: Colors.blue),
+        );
 
-      expect(merged.borderWidth, 2.0);
-      expect(merged.backgroundColor, Colors.blue);
+        expect(merged.borderWidth, 2.0);
+        expect(merged.backgroundColor, Colors.blue);
 
-      final themeA = OrionPopoverTheme(
-        defaultStyle: OrionPopoverStyle.from(gap: 4.0),
-      );
-      final themeB = OrionPopoverTheme(
-        defaultStyle: OrionPopoverStyle.from(gap: 12.0),
-      );
-      final lerped = themeA.lerp(themeB, 0.5);
-      expect(lerped.defaultStyle?.gap, 8.0);
-    });
+        final themeA = OrionPopoverTheme(
+          defaultStyle: OrionPopoverStyle.from(gap: 4.0),
+        );
+        final themeB = OrionPopoverTheme(
+          defaultStyle: OrionPopoverStyle.from(gap: 12.0),
+        );
+        final lerped = themeA.lerp(themeB, 0.5);
+        expect(lerped.defaultStyle?.gap, 8.0);
+      },
+    );
   });
 }

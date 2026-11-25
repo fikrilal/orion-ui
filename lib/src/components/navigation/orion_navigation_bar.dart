@@ -607,7 +607,8 @@ class _OrionNavigationBarState extends State<OrionNavigationBar>
     required BorderRadius pillRadius,
   }) {
     final OrionNavigationDestination destination = widget.destinations[index];
-    final bool itemEnabled = barEnabled && destination.enabled && widget.visible;
+    final bool itemEnabled =
+        barEnabled && destination.enabled && widget.visible;
     final bool itemVisuallyEnabled = barEnabled && destination.enabled;
 
     return _DestinationButton(
@@ -951,7 +952,10 @@ class _OrionNavigationBarState extends State<OrionNavigationBar>
                     sigmaX: orion.blurSigma,
                     sigmaY: orion.blurSigma,
                   ),
-                  child: ColoredBox(color: surfaceColor, child: interactiveBody),
+                  child: ColoredBox(
+                    color: surfaceColor,
+                    child: interactiveBody,
+                  ),
                 )
               : ColoredBox(color: surfaceColor, child: interactiveBody);
 
@@ -1168,7 +1172,8 @@ class _DestinationButtonState extends State<_DestinationButton> {
         widget.destinationColor?.resolve(statesOn) ?? widget.scheme.primary;
 
     final Color foreground = Color.lerp(colorOff, colorOn, shown) ?? colorOff;
-    final FontWeight baseWeight = widget.labelStyle.fontWeight ?? FontWeight.w500;
+    final FontWeight baseWeight =
+        widget.labelStyle.fontWeight ?? FontWeight.w500;
     final FontWeight weight =
         FontWeight.lerp(baseWeight, _activeWeight(widget.labelStyle), shown) ??
         baseWeight;
@@ -1243,7 +1248,10 @@ class _DestinationButtonState extends State<_DestinationButton> {
         softWrap: false,
         overflow: TextOverflow.fade,
         textAlign: TextAlign.center,
-        style: widget.labelStyle.copyWith(color: foreground, fontWeight: weight),
+        style: widget.labelStyle.copyWith(
+          color: foreground,
+          fontWeight: weight,
+        ),
       ),
     );
 

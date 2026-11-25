@@ -194,11 +194,7 @@ class OrionDialog extends StatelessWidget {
       scrollableItems.add(
         Padding(
           padding: titlePadding,
-          child: Text(
-            title!,
-            textAlign: textAlign,
-            style: resolvedTitleStyle,
-          ),
+          child: Text(title!, textAlign: textAlign, style: resolvedTitleStyle),
         ),
       );
     }
@@ -294,7 +290,8 @@ class OrionDialog extends StatelessWidget {
                     end: 10.0,
                     child: _DialogCloseButton(
                       onPressed:
-                          onClose ?? () => OrionDialog.dismissOf<Object?>(context),
+                          onClose ??
+                          () => OrionDialog.dismissOf<Object?>(context),
                     ),
                   ),
               ],

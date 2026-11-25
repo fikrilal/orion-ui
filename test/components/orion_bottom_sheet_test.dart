@@ -1056,10 +1056,7 @@ void main() {
         scheme: OrionColors.lightScheme,
         variant: OrionBottomSheetVariant.floating,
       );
-      expect(
-        floating.borderRadius,
-        BorderRadius.circular(OrionRadii.radius24),
-      );
+      expect(floating.borderRadius, BorderRadius.circular(OrionRadii.radius24));
     });
 
     test('style merge overrides only named fields', () {

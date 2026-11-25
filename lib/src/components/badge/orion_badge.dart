@@ -197,11 +197,7 @@ class _OrionBadgeState extends State<OrionBadge>
     if (widget.label != null || widget.child != null) {
       final Widget body =
           widget.child ??
-          Text(
-            widget.label!,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          );
+          Text(widget.label!, maxLines: 1, overflow: TextOverflow.ellipsis);
       content = IconTheme.merge(
         data: IconThemeData(color: foreground, size: OrionSizing.iconSmall),
         child: DefaultTextStyle(

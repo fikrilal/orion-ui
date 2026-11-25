@@ -316,12 +316,16 @@ void main() {
     expect(find.text('2028'), findsOneWidget);
 
     // Pick year 2028 -> returns to month picker.
-    await tester.tap(find.byKey(const ValueKey<String>('orion_calendar_year_2028')));
+    await tester.tap(
+      find.byKey(const ValueKey<String>('orion_calendar_year_2028')),
+    );
     await tester.pumpAndSettle();
     expect(find.text('2028'), findsOneWidget);
 
     // Pick Oct -> returns to day grid in October 2028.
-    await tester.tap(find.byKey(const ValueKey<String>('orion_calendar_month_10')));
+    await tester.tap(
+      find.byKey(const ValueKey<String>('orion_calendar_month_10')),
+    );
     await tester.pumpAndSettle();
     expect(find.text('October 2028'), findsOneWidget);
   });

@@ -265,9 +265,9 @@ class OrionShowcaseScreen extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: OrionSpacing.space8),
               child: OrionPressable(
                 onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(builder: entry.builder),
-                  );
+                  Navigator.of(
+                    context,
+                  ).push(MaterialPageRoute<void>(builder: entry.builder));
                 },
                 pressedScale: 0.98,
                 child: Container(

@@ -463,11 +463,9 @@ void main() {
             ),
           )
           .first;
-      final Color? hoverColor = (dangerRowBox.decoration as BoxDecoration).color;
-      expect(
-        hoverColor,
-        OrionColors.lightScheme.error.withValues(alpha: 0.08),
-      );
+      final Color? hoverColor =
+          (dangerRowBox.decoration as BoxDecoration).color;
+      expect(hoverColor, OrionColors.lightScheme.error.withValues(alpha: 0.08));
     });
 
     testWidgets(

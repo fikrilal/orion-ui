@@ -1482,7 +1482,12 @@ class _OrionCalendarState extends State<OrionCalendar>
           child: Row(
             children: <Widget>[
               const Expanded(child: SizedBox.shrink()),
-              Expanded(child: ColoredBox(color: rangeFill, child: const SizedBox.expand())),
+              Expanded(
+                child: ColoredBox(
+                  color: rangeFill,
+                  child: const SizedBox.expand(),
+                ),
+              ),
             ],
           ),
         );
@@ -1492,7 +1497,12 @@ class _OrionCalendarState extends State<OrionCalendar>
           width: double.infinity,
           child: Row(
             children: <Widget>[
-              Expanded(child: ColoredBox(color: rangeFill, child: const SizedBox.expand())),
+              Expanded(
+                child: ColoredBox(
+                  color: rangeFill,
+                  child: const SizedBox.expand(),
+                ),
+              ),
               const Expanded(child: SizedBox.shrink()),
             ],
           ),

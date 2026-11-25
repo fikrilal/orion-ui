@@ -586,9 +586,11 @@ void main() {
             return (decoration.border! as Border).top.width == 1.33;
           })
           .map((DecoratedBox box) => (box.decoration as BoxDecoration).color!);
-      expect(chipFills, <Color>[
-        theme.colorScheme.primary,
-      ], reason: 'a muted chip would merge with the muted icon beneath it');
+      expect(
+        chipFills,
+        <Color>[theme.colorScheme.primary],
+        reason: 'a muted chip would merge with the muted icon beneath it',
+      );
       expect(
         _labelColor(tester, 'Chats'),
         theme.colorScheme.onSurface.withValues(alpha: 0.38),
@@ -1057,11 +1059,10 @@ void main() {
               ),
             ];
 
-        for (final OrionNavigationLabelMode mode
-            in <OrionNavigationLabelMode>[
-              OrionNavigationLabelMode.selected,
-              OrionNavigationLabelMode.none,
-            ]) {
+        for (final OrionNavigationLabelMode mode in <OrionNavigationLabelMode>[
+          OrionNavigationLabelMode.selected,
+          OrionNavigationLabelMode.none,
+        ]) {
           await tester.pumpWidget(
             MaterialApp(
               theme: OrionTheme.light(),
@@ -1348,37 +1349,38 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('updates destination color and hover overlay on pointer hover', (
-      tester,
-    ) async {
-      await _pumpBar(
-        tester,
-        selectedIndex: 0,
-        onChanged: (_) {},
-        disableAnimations: true,
-      );
-      await tester.pump();
+    testWidgets(
+      'updates destination color and hover overlay on pointer hover',
+      (tester) async {
+        await _pumpBar(
+          tester,
+          selectedIndex: 0,
+          onChanged: (_) {},
+          disableAnimations: true,
+        );
+        await tester.pump();
 
-      final TestGesture mouse = await tester.createGesture(
-        kind: PointerDeviceKind.mouse,
-      );
-      addTearDown(mouse.removePointer);
-      await mouse.addPointer(location: Offset.zero);
-      await tester.pump();
+        final TestGesture mouse = await tester.createGesture(
+          kind: PointerDeviceKind.mouse,
+        );
+        addTearDown(mouse.removePointer);
+        await mouse.addPointer(location: Offset.zero);
+        await tester.pump();
 
-      expect(
-        _labelColor(tester, 'Contacts'),
-        OrionColors.lightScheme.onSurfaceVariant,
-      );
+        expect(
+          _labelColor(tester, 'Contacts'),
+          OrionColors.lightScheme.onSurfaceVariant,
+        );
 
-      await mouse.moveTo(tester.getCenter(find.text('Contacts')));
-      await tester.pump();
+        await mouse.moveTo(tester.getCenter(find.text('Contacts')));
+        await tester.pump();
 
-      expect(
-        _labelColor(tester, 'Contacts'),
-        OrionColors.lightScheme.onSurface,
-      );
-    });
+        expect(
+          _labelColor(tester, 'Contacts'),
+          OrionColors.lightScheme.onSurface,
+        );
+      },
+    );
 
     testWidgets('supports docked variant with top hairline and safe area', (
       tester,
@@ -1518,43 +1520,50 @@ void main() {
       expect(merged.badge?.textStyle?.fontWeight, FontWeight.w700);
     });
 
-    test('defaults reproduce the shipped bar and elevate dark mode surface', () {
-      final OrionNavigationBarStyle style = OrionNavigationBarStyle.defaults(
-        scheme: OrionColors.lightScheme,
-      );
+    test(
+      'defaults reproduce the shipped bar and elevate dark mode surface',
+      () {
+        final OrionNavigationBarStyle style = OrionNavigationBarStyle.defaults(
+          scheme: OrionColors.lightScheme,
+        );
 
-      expect(style.maxWidth, 360);
-      expect(style.minHeight, isNull, reason: 'the height falls back per mode');
-      expect(style.iconSize, 20);
-      expect(style.labelMode, OrionNavigationLabelMode.all);
-      expect(style.hideSlide, 8);
-      expect(style.hideScale, 0.98);
-      expect(style.selectionSpring, OrionSpringSpec.immediate);
-      expect(style.background, OrionColors.lightScheme.surfaceContainer);
-      expect(style.borderColor, OrionColors.lightScheme.outlineVariant);
-      expect(style.borderWidth, 1);
-      expect(
-        style.selectionColor?.resolve(const <WidgetState>{}),
-        OrionColors.lightScheme.onSurface.withValues(alpha: 0.08),
-      );
+        expect(style.maxWidth, 360);
+        expect(
+          style.minHeight,
+          isNull,
+          reason: 'the height falls back per mode',
+        );
+        expect(style.iconSize, 20);
+        expect(style.labelMode, OrionNavigationLabelMode.all);
+        expect(style.hideSlide, 8);
+        expect(style.hideScale, 0.98);
+        expect(style.selectionSpring, OrionSpringSpec.immediate);
+        expect(style.background, OrionColors.lightScheme.surfaceContainer);
+        expect(style.borderColor, OrionColors.lightScheme.outlineVariant);
+        expect(style.borderWidth, 1);
+        expect(
+          style.selectionColor?.resolve(const <WidgetState>{}),
+          OrionColors.lightScheme.onSurface.withValues(alpha: 0.08),
+        );
 
-      final OrionNavigationBarStyle darkStyle =
-          OrionNavigationBarStyle.defaults(scheme: OrionColors.darkScheme);
-      expect(
-        darkStyle.background,
-        OrionColors.darkScheme.surfaceContainer,
-        reason: 'dark floating capsule separates from dark scaffold surface',
-      );
-      expect(darkStyle.background, isNot(OrionColors.darkScheme.surface));
+        final OrionNavigationBarStyle darkStyle =
+            OrionNavigationBarStyle.defaults(scheme: OrionColors.darkScheme);
+        expect(
+          darkStyle.background,
+          OrionColors.darkScheme.surfaceContainer,
+          reason: 'dark floating capsule separates from dark scaffold surface',
+        );
+        expect(darkStyle.background, isNot(OrionColors.darkScheme.surface));
 
-      final OrionNavigationBarStyle dockedStyle =
-          OrionNavigationBarStyle.defaults(
-            scheme: OrionColors.lightScheme,
-            variant: OrionNavigationBarVariant.docked,
-          );
-      expect(dockedStyle.maxWidth, double.infinity);
-      expect(dockedStyle.radius, BorderRadius.zero);
-      expect(dockedStyle.shadows, isEmpty);
-    });
+        final OrionNavigationBarStyle dockedStyle =
+            OrionNavigationBarStyle.defaults(
+              scheme: OrionColors.lightScheme,
+              variant: OrionNavigationBarVariant.docked,
+            );
+        expect(dockedStyle.maxWidth, double.infinity);
+        expect(dockedStyle.radius, BorderRadius.zero);
+        expect(dockedStyle.shadows, isEmpty);
+      },
+    );
   });
 }

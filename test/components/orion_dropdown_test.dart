@@ -135,30 +135,29 @@ void main() {
       expect(find.text('Netherlands'), findsOneWidget);
     });
 
-    testWidgets(
-      'handles an async/unknown value gracefully without asserting',
-      (WidgetTester tester) async {
-        await tester.pumpWidget(const _Host(initialValue: 'zz'));
-        expect(tester.takeException(), isNull);
-        expect(find.text('Pick one'), findsOneWidget);
+    testWidgets('handles an async/unknown value gracefully without asserting', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(const _Host(initialValue: 'zz'));
+      expect(tester.takeException(), isNull);
+      expect(find.text('Pick one'), findsOneWidget);
 
-        await tester.pumpWidget(
-          MaterialApp(
-            theme: OrionTheme.light(),
-            home: Scaffold(
-              body: Center(
-                child: OrionDropdown<String>(
-                  options: _options,
-                  value: 'zz',
-                  unknownValueLabel: (String v) => 'Loading ($v)',
-                ),
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: Scaffold(
+            body: Center(
+              child: OrionDropdown<String>(
+                options: _options,
+                value: 'zz',
+                unknownValueLabel: (String v) => 'Loading ($v)',
               ),
             ),
           ),
-        );
-        expect(find.text('Loading (zz)'), findsOneWidget);
-      },
-    );
+        ),
+      );
+      expect(find.text('Loading (zz)'), findsOneWidget);
+    });
 
     testWidgets(
       'opens anchored below the field with rounded borders preserved',
@@ -778,19 +777,20 @@ void main() {
       },
     );
 
-    testWidgets('a searchable dropdown shows a search icon and in-panel field', (
-      WidgetTester tester,
-    ) async {
-      await tester.pumpWidget(const _Host());
-      expect(find.byIcon(Icons.search_rounded), findsNothing);
+    testWidgets(
+      'a searchable dropdown shows a search icon and in-panel field',
+      (WidgetTester tester) async {
+        await tester.pumpWidget(const _Host());
+        expect(find.byIcon(Icons.search_rounded), findsNothing);
 
-      await tester.pumpWidget(const _Host(searchable: true));
-      expect(find.byIcon(Icons.search_rounded), findsOneWidget);
+        await tester.pumpWidget(const _Host(searchable: true));
+        expect(find.byIcon(Icons.search_rounded), findsOneWidget);
 
-      await _open(tester);
-      expect(find.byKey(orionDropdownSearchFieldKey), findsOneWidget);
-      expect(find.byType(TextField), findsOneWidget);
-    });
+        await _open(tester);
+        expect(find.byKey(orionDropdownSearchFieldKey), findsOneWidget);
+        expect(find.byType(TextField), findsOneWidget);
+      },
+    );
 
     testWidgets('searchable defaults to false', (WidgetTester tester) async {
       await tester.pumpWidget(const _Host());
@@ -1495,24 +1495,23 @@ void main() {
       },
     );
 
-    testWidgets(
-      'can be re-opened immediately while closing without cooldown',
-      (WidgetTester tester) async {
-        await _setViewport(tester, const Size(400, 700));
-        await tester.pumpWidget(const _Host());
-        await _open(tester);
+    testWidgets('can be re-opened immediately while closing without cooldown', (
+      WidgetTester tester,
+    ) async {
+      await _setViewport(tester, const Size(400, 700));
+      await tester.pumpWidget(const _Host());
+      await _open(tester);
 
-        // Select an option to start closing the popover.
-        await tester.tap(find.text('Germany'));
-        await tester.pump(const Duration(milliseconds: 50));
+      // Select an option to start closing the popover.
+      await tester.tap(find.text('Germany'));
+      await tester.pump(const Duration(milliseconds: 50));
 
-        // Re-tap trigger immediately mid-close: barrier must not block it.
-        await tester.tap(find.text('Germany').first);
-        await tester.pumpAndSettle();
+      // Re-tap trigger immediately mid-close: barrier must not block it.
+      await tester.tap(find.text('Germany').first);
+      await tester.pumpAndSettle();
 
-        expect(_state(tester).isOpen, isTrue);
-        expect(find.text('Netherlands'), findsOneWidget);
-      },
-    );
+      expect(_state(tester).isOpen, isTrue);
+      expect(find.text('Netherlands'), findsOneWidget);
+    });
   });
 }

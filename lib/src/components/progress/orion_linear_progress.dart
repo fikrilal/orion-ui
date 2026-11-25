@@ -93,7 +93,9 @@ class _OrionLinearProgressState extends State<OrionLinearProgress>
   @override
   void initState() {
     super.initState();
-    final double initial = widget.value == null ? 0.0 : _clampUnit(widget.value!);
+    final double initial = widget.value == null
+        ? 0.0
+        : _clampUnit(widget.value!);
     final double initialBuffer = widget.bufferedValue == null
         ? 0.0
         : _clampUnit(widget.bufferedValue!);

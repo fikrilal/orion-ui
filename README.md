@@ -1,29 +1,53 @@
+<div align="center">
+
 # Orion UI
 
-A zero-dependency, physics-driven Flutter UI component kit with analytical spring motion, semantic tokens, and composable 3-layer style overrides.
+**A zero-dependency, physics-driven Flutter UI component kit.**  
+Analytical spring motion · Tactile gestures · Semantic tokens · Composable 3-layer styling
+
+[![Release](https://img.shields.io/github/v/release/fikrilal/orion-ui?style=flat-square&color=171717)](https://github.com/fikrilal/orion-ui/releases)
+[![CI](https://img.shields.io/github/actions/workflow/status/fikrilal/orion-ui/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/fikrilal/orion-ui/actions/workflows/ci.yml)
+[![Flutter](https://img.shields.io/badge/Flutter-%3E%3D3.29.0-02569B?style=flat-square&logo=flutter&logoColor=white)](https://flutter.dev)
+[![Dart](https://img.shields.io/badge/Dart-%5E3.10.3-0175C2?style=flat-square&logo=dart&logoColor=white)](https://dart.dev)
+[![Dependencies](https://img.shields.io/badge/dependencies-0-16A34A?style=flat-square)](pubspec.yaml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-525252?style=flat-square)](LICENSE)
+
+[Installation](#installation) · [Quick Start](#quick-start) · [Styling](#3-layer-styling) · [Components](#components) · [Showcase App](#showcase-app)
+
+</div>
+
+---
 
 ## Why Orion UI?
 
-- **One Spring, Retargeted:** Continuous `SpringSimulation` retargeting preserves position and velocity mid-flight without snapping.
-- **Scroll-First Gesture Cooperation:** Passive pointer tracking lets parent `Scrollable` widgets win the gesture arena without lag.
-- **Rebuild Isolation:** Frame ticks update only transform/paint layers around pre-built child subtrees.
-- **Zero External Dependencies:** Pure Flutter SDK only.
+- **Continuous Spring Physics:** Every interactive component runs on retargetable `SpringSimulation` (`OrionSpringDriver`), preserving position and velocity mid-flight with zero snapping and full `MediaQuery.disableAnimations` reduced-motion support.
+- **Scroll-First Gesture Cooperation:** Passive pointer tracking (`OrionPressable`) lets ancestor `Scrollable` widgets win the gesture arena naturally without touch lag.
+- **Rebuild Isolation:** Animation ticks drive transform and paint layers around pre-built subtrees so your labels and children never rebuild on every frame.
+- **Pure Flutter, Zero Dependencies:** Built exclusively on the Flutter SDK — light & dark neutral themes out of the box, RTL-aware geometry, keyboard navigation, and accessible semantics.
+
+---
 
 ## Installation
 
-### From GitHub
+Add `orion_ui` to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
   orion_ui:
     git:
       url: https://github.com/fikrilal/orion-ui.git
-      ref: main
+      ref: v0.2.0
 ```
+
+> Prefer tracking the latest unreleased commits? Use `ref: main`.
+
+---
 
 ## Quick Start
 
-Install the Orion theme on your `MaterialApp` (or apply it onto your existing `ThemeData`):
+### 1. Apply the Theme
+
+Use the built-in light and dark neutral themes, or merge Orion tokens into your existing `ThemeData`:
 
 ```dart
 import 'package:flutter/material.dart';
@@ -34,90 +58,145 @@ void main() {
     MaterialApp(
       theme: OrionTheme.light(),
       darkTheme: OrionTheme.dark(),
+      builder: (context, child) => OrionToaster(child: child),
       home: const DemoPage(),
     ),
   );
 }
 ```
 
-Or merge Orion tokens into an existing app theme:
+Or keep your existing `ColorScheme` and typography:
 
 ```dart
 theme: OrionTheme.apply(existingTheme),
 ```
 
-## Usage
+### 2. Use Components
 
 ```dart
+// Async-safe button (locks automatically while the Future is in flight)
 OrionButton(
-  variant: OrionButtonVariant.glow,
-  size: OrionButtonSize.large,
-  onPressed: () async => submit(), // Automatically locks while Future is in-flight
-  leading: const Icon(Icons.rocket_launch),
-  child: const Text('Deploy'),
+  variant: OrionButtonVariant.solid,
+  leading: const Icon(Icons.rocket_launch_rounded, size: 16),
+  label: 'Deploy',
+  onPressed: () async {
+    await OrionToast.promise(
+      deployRelease(),
+      loading: 'Deploying release…',
+      success: (_) => 'Deployed cleanly',
+      error: (err) => 'Deploy failed: $err',
+    );
+  },
 );
 
+// Labeled switch with horizontal drag-to-toggle & capsule physics
 OrionSwitch(
-  value: enabled,
-  onChanged: (value) => setState(() => enabled = value),
+  value: notificationsEnabled,
+  label: 'Push notifications',
+  subtitle: 'Receive deploy and alert updates',
+  onChanged: (value) => setState(() => notificationsEnabled = value),
 );
 
-OrionSegmentedControl<String>(
-  segments: const [
-    OrionSegment(value: 'overview', label: Text('Overview')),
-    OrionSegment(value: 'live', label: Text('Live')),
-    OrionSegment(value: 'tickets', label: Text('Tickets')),
-  ],
-  value: selected,
-  onChanged: (value) => setState(() => selected = value),
+// Cylindrical 3D looping wheel picker
+SizedBox(
+  width: 96,
+  child: OrionWheelPicker<int>(
+    items: [
+      for (int m = 0; m < 60; m++)
+        OrionWheelItem(value: m, label: Text(m.toString().padLeft(2, '0'))),
+    ],
+    value: minute,
+    looping: true,
+    onChanged: (value) => setState(() => minute = value),
+  ),
 );
 ```
 
-## 3-Layer Styling Architecture
+---
 
-Every component resolves its look and physics through three composable layers:
-1. **Preset** — variant and size defaults.
-2. **Ambient Theme (`ThemeExtension`)** — app-wide overrides registered on `ThemeData`.
-3. **Instance `style`** — call-site adjustments via `*.from(...)` without restating unchanged fields.
+## 3-Layer Styling
+
+Every component resolves appearance and physics through three composable layers — each overriding only the properties it specifies:
+
+1. **Preset** — Built-in variant, size, and `ColorScheme` defaults.
+2. **Ambient Theme (`ThemeExtension`)** — App-wide overrides registered via `OrionTheme.apply`.
+3. **Instance `style`** — Local overrides via `*.from(...)` without restating untouched values.
 
 ```dart
-// 1. App-wide override via ThemeExtension
-OrionTheme.apply(
+// App-wide default via ThemeExtension
+final theme = OrionTheme.apply(
   OrionTheme.light(),
   extensions: [
     OrionButtonTheme(
       variantStyles: {
         OrionButtonVariant.solid: OrionButtonStyle.from(
-          backgroundColor: Colors.indigo,
+          backgroundColor: const Color(0xFF4F46E5),
         ),
       },
     ),
   ],
 );
 
-// 2. Per-instance override
+// Call-site refinement
 OrionButton(
+  label: 'Save',
   onPressed: save,
   style: OrionButtonStyle.from(
     borderRadius: BorderRadius.circular(20),
     pressedScale: 0.97,
     pressSpring: OrionSpringSpec.snappy,
   ),
-  child: const Text('Save'),
 );
 ```
 
-## Included Components
+---
 
-| Category | Components |
-| :--- | :--- |
-| **Core & Motion** | `OrionPressable`, `OrionSpringDriver`, `OrionSpringSpec`, `OrionHaptics` |
-| **Theme & Tokens** | `OrionTheme`, `OrionThemeData`, `OrionColors`, `OrionSpacing`, `OrionRadii`, `OrionSizing` |
-| **Actions & Inputs** | `OrionButton`, `OrionTextField`, `OrionOtpField`, `OrionCheckbox`, `OrionRadio`, `OrionSwitch`, `OrionSlider`, `OrionCounter`, `OrionDropdown`, `OrionCalendar`, `OrionWheelPicker` |
-| **Navigation & Selection** | `OrionNavigationBar`, `OrionSegmentedControl`, `OrionTabs`, `OrionChip`, `OrionSwipeActionRow` |
-| **Surfaces & Overlays** | `OrionAccordion`, `OrionBottomSheet`, `OrionDialog`, `OrionPopover`, `OrionMenu`, `OrionTooltip`, `OrionToaster` / `OrionToast` |
-| **Feedback & Status** | `OrionBadge`, `OrionLinearProgress`, `OrionSegmentedProgress` |
+## Components
+
+25 component families, all zero-dependency and light/dark ready:
+
+| Category | Components | Highlights |
+| :--- | :--- | :--- |
+| **Actions** | `OrionButton`, `OrionSwipeActionRow`, `OrionSwipeScope` | Async in-flight locking, full-swipe morph, RTL swipe panes |
+| **Text & Code Inputs** | `OrionTextField`, `OrionOtpField` | Synced `FormField`, clearable search, OTP paste & variants |
+| **Selection Controls** | `OrionCheckbox`, `OrionRadio`, `OrionRadioGroup`, `OrionSwitch`, `OrionChip`, `OrionChipGroup` | Stroke-drawn check, drag-to-toggle capsule switch, grouped radio/chips |
+| **Pickers & Ranges** | `OrionSlider`, `OrionRangeSlider`, `OrionDropdown`, `OrionCalendar`, `OrionDatePickerSheet`, `OrionWheelPicker` | Dual-thumb slider, searchable multi-select, range calendar, iOS 3D looping drum |
+| **Navigation** | `OrionNavigationBar`, `OrionSegmentedControl`, `OrionTabs` | Docked/frosted bar with badges, scrubbable pill segment, edge-faded tabs |
+| **Overlays & Surfaces** | `OrionBottomSheet`, `OrionDialog`, `OrionPopover`, `OrionMenu`, `OrionTooltip`, `OrionAccordion` | Keyboard-lifting sheets/dialogs, warm-window tooltips, seamless arrows |
+| **Feedback & Data** | `OrionToaster` / `OrionToast`, `OrionBadge`, `OrionCounter`, `OrionLinearProgress`, `OrionCircularProgress`, `OrionSegmentedProgress` | Perspective-stacked swipable toasts, rolling numeric counter, semantic progress |
+| **Foundations** | `OrionPressable`, `OrionSpringDriver`, `OrionSpringSpec`, `OrionHaptics`, `OrionTheme`, `OrionColors`, `OrionSpacing`, `OrionRadii`, `OrionSizing` | Retargetable physics core and semantic design tokens |
+
+---
+
+## Showcase App
+
+Explore every component interactively — with live controls, light/dark toggle, and copyable code snippets — using the bundled example app:
+
+```bash
+cd example
+flutter pub get
+flutter run
+```
+
+---
+
+## Development
+
+```bash
+# Format check
+dart format --output=none --set-exit-if-changed lib test example/lib example/test
+
+# Static analysis
+flutter analyze
+(cd example && flutter analyze)
+
+# Run full test suites
+flutter test
+(cd example && flutter test)
+```
+
+---
 
 ## License
 
-MIT License — see [LICENSE](LICENSE).
+MIT License — see [LICENSE](LICENSE) for details.

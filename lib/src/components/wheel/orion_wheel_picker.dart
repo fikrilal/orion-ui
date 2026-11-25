@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -25,7 +26,8 @@ class OrionWheelItem<T> {
   /// Value reported when this item is centred.
   final T value;
 
-  /// Visible content. A plain `Text` inherits the ambient `bodyLarge` style.
+  /// Visible content. A plain `Text` inherits the resolved row text style
+  /// (tabular numerals by default, with stronger emphasis when centred).
   final Widget label;
 
   /// Spoken name of this item.
@@ -36,35 +38,28 @@ class OrionWheelItem<T> {
   final String? semanticLabel;
 }
 
-/// A vertical wheel of items on one retargeted spring.
+/// A cylindrical vertical wheel picker on one retargeted spring.
 ///
 /// The offset is a single scalar in item units: an integer value means that item
-/// is centred. A drag moves the offset directly, so the wheel tracks the finger
-/// exactly; the release projects the finger's velocity into a landing detent, so
-/// a flick carries two or three items and a slow release lands on the nearer
-/// one. Only the settle is animated, on one [OrionSpringDriver], and its
-/// [SpringSimulation] finishes exactly on the detent, never between two.
+/// is centred inside the selection loupe. A drag moves the offset directly so
+/// the drum tracks the finger 1:1; releasing hands the finger's velocity into a
+/// critically damped [OrionSpringDriver] settle that always finishes cleanly on
+/// a detent. Touching down on a spinning wheel immediately arrests momentum.
 ///
-/// The drag moves the wheel directly rather than retargeting the spring on every
-/// pointer event: a spring chasing a target that moves each frame always trails the
-/// finger, and the gesture's velocity is the release's business, not the drag's. That
-/// is this component's choice, not a limit of [OrionSpringDriver], which re-anchors its
-/// simulation on retarget without restarting its clock.
-///
-/// The wheel claims every vertical drag that starts on it, so it must not sit inside a
-/// vertically scrolling parent: give it a bounded, non-scrolling surface, and a bounded
-/// width. Crossing a detent emits a single selection click while rolling, and keyboard
-/// and tap moves stay silent. Arrow keys move one item, and Home and End jump to the
-/// bounds.
-///
-/// See also [OrionSegmentedControl], which is the same one-of-many choice at a fixed
-/// size rather than a rolling column.
-///
-/// Look and feel resolve in three layers, each overriding the last: the
-/// built-in [OrionWheelPickerPresets], the ambient [OrionWheelPickerTheme],
-/// and the [style] passed here. The resolved style is cached in a field
-/// refreshed on dependency and widget changes, because the drag maths reads
-/// the row extent on every pointer event.
+/// Features:
+/// - **Cylindrical 3D drum**: subtle X-axis perspective tilt, depth-curved
+///   opacity falloff, and background-agnostic top/bottom edge dissolve.
+/// - **Centre selection loupe**: translucent pill or precision hairline rules,
+///   with configurable [OrionWheelPickerStyle.selectionRadius] for seamless
+///   multi-column pickers (time, date, duration).
+/// - **Infinite looping** (`looping: true`): seamless modular wrap-around with
+///   shortest-path glides on tap and external value updates.
+/// - **Asymptotic rubber-banding**: iOS-style hyperbolic end resistance when
+///   not looping, so long pulls never drag rows off-screen.
+/// - **Full desktop & a11y input**: mouse-wheel / trackpad scroll, hold-to-repeat
+///   Arrow keys, PageUp/PageDown, Home/End, and one adjustable semantics node.
+/// - **Zero-rebuild tick invariant**: row labels build only on detent crossings,
+///   never on animation frames.
 class OrionWheelPicker<T> extends StatefulWidget {
   /// Creates a controlled wheel picker.
   const OrionWheelPicker({
@@ -72,7 +67,9 @@ class OrionWheelPicker<T> extends StatefulWidget {
     required this.items,
     required this.value,
     required this.onChanged,
+    this.onActiveChanged,
     this.visibleItemCount = 5,
+    this.looping = false,
     this.semanticLabel,
     this.focusNode,
     this.autofocus = false,
@@ -89,9 +86,17 @@ class OrionWheelPicker<T> extends StatefulWidget {
   /// Null disables the wheel.
   final ValueChanged<T>? onChanged;
 
+  /// Optional live callback invoked whenever the centred item changes while
+  /// dragging or gliding, before the wheel settles and invokes [onChanged].
+  final ValueChanged<T>? onActiveChanged;
+
   /// How many item slots the wheel spans. Must be odd and at least 3, so one
   /// slot is the centre.
   final int visibleItemCount;
+
+  /// Whether the wheel wraps infinitely around the ends (ideal for hours,
+  /// minutes, seconds, and months). Ignored when [items] has a single item.
+  final bool looping;
 
   /// Spoken name for the wheel, such as "Month". The centred item is announced
   /// separately as its value.
@@ -113,70 +118,115 @@ class OrionWheelPicker<T> extends StatefulWidget {
 
 class _OrionWheelPickerState<T> extends State<OrionWheelPicker<T>>
     with SingleTickerProviderStateMixin {
-  /// Row extent. Every row is its own 44 pt tap target, so the wheel is
-  /// `visibleItemCount * _itemExtent` tall with no per-item measurement, and the
-  /// rows cannot jitter as label widths differ.
   static const double _itemExtent = OrionSizing.minHitTarget;
-
-  /// Scale of a row at the edge of the band.
   static const double _edgeScale = 0.7;
-
-  /// How much of the release velocity projects into the landing distance, in
-  /// seconds. A 1500 px/s flick is about 34 items per second, which projects
-  /// roughly 2.7 items.
+  static const double _defaultDiameterRatio = 1.07;
+  static const double _defaultPerspective = 0.003;
+  static const double _defaultSqueeze = 1.25;
   static const double _projectionSeconds = 0.08;
-
-  /// How much of an out-of-range drag reaches the wheel, as a fraction.
   static const double _endResistance = 0.35;
-
-  /// Settles onto the landing detent. Critically damped, like
-  /// [OrionSegmentedProgress] and the text field's release, because an
-  /// underdamped settle overshoots far enough to cross the next boundary - the
-  /// wheel would ring past the detent it aimed at and tick again.
+  static const double _maxRubberBandOverscroll = 1.6;
   static const OrionSpringSpec _settleSpec = OrionSpringSpec(
     stiffness: 380,
     dampingRatio: 1,
   );
 
   late final OrionSpringDriver _driver;
+  final ValueNotifier<bool> _draggingNotifier = ValueNotifier<bool>(false);
   FocusNode? _ownedFocusNode;
   OrionHapticType _haptic = OrionHapticType.selectionClick;
+  FocusHighlightMode _highlightMode = FocusHighlightMode.traditional;
+
   bool _dragging = false;
   bool _focused = false;
+  bool _caughtOnPointerDown = false;
+  bool _suppressNextRowTap = false;
+  bool _normalizing = false;
 
-  /// The resolved style, refreshed on dependency and widget changes.
+  // Pointer-scroll accumulation with monotonic idle timeout (zero pending timers).
+  final Stopwatch _scrollStopwatch = Stopwatch();
+  double _scrollDeltaAccumulator = 0.0;
+
   late OrionWheelPickerStyle _style;
 
   double get _extent => _style.itemExtent ?? _itemExtent;
 
   double get _edgeScaleFor => _style.edgeScale ?? _edgeScale;
 
+  double get _diameterRatio => _style.diameterRatio ?? _defaultDiameterRatio;
+
+  double get _perspective => _style.perspective ?? _defaultPerspective;
+
+  double get _squeeze => _style.squeeze ?? _defaultSqueeze;
+
+  double get _offAxisFraction => _style.offAxisFraction ?? 0.0;
+
+  bool get _useCylinder =>
+      _perspective > 0.0 && _diameterRatio.isFinite && _diameterRatio > 0.0;
+
+  bool get _edgeFade => _style.edgeFade ?? true;
+
+  double get _horizontalPadding =>
+      _style.horizontalPadding ?? OrionSpacing.space12;
+
   double get _projection => _style.projectionSeconds ?? _projectionSeconds;
 
   double get _resistance => _style.endResistance ?? _endResistance;
 
-  /// True while the movement comes from a discrete command (arrow, Home/End,
-  /// tap) rather than from the wheel rolling under the finger. Discrete moves
-  /// are silent, like the kit's other keyboard paths.
+  /// True while movement comes from a discrete command (keyboard, tap, parent
+  /// value change) rather than direct rolling.
   bool _silent = false;
 
-  /// The accumulated finger position in item units, including any out-of-range
-  /// travel. The spring chases it; it is never assigned to the spring.
+  /// Accumulated finger position in virtual item units, including any
+  /// out-of-range drag before asymptotic rubber-banding.
   double _rawOffset = 0;
 
-  /// The rounded sample: what the window and the row highlight follow.
-  late int _detent;
+  /// Virtual rounded slot index (unbounded when [_isLooping], clamped to
+  /// `0.._lastIndex` otherwise).
+  late int _virtualDetent;
 
-  /// The last detent reported to [OrionWheelPicker.onChanged].
+  /// Last concrete item index (`0.._lastIndex`) reported to [OrionWheelPicker.onChanged].
   late int _committed;
+
+  /// Last concrete item index emitted via [OrionWheelPicker.onActiveChanged]
+  /// during the current drag/glide, so a parent echoing `onActiveChanged` back
+  /// into `value` never retargets or perpetually pushes a looping spring.
+  int? _lastEmittedActiveIndex;
 
   FocusNode get _focusNode => widget.focusNode ?? _ownedFocusNode!;
 
   bool get _enabled => widget.onChanged != null;
 
+  bool get _isLooping => widget.looping && widget.items.length > 1;
+
   int get _lastIndex => widget.items.length - 1;
 
-  int get _sampleDetent => _driver.value.round().clamp(0, _lastIndex);
+  int _wrapIndex(int slotIndex) {
+    final int n = widget.items.length;
+    return ((slotIndex % n) + n) % n;
+  }
+
+  int _resolvedIndex(int slotIndex) =>
+      _isLooping ? _wrapIndex(slotIndex) : slotIndex.clamp(0, _lastIndex);
+
+  int get _sampleVirtualDetent {
+    final int rounded = _driver.value.round();
+    return _isLooping ? rounded : rounded.clamp(0, _lastIndex);
+  }
+
+  int get _activeIndex => _resolvedIndex(_virtualDetent);
+
+  int _shortestDelta(int fromVirtual, int targetItemIndex) {
+    final int n = widget.items.length;
+    final int currentItem = _wrapIndex(fromVirtual);
+    int delta = (targetItemIndex - currentItem) % n;
+    if (delta > n / 2) {
+      delta -= n;
+    } else if (delta < -n / 2) {
+      delta += n;
+    }
+    return delta;
+  }
 
   @override
   void initState() {
@@ -185,16 +235,25 @@ class _OrionWheelPickerState<T> extends State<OrionWheelPicker<T>>
     if (widget.focusNode == null) {
       _ownedFocusNode = FocusNode();
     }
-    final int index = _indexOf(widget.value);
-    _detent = math.max(index, 0);
-    _committed = _detent;
+    _highlightMode = FocusManager.instance.highlightMode;
+    FocusManager.instance.addHighlightModeListener(_onHighlightModeChanged);
+
+    final int index = math.max(_indexOf(widget.value), 0);
+    _virtualDetent = index;
+    _committed = index;
     _driver = OrionSpringDriver(
       vsync: this,
-      initialValue: _detent.toDouble(),
+      initialValue: index.toDouble(),
       springSpec: _settleSpec,
     );
     _driver.addListener(_onTick);
     _driver.addStatusListener(_onStatus);
+  }
+
+  void _onHighlightModeChanged(FocusHighlightMode mode) {
+    if (mode != _highlightMode && mounted) {
+      setState(() => _highlightMode = mode);
+    }
   }
 
   @override
@@ -210,8 +269,6 @@ class _OrionWheelPickerState<T> extends State<OrionWheelPicker<T>>
         if (!mounted || !_driver.reducedMotion) {
           return;
         }
-        // A jump settles without a ticker, so its status never reaches
-        // `completed`; the commit is explicit here.
         _driver.jumpTo(_driver.target);
         _commit();
       });
@@ -231,36 +288,87 @@ class _OrionWheelPickerState<T> extends State<OrionWheelPicker<T>>
         _ownedFocusNode = null;
       }
     }
-    if (widget.items.length != oldWidget.items.length) {
-      // A shorter list can strand an in-flight target past the last item.
-      final int clamped = _driver.target.round().clamp(0, _lastIndex);
-      _committed = clamped;
-      _settleOn(clamped, silent: true);
+
+    final int targetIndex = _indexOf(widget.value);
+    final bool listChanged =
+        widget.items.length != oldWidget.items.length ||
+        !_sameItemValues(widget.items, oldWidget.items);
+
+    // If looping was turned off or the list shrank, clamp immediately before
+    // build() so _spokenValue / rows never index past _lastIndex.
+    if (!_isLooping) {
+      final int safeMax = _lastIndex;
+      if (_virtualDetent < 0 || _virtualDetent > safeMax) {
+        final int clamped = _virtualDetent.clamp(0, safeMax);
+        _virtualDetent = clamped;
+      }
+      if (_committed < 0 || _committed > safeMax) {
+        _committed = _committed.clamp(0, safeMax);
+      }
+      if (_driver.value < 0 || _driver.value > safeMax) {
+        final double clampedVal = _driver.value.clamp(0.0, safeMax.toDouble());
+        _normalizing = true;
+        _driver.jumpTo(clampedVal);
+        _normalizing = false;
+      }
+      if (_driver.target < 0 || _driver.target > safeMax) {
+        final int clampedTarget = _driver.target.round().clamp(0, safeMax);
+        _committed = clampedTarget;
+        _settleOn(clampedTarget, silent: true);
+      }
     }
+
     if (oldWidget.onChanged != null && !_enabled && _dragging) {
       _dragging = false;
-      _settleOn(_sampleDetent, silent: true);
+      _settleOn(_sampleVirtualDetent, silent: true);
     }
-    if (widget.value != oldWidget.value && !_dragging) {
-      final int index = _indexOf(widget.value);
-      if (index >= 0 && index != _driver.target.round()) {
-        _committed = index;
-        _settleOn(index, silent: true);
+
+    if (!_dragging && targetIndex >= 0) {
+      final bool isLiveEcho =
+          _driver.isAnimating &&
+          (targetIndex == _activeIndex ||
+              targetIndex == _lastEmittedActiveIndex);
+      if (isLiveEcho) {
+        _lastEmittedActiveIndex = null;
+      } else {
+        final int currentTargetItem = _resolvedIndex(_driver.target.round());
+        if ((widget.value != oldWidget.value || listChanged) &&
+            currentTargetItem != targetIndex) {
+          _committed = targetIndex;
+          final int anchorSlot = _driver.isAnimating
+              ? _virtualDetent
+              : _driver.target.round();
+          final int nextSlot = _isLooping
+              ? anchorSlot + _shortestDelta(anchorSlot, targetIndex)
+              : targetIndex;
+          _settleOn(nextSlot, silent: true);
+        }
       }
     }
   }
 
   @override
   void dispose() {
+    FocusManager.instance.removeHighlightModeListener(_onHighlightModeChanged);
     _driver.removeListener(_onTick);
     _driver.removeStatusListener(_onStatus);
     _driver.dispose();
+    _draggingNotifier.dispose();
     _ownedFocusNode?.dispose();
     super.dispose();
   }
 
   int _indexOf(T value) =>
       widget.items.indexWhere((OrionWheelItem<T> item) => item.value == value);
+
+  bool _sameItemValues(List<OrionWheelItem<T>> a, List<OrionWheelItem<T>> b) {
+    if (identical(a, b)) return true;
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i].value != b[i].value) return false;
+    }
+    return true;
+  }
 
   void _syncStyle() {
     final ThemeData theme = Theme.of(context);
@@ -293,23 +401,43 @@ class _OrionWheelPickerState<T> extends State<OrionWheelPicker<T>>
     return true;
   }
 
-  /// Emits the crossing haptic and follows the sample with the window.
+  /// Emits the crossing haptic, live callback, and updates the visible window.
   void _onTick() {
-    final int detent = _sampleDetent;
-    if (detent == _detent) {
+    if (_normalizing) return;
+    final int virtualDetent = _sampleVirtualDetent;
+    if (virtualDetent == _virtualDetent) {
       return;
     }
-    _detent = detent;
+    final int previousIndex = _activeIndex;
+    _virtualDetent = virtualDetent;
+    final int currentIndex = _activeIndex;
+
     if (!_silent) {
       OrionHaptics.trigger(_haptic);
+    }
+    if (currentIndex != previousIndex) {
+      _lastEmittedActiveIndex = currentIndex;
+      widget.onActiveChanged?.call(widget.items[currentIndex].value);
     }
     setState(() {});
   }
 
-  /// Reports the detent the wheel has come to rest on, once.
+  /// Reports the detent the wheel has come to rest on, once, and quietly
+  /// normalizes virtual looping coordinates back into `[0, items.length - 1]`.
   void _onStatus(AnimationStatus status) {
-    if (status == AnimationStatus.completed) {
-      _commit();
+    if (status != AnimationStatus.completed) return;
+    _lastEmittedActiveIndex = null;
+    _commit();
+
+    if (_isLooping && !_dragging && mounted) {
+      final int wrapped = _wrapIndex(_virtualDetent);
+      if (wrapped != _virtualDetent) {
+        _normalizing = true;
+        _virtualDetent = wrapped;
+        _driver.jumpTo(wrapped.toDouble());
+        _normalizing = false;
+        setState(() {});
+      }
     }
   }
 
@@ -321,40 +449,142 @@ class _OrionWheelPickerState<T> extends State<OrionWheelPicker<T>>
     if (onChanged == null) {
       return;
     }
-    final int detent = _sampleDetent;
-    if (detent == _committed) {
+    final int index = _resolvedIndex(_sampleVirtualDetent);
+    if (index == _committed) {
       return;
     }
-    _committed = detent;
-    onChanged(widget.items[detent].value);
+    _committed = index;
+    onChanged(widget.items[index].value);
   }
 
-  /// Drags the wheel toward [raw], with resistance past either end.
+  /// Hyperbolic asymptotic rubber-banding past either end (iOS-style).
+  ///
+  /// Initial slope matches [_resistance], smoothly approaching
+  /// [_maxRubberBandOverscroll] so extreme drags never pull rows off-screen.
+  double _rubberBand(double overscroll) {
+    final double abs = overscroll.abs();
+    final double r = _resistance;
+    if (r <= 0.0 || abs == 0.0) return 0.0;
+    const double cap = _maxRubberBandOverscroll;
+    final double damped = (abs * r * cap) / (abs * r + cap);
+    return overscroll.isNegative ? -damped : damped;
+  }
+
+  double _invertRubberBand(double damped) {
+    final double abs = damped.abs();
+    final double r = _resistance;
+    if (r <= 0.0 || abs == 0.0) return 0.0;
+    const double cap = _maxRubberBandOverscroll;
+    final double safe = math.min(abs, cap - 0.01);
+    final double raw = (safe * cap) / (r * (cap - safe));
+    return damped.isNegative ? -raw : raw;
+  }
+
+  /// Drags the wheel toward [raw], with asymptotic resistance past either end
+  /// when not looping.
   double _resisted(double raw) {
+    if (_isLooping) return raw;
     if (raw < 0) {
-      return raw * _resistance;
+      return _rubberBand(raw);
     }
     if (raw > _lastIndex) {
-      return _lastIndex + (raw - _lastIndex) * _resistance;
+      return _lastIndex + _rubberBand(raw - _lastIndex);
     }
     return raw;
+  }
+
+  double _unresisted(double position) {
+    if (_isLooping) return position;
+    if (position < 0) {
+      return _invertRubberBand(position);
+    }
+    if (position > _lastIndex) {
+      return _lastIndex + _invertRubberBand(position - _lastIndex);
+    }
+    return position;
+  }
+
+  void _onPointerDown(PointerDownEvent event) {
+    if (!_enabled) return;
+    if (_driver.isAnimating && !_dragging) {
+      // Touching a flying wheel immediately catches momentum under the finger.
+      _caughtOnPointerDown = true;
+      _suppressNextRowTap = true;
+      _driver.stop();
+    } else {
+      _caughtOnPointerDown = false;
+      _suppressNextRowTap = false;
+    }
+  }
+
+  void _onPointerUp(PointerUpEvent event) {
+    if (!_caughtOnPointerDown) return;
+    _caughtOnPointerDown = false;
+    Future<void>.microtask(() => _suppressNextRowTap = false);
+    if (!_dragging) {
+      _settleOn(_sampleVirtualDetent, silent: false);
+    }
+  }
+
+  void _onPointerCancel(PointerCancelEvent event) {
+    if (!_caughtOnPointerDown) return;
+    _caughtOnPointerDown = false;
+    _suppressNextRowTap = false;
+    if (!_dragging) {
+      _settleOn(_sampleVirtualDetent, silent: false);
+    }
+  }
+
+  void _onPointerSignal(PointerSignalEvent event) {
+    if (!_enabled || event is! PointerScrollEvent) return;
+    GestureBinding.instance.pointerSignalResolver.register(
+      event,
+      _handlePointerScroll,
+    );
+  }
+
+  void _handlePointerScroll(PointerSignalEvent event) {
+    if (!mounted || !_enabled || event is! PointerScrollEvent) return;
+    final double dy = event.scrollDelta.dy;
+    if (dy == 0.0) return;
+
+    if (!_scrollStopwatch.isRunning ||
+        _scrollStopwatch.elapsedMilliseconds > 180) {
+      _scrollDeltaAccumulator = 0.0;
+    }
+    _scrollStopwatch
+      ..reset()
+      ..start();
+
+    _scrollDeltaAccumulator += dy;
+    final double extent = _extent;
+    if (_scrollDeltaAccumulator.abs() >= extent) {
+      final int steps = (_scrollDeltaAccumulator / extent).truncate();
+      _scrollDeltaAccumulator -= steps * extent;
+      _step(steps, silent: false);
+    } else if (dy.abs() >= 28.0) {
+      // Single discrete mouse-wheel notch slightly below row extent.
+      _scrollDeltaAccumulator = 0.0;
+      _step(dy > 0 ? 1 : -1, silent: false);
+    }
   }
 
   void _onDragStart(DragStartDetails details) {
     if (!_enabled) {
       return;
     }
+    _caughtOnPointerDown = false;
+    _suppressNextRowTap = false;
     _dragging = true;
+    _draggingNotifier.value = true;
     _silent = false;
-    _rawOffset = _driver.value;
+    _rawOffset = _unresisted(_driver.value);
   }
 
   void _onDragUpdate(DragUpdateDetails details) {
     if (!_enabled || !_dragging) {
       return;
     }
-    // Dragging up rolls toward later items, like dragging a list. The offset
-    // follows the finger; nothing is reported until the wheel settles.
     _rawOffset += -details.delta.dy / _extent;
     _driver.jumpTo(_resisted(_rawOffset));
   }
@@ -364,12 +594,9 @@ class _OrionWheelPickerState<T> extends State<OrionWheelPicker<T>>
       return;
     }
     _dragging = false;
+    _draggingNotifier.value = false;
     final double itemsPerSecond = _itemsPerSecond(details.velocity);
     final int landing = _landingDetent(itemsPerSecond);
-    // Hand the velocity over only when it points along the travel to the landing
-    // detent. A release already past a clamped end would otherwise be carried further
-    // past it - the reference shapes its handover by the remaining travel for exactly
-    // this reason - and the window would sit empty while the wheel swung back.
     final double travel = landing - _driver.value;
     _settleOn(
       landing,
@@ -382,53 +609,84 @@ class _OrionWheelPickerState<T> extends State<OrionWheelPicker<T>>
       return;
     }
     _dragging = false;
-    _settleOn(_sampleDetent);
+    _draggingNotifier.value = false;
+    _settleOn(_sampleVirtualDetent);
   }
 
-  /// The detent a release lands on: the finger's velocity, projected forward.
-  ///
-  /// A slow release has almost no velocity, so this is the nearest detent; a
-  /// flick projects two or three items further on. This is where the drag
-  /// velocity reaches the spring: it chooses how far the settle has to travel.
-  /// The finger's vertical velocity in item units per second.
   double _itemsPerSecond(Velocity velocity) =>
       -velocity.pixelsPerSecond.dy / _extent;
 
   int _landingDetent(double itemsPerSecond) {
-    final double projected = _driver.value + itemsPerSecond * _projection;
-    return projected.round().clamp(0, _lastIndex);
+    // High-velocity flicks coast naturally further (iOS deceleration feel),
+    // while gentle releases snap crisply using the base projection factor.
+    // Cap total projected travel so extreme hardware flings always settle
+    // predictably in under a second.
+    final double speed = itemsPerSecond.abs();
+    final double boost = 1.0 + ((speed - 18.0) / 36.0).clamp(0.0, 1.5);
+    final double delta = (itemsPerSecond * _projection * boost).clamp(
+      -24.0,
+      24.0,
+    );
+    final double projected = _driver.value + delta;
+    final int rounded = projected.round();
+    return _isLooping ? rounded : rounded.clamp(0, _lastIndex);
   }
 
-  /// Retargets the spring onto [detent].
+  void _onRowTap(int slotIndex) {
+    if (!_enabled || _suppressNextRowTap) return;
+    _settleOn(slotIndex, silent: true);
+  }
+
+  /// Retargets the spring onto [virtualDetent].
   ///
-  /// A discrete command (keyboard or tap) passes `silent: true` so its crossings
-  /// do not tick; the glide that follows a drag keeps ticking.
-  void _settleOn(int detent, {bool silent = false, double velocity = 0}) {
+  /// Discrete commands (keyboard, tap, parent updates) pass `silent: true` so
+  /// their crossings do not tick; direct drag/scroll glides keep ticking.
+  void _settleOn(
+    int virtualDetent, {
+    bool silent = false,
+    double velocity = 0,
+  }) {
+    final int target = _isLooping
+        ? virtualDetent
+        : virtualDetent.clamp(0, _lastIndex);
     _silent = silent;
     if (_driver.reducedMotion) {
-      _driver.jumpTo(detent.toDouble());
+      _driver.jumpTo(target.toDouble());
       _commit();
       return;
     }
-    _driver.springSpec = _style.settleSpring ?? _settleSpec;
-    // The release velocity is handed to the spring, as the reference does: it decides
-    // which detent the wheel lands on *and* how it sets off, so a flick arrives fast
-    // instead of starting from rest. The drag projection and the settle therefore read
-    // the same number.
-    _driver.retarget(detent.toDouble(), velocity: velocity);
+    final OrionSpringSpec baseSpec = _style.settleSpring ?? _settleSpec;
+    final double travel = (target - _driver.value).abs();
+    // Long multi-item flicks use a slightly softer critically damped spring so
+    // deceleration feels silky like UIKit rather than snapping abruptly.
+    final OrionSpringSpec effectiveSpec = travel > 4.0
+        ? OrionSpringSpec(
+            stiffness: math.max(
+              150.0,
+              baseSpec.stiffness / (1.0 + (travel - 4.0) * 0.12),
+            ),
+            dampingRatio: baseSpec.dampingRatio,
+            clampOvershoot: baseSpec.clampOvershoot,
+          )
+        : baseSpec;
+    _driver.springSpec = effectiveSpec;
+    _driver.retarget(target.toDouble(), velocity: velocity);
   }
 
-  /// Moves one detent from the last commanded one, for keys and screen readers.
+  /// Moves [delta] detents from the last commanded target.
   void _step(int delta, {required bool silent}) {
-    if (!_enabled) {
+    if (!_enabled || delta == 0) {
       return;
     }
-    final int next = (_driver.target.round() + delta).clamp(0, _lastIndex);
+    final int base = _driver.target.round();
+    final int next = _isLooping
+        ? base + delta
+        : (base + delta).clamp(0, _lastIndex);
     _settleOn(next, silent: silent);
   }
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent || !_enabled) {
+    if ((event is! KeyDownEvent && event is! KeyRepeatEvent) || !_enabled) {
       return KeyEventResult.ignored;
     }
     switch (event.logicalKey) {
@@ -436,10 +694,21 @@ class _OrionWheelPickerState<T> extends State<OrionWheelPicker<T>>
         _step(-1, silent: true);
       case LogicalKeyboardKey.arrowDown:
         _step(1, silent: true);
+      case LogicalKeyboardKey.pageUp:
+        _step(-widget.visibleItemCount, silent: true);
+      case LogicalKeyboardKey.pageDown:
+        _step(widget.visibleItemCount, silent: true);
       case LogicalKeyboardKey.home:
-        _settleOn(0, silent: true);
+        final int next = _isLooping
+            ? _driver.target.round() + _shortestDelta(_driver.target.round(), 0)
+            : 0;
+        _settleOn(next, silent: true);
       case LogicalKeyboardKey.end:
-        _settleOn(_lastIndex, silent: true);
+        final int next = _isLooping
+            ? _driver.target.round() +
+                  _shortestDelta(_driver.target.round(), _lastIndex)
+            : _lastIndex;
+        _settleOn(next, silent: true);
       default:
         return KeyEventResult.ignored;
     }
@@ -447,7 +716,8 @@ class _OrionWheelPickerState<T> extends State<OrionWheelPicker<T>>
   }
 
   String _spokenValue(int index) {
-    final OrionWheelItem<T> item = widget.items[index];
+    final int safeIndex = index.clamp(0, _lastIndex);
+    final OrionWheelItem<T> item = widget.items[safeIndex];
     final String? label = item.semanticLabel;
     if (label != null) {
       return label;
@@ -456,7 +726,7 @@ class _OrionWheelPickerState<T> extends State<OrionWheelPicker<T>>
     if (content is Text && content.data != null) {
       return content.data!;
     }
-    return '${index + 1} of ${widget.items.length}';
+    return '${safeIndex + 1} of ${widget.items.length}';
   }
 
   @override
@@ -472,42 +742,69 @@ class _OrionWheelPickerState<T> extends State<OrionWheelPicker<T>>
         _style.selectedColor?.resolve(states) ?? scheme.onSurface;
     final Color idleColor =
         _style.idleColor?.resolve(states) ?? scheme.onSurfaceVariant;
-    final TextStyle textStyle =
+    final TextStyle baseTextStyle =
         _style.textStyle ?? theme.textTheme.bodyLarge ?? const TextStyle();
+    final TextStyle selectedTextStyle = _style.selectedTextStyle != null
+        ? baseTextStyle.merge(_style.selectedTextStyle)
+        : baseTextStyle;
     final BorderRadius radius =
         _style.radius ?? BorderRadius.circular(OrionRadii.radius12);
     final double ringWidth = _style.focusRingWidth ?? 2;
+    final OrionWheelSelectionStyle selectionStyle =
+        _style.selectionStyle ?? OrionWheelSelectionStyle.pill;
+    final Color selectionColor =
+        _style.selectionColor ??
+        scheme.onSurface.withValues(
+          alpha: theme.brightness == Brightness.dark ? 0.10 : 0.06,
+        );
+    final Color selectionBorderColor =
+        _style.selectionBorderColor ?? scheme.outlineVariant;
+    final BorderRadius selectionRadius =
+        _style.selectionRadius ?? BorderRadius.circular(OrionRadii.radius8);
 
-    // The band reaches from the centre to `halo` items away, where the falloff
-    // is zero; the window is built from the rounded detent so it only changes
-    // when the wheel crosses a boundary, never on a ticker frame.
     final int halo = (widget.visibleItemCount + 1) ~/ 2;
-    final int first = math.max(0, _detent - halo);
-    final int last = math.min(_lastIndex, _detent + halo);
+    final int firstSlot = _isLooping
+        ? _virtualDetent - halo
+        : math.max(0, _virtualDetent - halo);
+    final int lastSlot = _isLooping
+        ? _virtualDetent + halo
+        : math.min(_lastIndex, _virtualDetent + halo);
+
     final List<Widget> rows = <Widget>[
-      for (int index = first; index <= last; index++)
+      for (int slot = firstSlot; slot <= lastSlot; slot++)
         _WheelRow(
-          key: ValueKey<int>(index),
-          label: widget.items[index].label,
-          textStyle: textStyle,
-          color: index == _detent ? selectedColor : idleColor,
+          key: ValueKey<int>(slot),
+          label: widget.items[_resolvedIndex(slot)].label,
+          textStyle: slot == _virtualDetent ? selectedTextStyle : baseTextStyle,
+          color: slot == _virtualDetent ? selectedColor : idleColor,
+          horizontalPadding: _horizontalPadding,
           enabled: enabled,
-          onTap: enabled ? () => _settleOn(index, silent: true) : null,
+          onTap: enabled ? () => _onRowTap(slot) : null,
         ),
     ];
+
+    final int activeIndex = _activeIndex;
+    final bool canIncrease = _isLooping || activeIndex < _lastIndex;
+    final bool canDecrease = _isLooping || activeIndex > 0;
+    final int nextSemanticIndex = _isLooping
+        ? _wrapIndex(activeIndex + 1)
+        : math.min(_lastIndex, activeIndex + 1);
+    final int prevSemanticIndex = _isLooping
+        ? _wrapIndex(activeIndex - 1)
+        : math.max(0, activeIndex - 1);
+
+    final bool showFocusRing =
+        _focused && enabled && _highlightMode == FocusHighlightMode.traditional;
 
     return Semantics(
       container: true,
       enabled: enabled,
       label: widget.semanticLabel,
-      value: _spokenValue(_detent),
-      increasedValue: _detent < _lastIndex ? _spokenValue(_detent + 1) : null,
-      decreasedValue: _detent > 0 ? _spokenValue(_detent - 1) : null,
-      // An end has no neighbour to step to, so it offers no such action.
-      onIncrease: enabled && _detent < _lastIndex
-          ? () => _step(1, silent: true)
-          : null,
-      onDecrease: enabled && _detent > 0 ? () => _step(-1, silent: true) : null,
+      value: _spokenValue(activeIndex),
+      increasedValue: canIncrease ? _spokenValue(nextSemanticIndex) : null,
+      decreasedValue: canDecrease ? _spokenValue(prevSemanticIndex) : null,
+      onIncrease: enabled && canIncrease ? () => _step(1, silent: true) : null,
+      onDecrease: enabled && canDecrease ? () => _step(-1, silent: true) : null,
       child: ExcludeSemantics(
         child: Focus(
           focusNode: _focusNode,
@@ -525,47 +822,84 @@ class _OrionWheelPickerState<T> extends State<OrionWheelPicker<T>>
                 constraints.hasBoundedWidth,
                 'OrionWheelPicker requires a bounded width.',
               );
-              return GestureDetector(
+              Widget drum = AnimatedBuilder(
+                animation: _driver,
+                // Rows are built once per detent crossing and only transformed
+                // here, so animation frames never rebuild item labels.
+                builder: (BuildContext context, Widget? child) {
+                  final double sample = _driver.value;
+                  return Stack(
+                    children: <Widget>[
+                      for (int i = 0; i < rows.length; i++)
+                        _slot(
+                          row: rows[i],
+                          slotIndex: firstSlot + i,
+                          sample: sample,
+                          halo: halo,
+                        ),
+                    ],
+                  );
+                },
+              );
+
+              if (_edgeFade) {
+                drum = ShaderMask(
+                  blendMode: BlendMode.dstIn,
+                  shaderCallback: _edgeFadeShader,
+                  child: drum,
+                );
+              }
+
+              if (selectionStyle != OrionWheelSelectionStyle.none) {
+                drum = CustomPaint(
+                  painter: _WheelSelectionPainter(
+                    selectionStyle: selectionStyle,
+                    itemExtent: _extent,
+                    visibleItemCount: widget.visibleItemCount,
+                    fillColor: enabled
+                        ? selectionColor
+                        : selectionColor.withValues(
+                            alpha: selectionColor.a * 0.55,
+                          ),
+                    borderColor: enabled
+                        ? selectionBorderColor
+                        : selectionBorderColor.withValues(alpha: 0.45),
+                    selectionRadius: selectionRadius,
+                    draggingListenable: _draggingNotifier,
+                    enabled: enabled,
+                  ),
+                  child: drum,
+                );
+              }
+
+              return Listener(
                 behavior: HitTestBehavior.opaque,
-                onVerticalDragStart: enabled ? _onDragStart : null,
-                onVerticalDragUpdate: enabled ? _onDragUpdate : null,
-                onVerticalDragEnd: enabled ? _onDragEnd : null,
-                onVerticalDragCancel: enabled ? _onDragCancel : null,
-                child: SizedBox(
-                  width: constraints.maxWidth,
-                  height: _extent * widget.visibleItemCount,
-                  child: DecoratedBox(
-                    position: DecorationPosition.foreground,
-                    decoration: BoxDecoration(
-                      borderRadius: radius,
-                      border: _focused && enabled
-                          ? Border.all(
-                              color: _style.focusRingColor ?? scheme.onSurface,
-                              width: ringWidth,
-                            )
-                          : null,
-                    ),
-                    child: ClipRRect(
-                      borderRadius: radius,
-                      child: AnimatedBuilder(
-                        animation: _driver,
-                        // The rows are built once per detent crossing and only
-                        // wrapped here, so a ticker frame never rebuilds a label.
-                        builder: (BuildContext context, Widget? child) {
-                          final double sample = _driver.value;
-                          return Stack(
-                            children: <Widget>[
-                              for (int i = 0; i < rows.length; i++)
-                                _slot(
-                                  row: rows[i],
-                                  index: first + i,
-                                  sample: sample,
-                                  halo: halo,
-                                ),
-                            ],
-                          );
-                        },
+                onPointerDown: _onPointerDown,
+                onPointerUp: _onPointerUp,
+                onPointerCancel: _onPointerCancel,
+                onPointerSignal: _onPointerSignal,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onVerticalDragStart: enabled ? _onDragStart : null,
+                  onVerticalDragUpdate: enabled ? _onDragUpdate : null,
+                  onVerticalDragEnd: enabled ? _onDragEnd : null,
+                  onVerticalDragCancel: enabled ? _onDragCancel : null,
+                  child: SizedBox(
+                    width: constraints.maxWidth,
+                    height: _extent * widget.visibleItemCount,
+                    child: DecoratedBox(
+                      position: DecorationPosition.foreground,
+                      decoration: BoxDecoration(
+                        borderRadius: radius,
+                        border: showFocusRing
+                            ? Border.all(
+                                color:
+                                    _style.focusRingColor ?? scheme.onSurface,
+                                width: ringWidth,
+                              )
+                            : null,
                       ),
+                      child: ClipRRect(borderRadius: radius, child: drum),
                     ),
                   ),
                 ),
@@ -577,34 +911,173 @@ class _OrionWheelPickerState<T> extends State<OrionWheelPicker<T>>
     );
   }
 
-  /// Places one row for the current spring sample.
-  ///
-  /// Position, scale, and fade all come from the same sample, so nothing can
-  /// move out of step. The clamps are geometric bounds, not motion shaping: the
-  /// falloff is zero at [halo] items out and one at the centre.
+  static Shader _edgeFadeShader(Rect bounds) {
+    return const LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: <Color>[
+        Color(0x00FFFFFF),
+        Color(0xFFFFFFFF),
+        Color(0xFFFFFFFF),
+        Color(0x00FFFFFF),
+      ],
+      stops: <double>[0.0, 0.16, 0.84, 1.0],
+    ).createShader(bounds);
+  }
+
+  /// Places one row for the current spring sample using iOS-grade cylindrical
+  /// 3D projection ([MatrixUtils.createCylindricalProjectionTransform]) or
+  /// clean flat 2D layout when perspective is disabled.
   Widget _slot({
     required Widget row,
-    required int index,
+    required int slotIndex,
     required double sample,
     required int halo,
   }) {
-    final double distance = (index - sample).abs();
+    final double signedOffset = slotIndex - sample;
+    final double distance = signedOffset.abs();
     final double falloff = (distance / halo).clamp(0.0, 1.0);
-    final double top =
-        (index - sample + (widget.visibleItemCount - 1) / 2) * _extent;
-    return Positioned(
-      top: top,
-      left: 0,
-      right: 0,
-      height: _extent,
-      child: Opacity(
-        opacity: 1 - falloff,
-        child: Transform.scale(
-          scale: 1 - (1 - _edgeScaleFor) * falloff,
-          child: row,
+    final double wheelHeight = _extent * widget.visibleItemCount;
+
+    if (!_useCylinder) {
+      // Flat 2D mode: uniform linear spacing, zero tilt, optional edge scale.
+      final double top =
+          (signedOffset + (widget.visibleItemCount - 1) / 2) * _extent;
+      final double opacity = (1.0 - falloff * 0.72).clamp(0.0, 1.0);
+      final double scale = 1.0 - (1.0 - _edgeScaleFor) * falloff;
+      return Positioned(
+        top: top,
+        left: 0,
+        right: 0,
+        height: _extent,
+        child: Opacity(
+          opacity: opacity,
+          child: scale == 1.0 ? row : Transform.scale(scale: scale, child: row),
+        ),
+      );
+    }
+
+    // Authentic iOS CupertinoPicker cylindrical projection:
+    // Each row sits on the front surface of a cylinder of radius
+    // `wheelHeight * diameterRatio / 2`, rotated by `angle` around the drum
+    // axis and projected through perspective.
+    final double radius = wheelHeight * _diameterRatio / 2.0;
+    final double maxVisibleRadian = _diameterRatio < 1.0
+        ? math.pi / 2.0
+        : math.asin(1.0 / _diameterRatio);
+    final double rawAngle =
+        -(signedOffset / widget.visibleItemCount) *
+        2.0 *
+        maxVisibleRadian /
+        _squeeze;
+    const double maxSafeAngle = math.pi / 2.0 - 0.04;
+    final bool behindHorizon = rawAngle.abs() >= maxSafeAngle;
+    final double angle = rawAngle.clamp(-maxSafeAngle, maxSafeAngle);
+
+    final Matrix4 transform = MatrixUtils.createCylindricalProjectionTransform(
+      radius: radius,
+      angle: angle,
+      perspective: _perspective,
+    );
+
+    // Calibrated iOS-style opacity curve: centre is crisp 1.0, curved
+    // neighbours remain clearly legible so the 3D cylinder tilt reads immediately,
+    // fading smoothly to 0 as rows approach the cylinder horizon.
+    final double opacity = behindHorizon
+        ? 0.0
+        : (1.0 - (falloff * 0.76)).clamp(0.0, 1.0);
+
+    // Transform sits directly inside Positioned.fill (full wheel bounds) so
+    // RenderTransform inverts the 3D cylindrical matrix *before* Opacity /
+    // _WheelRow hit-test their 44 pt bounds — keeping every curved row 100%
+    // tappable at its exact projected screen pixels.
+    return Positioned.fill(
+      child: IgnorePointer(
+        ignoring: behindHorizon,
+        child: Transform(
+          alignment: Alignment(-_offAxisFraction * 2.0, 0.0),
+          transform: transform,
+          child: Center(
+            child: SizedBox(
+              height: _extent,
+              width: double.infinity,
+              child: Opacity(opacity: opacity, child: row),
+            ),
+          ),
         ),
       ),
     );
+  }
+}
+
+/// Paints the centre selection indicator behind the scrolling rows without
+/// introducing extra [DecoratedBox] widgets into the tree.
+class _WheelSelectionPainter extends CustomPainter {
+  const _WheelSelectionPainter({
+    required this.selectionStyle,
+    required this.itemExtent,
+    required this.visibleItemCount,
+    required this.fillColor,
+    required this.borderColor,
+    required this.selectionRadius,
+    required this.draggingListenable,
+    required this.enabled,
+  }) : super(repaint: draggingListenable);
+
+  final OrionWheelSelectionStyle selectionStyle;
+  final double itemExtent;
+  final int visibleItemCount;
+  final Color fillColor;
+  final Color borderColor;
+  final BorderRadius selectionRadius;
+  final ValueNotifier<bool> draggingListenable;
+  final bool enabled;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double centerTop = ((visibleItemCount - 1) / 2.0) * itemExtent;
+
+    switch (selectionStyle) {
+      case OrionWheelSelectionStyle.pill:
+        final Color effectiveFill = enabled && draggingListenable.value
+            ? fillColor.withValues(alpha: math.min(1.0, fillColor.a + 0.035))
+            : fillColor;
+        final Rect rect = Rect.fromLTWH(
+          0.0,
+          centerTop + 2.0,
+          size.width,
+          math.max(0.0, itemExtent - 4.0),
+        );
+        final RRect rrect = selectionRadius.toRRect(rect);
+        canvas.drawRRect(rrect, Paint()..color = effectiveFill);
+
+      case OrionWheelSelectionStyle.hairlines:
+        final Paint rulePaint = Paint()
+          ..color = borderColor
+          ..strokeWidth = 1.0;
+        final double yTop = centerTop + 0.5;
+        final double yBottom = centerTop + itemExtent - 0.5;
+        canvas.drawLine(Offset(0.0, yTop), Offset(size.width, yTop), rulePaint);
+        canvas.drawLine(
+          Offset(0.0, yBottom),
+          Offset(size.width, yBottom),
+          rulePaint,
+        );
+
+      case OrionWheelSelectionStyle.none:
+        break;
+    }
+  }
+
+  @override
+  bool shouldRepaint(_WheelSelectionPainter oldDelegate) {
+    return selectionStyle != oldDelegate.selectionStyle ||
+        itemExtent != oldDelegate.itemExtent ||
+        visibleItemCount != oldDelegate.visibleItemCount ||
+        fillColor != oldDelegate.fillColor ||
+        borderColor != oldDelegate.borderColor ||
+        selectionRadius != oldDelegate.selectionRadius ||
+        enabled != oldDelegate.enabled;
   }
 }
 
@@ -615,6 +1088,7 @@ class _WheelRow extends StatelessWidget {
     required this.label,
     required this.textStyle,
     required this.color,
+    required this.horizontalPadding,
     required this.enabled,
     required this.onTap,
   });
@@ -622,6 +1096,7 @@ class _WheelRow extends StatelessWidget {
   final Widget label;
   final TextStyle textStyle;
   final Color color;
+  final double horizontalPadding;
   final bool enabled;
   final VoidCallback? onTap;
 
@@ -632,14 +1107,17 @@ class _WheelRow extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: Center(
-          child: IconTheme.merge(
-            data: IconThemeData(color: color, size: OrionSizing.iconMedium),
-            child: DefaultTextStyle(
-              style: textStyle.copyWith(color: color),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              child: label,
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+          child: Center(
+            child: IconTheme.merge(
+              data: IconThemeData(color: color, size: OrionSizing.iconMedium),
+              child: DefaultTextStyle(
+                style: textStyle.copyWith(color: color),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                child: label,
+              ),
             ),
           ),
         ),

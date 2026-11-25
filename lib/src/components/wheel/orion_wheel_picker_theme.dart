@@ -28,8 +28,7 @@ class OrionWheelPickerTheme extends ThemeExtension<OrionWheelPickerTheme> {
     );
   }
 
-  /// Styles are discrete specs, not interpolable numbers; the theme animation
-  /// swaps at the midpoint, the same way the kit's springs do.
+  /// Linearly interpolates between two [OrionWheelPickerTheme] extensions.
   @override
   OrionWheelPickerTheme lerp(
     ThemeExtension<OrionWheelPickerTheme>? other,
@@ -38,7 +37,13 @@ class OrionWheelPickerTheme extends ThemeExtension<OrionWheelPickerTheme> {
     if (other is! OrionWheelPickerTheme) {
       return this;
     }
-    return t < 0.5 ? this : other;
+    return OrionWheelPickerTheme(
+      defaultStyle: OrionWheelPickerStyle.lerp(
+        defaultStyle,
+        other.defaultStyle,
+        t,
+      ),
+    );
   }
 
   @override

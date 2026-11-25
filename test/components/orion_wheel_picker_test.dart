@@ -1,4 +1,5 @@
-import 'dart:ui' show Tristate;
+import 'dart:math' as math;
+import 'dart:ui' show PointerDeviceKind, Tristate;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -54,24 +55,71 @@ Future<void> _pumpWheel(
   );
 }
 
+/// Default cylindrical geometry constants mirrored from [OrionWheelPickerPresets].
+const double _diameterRatio = 1.07;
+const double _perspective = 0.003;
+const double _squeeze = 1.25;
+
+/// Inverts the exact [MatrixUtils.createCylindricalProjectionTransform] center Y
+/// back into a signed item offset relative to the wheel center.
+double _invertCylindricalOffset(
+  double dyFromCenter, {
+  required int visibleItemCount,
+}) {
+  final double wheelHeight = _extent * visibleItemCount;
+  final double radius = wheelHeight * _diameterRatio / 2.0;
+  final double maxVisibleRadian = math.asin(1.0 / _diameterRatio);
+  final double radiansPerItem =
+      (2.0 * maxVisibleRadian) / (visibleItemCount * _squeeze);
+
+  // Forward projection: y(angle) = -R * sin(angle) / (1 + p * R * (1 - cos(angle)))
+  // Strictly decreasing in angle on (-pi/2, +pi/2).
+  double lo = -(math.pi / 2.0 - 0.04);
+  double hi = math.pi / 2.0 - 0.04;
+  for (int i = 0; i < 40; i++) {
+    final double mid = (lo + hi) * 0.5;
+    final double projected =
+        (-radius * math.sin(mid)) /
+        (1.0 + _perspective * radius * (1.0 - math.cos(mid)));
+    if (projected > dyFromCenter) {
+      lo = mid;
+    } else {
+      hi = mid;
+    }
+  }
+  final double angle = (lo + hi) * 0.5;
+  return -angle / radiansPerItem;
+}
+
 /// The wheel's offset in item units, read from where a row is painted.
 ///
-/// The lowest painted row is always inside the window, and its position inverts
-/// to the offset exactly, so this is a probe of the real geometry rather than of
-/// any internal state.
+/// Picks the visible row closest to the centre (best conditioning on the
+/// cylinder) and inverts its painted Y back through the cylindrical projection.
 double _offset(WidgetTester tester, {int visibleItemCount = 5}) {
-  final double wheelTop = tester
-      .getTopLeft(find.byType(OrionWheelPicker<int>))
-      .dy;
+  final Rect wheelRect = tester.getRect(find.byType(OrionWheelPicker<int>));
+  final double wheelCenterY = wheelRect.center.dy;
+  int? bestIndex;
+  double bestDy = double.infinity;
+
   for (int index = 0; index < 40; index++) {
     final Finder row = find.text('Item $index');
     if (row.evaluate().isEmpty) {
       continue;
     }
-    final double centre = tester.getCenter(row).dy;
-    return index - ((centre - wheelTop) / _extent - visibleItemCount / 2);
+    final double dy = tester.getCenter(row).dy - wheelCenterY;
+    if (dy.abs() < bestDy.abs()) {
+      bestDy = dy;
+      bestIndex = index;
+    }
   }
-  fail('no wheel row was painted');
+  if (bestIndex == null) {
+    fail('no wheel row was painted');
+  }
+  final double signedOffset = _invertCylindricalOffset(
+    bestDy,
+    visibleItemCount: visibleItemCount,
+  );
+  return bestIndex - signedOffset;
 }
 
 /// Starts a drag on the wheel and consumes the touch slop.
@@ -977,7 +1025,399 @@ void main() {
         style.idleColor?.resolve(const <WidgetState>{WidgetState.disabled}),
         OrionColors.lightScheme.onSurface.withValues(alpha: 0.38),
       );
+      expect(style.selectionStyle, OrionWheelSelectionStyle.pill);
+      expect(style.edgeFade, isTrue);
+      expect(style.perspective, greaterThan(0));
     });
+
+    test('merge merges partial textStyle and lerp interpolates smoothly', () {
+      final OrionWheelPickerStyle base = OrionWheelPickerStyle.from(
+        itemExtent: 44,
+        selectedColor: const Color(0xFF000000),
+        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w400),
+        selectionColor: const Color(0x10000000),
+        perspective: 0.002,
+      );
+      final OrionWheelPickerStyle merged = base.merge(
+        OrionWheelPickerStyle.from(
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+      );
+      expect(merged.textStyle?.fontSize, 15);
+      expect(merged.textStyle?.fontWeight, FontWeight.w700);
+
+      final OrionWheelPickerStyle target = OrionWheelPickerStyle.from(
+        itemExtent: 36,
+        selectedColor: const Color(0xFFFFFFFF),
+        selectionColor: const Color(0x30FFFFFF),
+        perspective: 0.0,
+      );
+      final OrionWheelPickerStyle mid = OrionWheelPickerStyle.lerp(
+        base,
+        target,
+        0.5,
+      )!;
+      expect(mid.itemExtent, 40);
+      expect(mid.perspective, closeTo(0.001, 0.0001));
+      expect(
+        mid.selectedColor?.resolve(const <WidgetState>{}),
+        Color.lerp(const Color(0xFF000000), const Color(0xFFFFFFFF), 0.5),
+      );
+      expect(OrionWheelPickerStyle.lerp(null, target, 0.0), isNull);
+      expect(OrionWheelPickerStyle.lerp(null, target, 1.0), equals(target));
+
+      final OrionWheelPickerTheme themeA = OrionWheelPickerTheme(
+        defaultStyle: base,
+      );
+      final OrionWheelPickerTheme themeB = OrionWheelPickerTheme(
+        defaultStyle: target,
+      );
+      final OrionWheelPickerTheme themeMid = themeA.lerp(themeB, 0.5);
+      expect(themeMid.defaultStyle?.itemExtent, 40);
+    });
+  });
+
+  group('OrionWheelPicker S-Tier Features & Regressions', () {
+    testWidgets(
+      'looping wraps cleanly past ends via keyboard, drag, semantics, and shortest-path value change',
+      (tester) async {
+        final List<int> reported = <int>[];
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: Center(
+                child: SizedBox(
+                  width: 240,
+                  child: OrionWheelPicker<int>(
+                    items: _items(12),
+                    value: 11,
+                    looping: true,
+                    autofocus: true,
+                    semanticLabel: 'Hour',
+                    onChanged: reported.add,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // ArrowDown from last item (11) wraps to 0!
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pumpAndSettle();
+        expect(reported, <int>[0]);
+
+        // ArrowUp from 0 wraps back to 11!
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+        await tester.pumpAndSettle();
+        expect(reported, <int>[0, 11]);
+
+        // Semantics exposes wrapped increasedValue ('Item 0') at item 11
+        final SemanticsHandle handle = tester.ensureSemantics();
+        final SemanticsData data = tester
+            .getSemantics(find.byType(OrionWheelPicker<int>))
+            .getSemanticsData();
+        expect(data.value, 'Item 11');
+        expect(data.increasedValue, 'Item 0');
+        expect(data.decreasedValue, 'Item 10');
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'pointer scroll (mouse wheel) steps detents and claims the scroll signal',
+      (tester) async {
+        final List<int> reported = <int>[];
+        await _pumpWheel(tester, value: 2, onChanged: reported.add);
+
+        final Offset center = tester.getCenter(
+          find.byType(OrionWheelPicker<int>),
+        );
+        final TestPointer pointer = TestPointer(1, PointerDeviceKind.mouse);
+        await tester.sendEventToBinding(pointer.hover(center));
+        await tester.sendEventToBinding(pointer.scroll(const Offset(0, 44)));
+        await tester.pumpAndSettle();
+
+        expect(_offset(tester), closeTo(3, 0.001));
+        expect(reported, <int>[3]);
+
+        // Reverse scroll notch
+        await tester.sendEventToBinding(pointer.scroll(const Offset(0, -44)));
+        await tester.pumpAndSettle();
+
+        expect(_offset(tester), closeTo(2, 0.001));
+        expect(reported, <int>[3, 2]);
+      },
+    );
+
+    testWidgets(
+      'touching down on a flying wheel catches momentum immediately without jumping to a tapped row',
+      (tester) async {
+        final List<int> reported = <int>[];
+        await _pumpWheel(tester, value: 0, onChanged: reported.add);
+
+        await _flick(tester, steps: 12);
+        await tester.pump(const Duration(milliseconds: 32));
+        final double caughtOffset = _offset(tester);
+        expect(caughtOffset, greaterThan(0));
+
+        // Put finger down on the flying wheel without dragging, then lift
+        final TestGesture catchGesture = await tester.startGesture(
+          tester.getCenter(find.byType(OrionWheelPicker<int>)),
+        );
+        await tester.pump(const Duration(milliseconds: 64));
+        // Momentum stayed arrested while finger held down
+        expect(_offset(tester), closeTo(caughtOffset, 0.001));
+
+        await catchGesture.up();
+        await _settle(tester);
+
+        // Settled cleanly onto the caught nearest detent, not further down the flick
+        expect(_offset(tester), closeTo(caughtOffset.roundToDouble(), 0.001));
+        expect(reported, hasLength(1));
+      },
+    );
+
+    testWidgets(
+      'shrinking items list clamps safely without RangeError and reorders stay synced',
+      (tester) async {
+        // Start with 31 items selected at index 30 (day 31)
+        await _pumpWheel(
+          tester,
+          items: _items(31),
+          value: 30,
+          onChanged: (_) {},
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Item 30'), findsOneWidget);
+
+        // Shrink to 28 items with value clamped to 27 (February 28)
+        await _pumpWheel(
+          tester,
+          items: _items(28),
+          value: 27,
+          onChanged: (_) {},
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(_offset(tester), closeTo(27, 0.001));
+
+        // Same-length reorder: move value 2 from index 2 to index 0
+        final List<OrionWheelItem<int>> initial = <OrionWheelItem<int>>[
+          OrionWheelItem<int>(value: 0, label: const Text('Item 0')),
+          OrionWheelItem<int>(value: 1, label: const Text('Item 1')),
+          OrionWheelItem<int>(value: 2, label: const Text('Item 2')),
+        ];
+        final List<OrionWheelItem<int>> reordered = <OrionWheelItem<int>>[
+          OrionWheelItem<int>(value: 2, label: const Text('Item 2')),
+          OrionWheelItem<int>(value: 0, label: const Text('Item 0')),
+          OrionWheelItem<int>(value: 1, label: const Text('Item 1')),
+        ];
+
+        await _pumpWheel(tester, items: initial, value: 2, onChanged: (_) {});
+        await tester.pumpAndSettle();
+        expect(_offset(tester), closeTo(2, 0.001));
+
+        await _pumpWheel(tester, items: reordered, value: 2, onChanged: (_) {});
+        await tester.pumpAndSettle();
+        final double wheelTop = tester
+            .getTopLeft(find.byType(OrionWheelPicker<int>))
+            .dy;
+        expect(
+          tester.getCenter(find.text('Item 2')).dy,
+          closeTo(wheelTop + 2.5 * _extent, 0.5),
+        );
+      },
+    );
+
+    testWidgets(
+      'onActiveChanged reports live detent crossings while dragging before onChanged settles',
+      (tester) async {
+        final List<int> live = <int>[];
+        final List<int> committed = <int>[];
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: Center(
+                child: SizedBox(
+                  width: 240,
+                  child: OrionWheelPicker<int>(
+                    items: _items(12),
+                    value: 0,
+                    onActiveChanged: live.add,
+                    onChanged: committed.add,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final TestGesture gesture = await _grab(tester);
+        await gesture.moveBy(const Offset(0, -44));
+        await tester.pump();
+        await gesture.moveBy(const Offset(0, -44));
+        await tester.pump();
+
+        expect(live, <int>[1, 2]);
+        expect(committed, isEmpty);
+
+        await gesture.up();
+        await _settle(tester);
+        expect(committed, <int>[2]);
+      },
+    );
+
+    testWidgets('keyboard supports KeyRepeatEvent and PageUp/PageDown jumps', (
+      tester,
+    ) async {
+      final List<int> reported = <int>[];
+      await _pumpWheel(
+        tester,
+        value: 0,
+        onChanged: reported.add,
+        autofocus: true,
+      );
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.pageDown);
+      await tester.pumpAndSettle();
+      expect(_offset(tester), closeTo(5, 0.001));
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyRepeatEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      expect(_offset(tester), closeTo(7, 0.001));
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.pageUp);
+      await tester.pumpAndSettle();
+      expect(_offset(tester), closeTo(2, 0.001));
+    });
+
+    testWidgets(
+      'asymptotic rubber-banding caps extreme over-drag so rows stay visible',
+      (tester) async {
+        await _pumpWheel(tester, value: 11, onChanged: (_) {});
+
+        final TestGesture gesture = await _grab(tester);
+        await gesture.moveBy(const Offset(0, -1500));
+        await tester.pump();
+
+        final double stretched = _offset(tester);
+        expect(stretched, greaterThan(11));
+        expect(stretched, lessThan(12.6));
+
+        await gesture.up();
+        await _settle(tester);
+        expect(_offset(tester), closeTo(11, 0.001));
+      },
+    );
+
+    testWidgets(
+      'selectionStyle, edgeFade, and selectedTextStyle emphasis apply cleanly',
+      (tester) async {
+        await _pumpWheel(
+          tester,
+          value: 2,
+          onChanged: (_) {},
+          style: OrionWheelPickerStyle.from(
+            selectionStyle: OrionWheelSelectionStyle.hairlines,
+            edgeFade: false,
+            perspective: 0.0,
+          ),
+        );
+
+        expect(
+          find.descendant(
+            of: find.byType(OrionWheelPicker<int>),
+            matching: find.byType(ShaderMask),
+          ),
+          findsNothing,
+        );
+        final TextStyle selectedStyle = DefaultTextStyle.of(
+          tester.element(find.text('Item 2')),
+        ).style;
+        final TextStyle idleStyle = DefaultTextStyle.of(
+          tester.element(find.text('Item 1')),
+        ).style;
+        expect(selectedStyle.fontWeight, FontWeight.w600);
+        expect(idleStyle.fontWeight, FontWeight.w400);
+      },
+    );
+
+    testWidgets(
+      '3D cylindrical projection visibly foreshortens outer rows compared to flat 2D mode',
+      (tester) async {
+        // Measure outer row distance from centre in 3D cylinder mode (default)
+        await _pumpWheel(tester, value: 4, onChanged: (_) {});
+        final double centerY3d = tester.getCenter(find.text('Item 4')).dy;
+        final double outerDist3d =
+            (tester.getCenter(find.text('Item 6')).dy - centerY3d).abs();
+
+        // Compare against flat 2D mode (perspective: 0)
+        await _pumpWheel(
+          tester,
+          value: 4,
+          onChanged: (_) {},
+          style: OrionWheelPickerStyle.from(perspective: 0.0, edgeScale: 1.0),
+        );
+        final double centerY2d = tester.getCenter(find.text('Item 4')).dy;
+        final double outerDist2d =
+            (tester.getCenter(find.text('Item 6')).dy - centerY2d).abs();
+
+        // Flat 2D puts +2 at exact 2 * 44 = 88px; 3D cylinder compresses it inward!
+        expect(outerDist2d, closeTo(88.0, 0.1));
+        expect(outerDist3d, lessThan(outerDist2d - 10.0));
+      },
+    );
+
+    testWidgets(
+      'hard flick on looping wheel settles cleanly even when parent echoes onActiveChanged into value',
+      (tester) async {
+        int current = 2;
+        int finalCommitted = -1;
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: Center(
+                child: StatefulBuilder(
+                  builder: (BuildContext context, StateSetter setState) {
+                    return SizedBox(
+                      width: 240,
+                      child: OrionWheelPicker<int>(
+                        items: _items(12),
+                        value: current,
+                        looping: true,
+                        onActiveChanged: (int v) => setState(() => current = v),
+                        onChanged: (int v) => setState(() {
+                          current = v;
+                          finalCommitted = v;
+                        }),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        );
+
+        // Hard flick across multiple detents
+        await _flick(tester, steps: 10, dy: -65);
+        await tester.pumpAndSettle();
+
+        // Must stop cleanly (no infinite chase) and commit the settled item
+        expect(finalCommitted, greaterThanOrEqualTo(0));
+        expect(finalCommitted, equals(current));
+      },
+    );
   });
 }
 

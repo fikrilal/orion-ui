@@ -1,3 +1,5 @@
+import 'dart:ui' show PointerDeviceKind;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
@@ -73,7 +75,7 @@ BoxDecoration _face(WidgetTester tester) {
   final DecoratedBox box = tester.widget<DecoratedBox>(
     find.descendant(
       of: find.byType(OrionTextField),
-      matching: find.byType(DecoratedBox),
+      matching: find.byKey(orionTextFieldFaceKey),
     ),
   );
   return box.decoration as BoxDecoration;
@@ -434,6 +436,294 @@ void main() {
         tester.widget<EditableText>(find.byType(EditableText)).readOnly,
         isTrue,
       );
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).mouseCursor,
+        SystemMouseCursors.click,
+      );
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).showCursor,
+        isFalse,
+      );
+    });
+
+    testWidgets('syncs programmatic controller edits and Form.reset/save', (
+      tester,
+    ) async {
+      final GlobalKey<FormState> form = GlobalKey<FormState>();
+      final TextEditingController controller = TextEditingController();
+      addTearDown(controller.dispose);
+      String? saved;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: Scaffold(
+            body: Form(
+              key: form,
+              child: OrionTextField(
+                controller: controller,
+                label: 'Email',
+                validator: (String? v) =>
+                    v == null || v.isEmpty ? 'Required' : null,
+                onSaved: (String? v) => saved = v,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      // Initially invalid.
+      expect(form.currentState!.validate(), isFalse);
+      await tester.pump();
+      expect(find.text('Required'), findsOneWidget);
+
+      // Programmatic controller update must sync FormField without user typing.
+      controller.text = 'ada@orion.dev';
+      await tester.pump();
+      expect(form.currentState!.validate(), isTrue);
+      await tester.pump();
+      expect(find.text('Required'), findsNothing);
+
+      // Form.save receives latest text.
+      form.currentState!.save();
+      expect(saved, 'ada@orion.dev');
+
+      // Form.reset resets both controller text and FormField state.
+      form.currentState!.reset();
+      await tester.pump();
+      expect(controller.text, isEmpty);
+    });
+
+    testWidgets('initialValue works without controller and resets cleanly', (
+      tester,
+    ) async {
+      final GlobalKey<FormState> form = GlobalKey<FormState>();
+      String? saved;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: Scaffold(
+            body: Form(
+              key: form,
+              child: OrionTextField(
+                initialValue: 'Ada',
+                onSaved: (String? v) => saved = v,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Ada'), findsOneWidget);
+      await tester.enterText(find.byType(EditableText), 'Grace');
+      await tester.pump();
+      form.currentState!.save();
+      expect(saved, 'Grace');
+
+      form.currentState!.reset();
+      await tester.pump();
+      expect(find.text('Ada'), findsOneWidget);
+    });
+
+    testWidgets('guards multiline+obscure, underline+radius, and expands', (
+      tester,
+    ) async {
+      // Multiline + obscureText must not throw Flutter's !obscureText || maxLines == 1 assert.
+      await _pumpField(
+        tester,
+        type: OrionTextFieldType.multiline,
+        obscureText: true,
+      );
+      expect(tester.takeException(), isNull);
+      expect(tester.widget<TextField>(find.byType(TextField)).maxLines, 1);
+
+      // Underline + non-zero custom radius must not throw non-uniform border assert.
+      await _pumpField(
+        tester,
+        variant: OrionTextFieldVariant.underline,
+        style: OrionTextFieldStyle.from(radius: BorderRadius.circular(12)),
+      );
+      expect(tester.takeException(), isNull);
+
+      // expands: true fills fixed parent cleanly.
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: const Scaffold(
+            body: SizedBox(
+              height: 160,
+              child: OrionTextField(expands: true, hint: 'Notes'),
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+      'refined typography (13/14/15 pt) and small password keeps 40 pt height',
+      (tester) async {
+        await _pumpField(
+          tester,
+          size: OrionTextFieldSize.small,
+          type: OrionTextFieldType.password,
+        );
+        expect(
+          tester.widget<TextField>(find.byType(TextField)).style?.fontSize,
+          13.0,
+        );
+        expect(
+          tester.getSize(find.byKey(orionTextFieldFaceKey)).height,
+          closeTo(40.0, 0.5),
+        );
+
+        await _pumpField(tester, size: OrionTextFieldSize.medium);
+        expect(
+          tester.widget<TextField>(find.byType(TextField)).style?.fontSize,
+          14.0,
+        );
+        // TextField owns vertical padding so its hit height spans the box.
+        expect(
+          tester.getSize(find.byType(TextField)).height,
+          greaterThanOrEqualTo(40.0),
+        );
+
+        await _pumpField(tester, size: OrionTextFieldSize.large);
+        expect(
+          tester.widget<TextField>(find.byType(TextField)).style?.fontSize,
+          15.0,
+        );
+      },
+    );
+
+    testWidgets('multiline defaults to 3 lines with vertical padding', (
+      tester,
+    ) async {
+      await _pumpField(tester, type: OrionTextFieldType.multiline);
+      final TextField tf = tester.widget<TextField>(find.byType(TextField));
+      expect(tf.minLines, 3);
+      expect(tf.maxLines, isNull);
+      final EdgeInsetsGeometry? pad = tf.decoration?.contentPadding;
+      expect(pad, isNotNull);
+      expect(pad!.resolve(TextDirection.ltr).top, greaterThan(0));
+      expect(pad.resolve(TextDirection.ltr).bottom, greaterThan(0));
+    });
+
+    testWidgets('number respects decimal and signed keyboard options', (
+      tester,
+    ) async {
+      final TextEditingController controller = TextEditingController();
+      addTearDown(controller.dispose);
+      await _pumpField(
+        tester,
+        controller: controller,
+        type: OrionTextFieldType.number,
+        keyboardType: const TextInputType.numberWithOptions(
+          decimal: true,
+          signed: true,
+        ),
+      );
+
+      await tester.enterText(find.byType(EditableText), '-12.50abc');
+      await tester.pump();
+      expect(controller.text, '-12.50');
+    });
+
+    testWidgets(
+      'search auto-shows clear button, clears text, and fires hooks',
+      (tester) async {
+        final TextEditingController controller = TextEditingController();
+        addTearDown(controller.dispose);
+        final List<String> changed = <String>[];
+        int cleared = 0;
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: OrionTextField(
+                controller: controller,
+                type: OrionTextFieldType.search,
+                onChanged: changed.add,
+                onCleared: () => cleared++,
+              ),
+            ),
+          ),
+        );
+
+        expect(find.byKey(orionTextFieldClearButtonKey), findsNothing);
+
+        await tester.enterText(find.byType(EditableText), 'orion');
+        await tester.pumpAndSettle();
+        expect(find.byKey(orionTextFieldClearButtonKey), findsOneWidget);
+
+        await tester.tap(find.byKey(orionTextFieldClearButtonKey));
+        await tester.pumpAndSettle();
+        expect(controller.text, isEmpty);
+        expect(cleared, 1);
+        expect(changed.last, isEmpty);
+        expect(find.byKey(orionTextFieldClearButtonKey), findsNothing);
+      },
+    );
+
+    testWidgets('hover, focused fill/ring, clickable label, and required marker', (
+      tester,
+    ) async {
+      final FocusNode node = FocusNode();
+      addTearDown(node.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: Scaffold(
+            body: OrionTextField(
+              focusNode: node,
+              variant: OrionTextFieldVariant.filled,
+              label: 'Workspace',
+              required: true,
+              prefix: const Icon(Icons.workspaces_outline),
+            ),
+          ),
+        ),
+      );
+
+      // Required renders '*' alongside label; tapping label focuses the input.
+      expect(find.textContaining('Workspace *'), findsOneWidget);
+      await tester.tap(find.textContaining('Workspace *'));
+      await tester.pumpAndSettle();
+      expect(node.hasFocus, isTrue);
+
+      // Default focus relies solely on the crisp expanding hairline (no outer halo).
+      expect(_face(tester).boxShadow, isNull);
+
+      // Unfocus and test pointer hover state.
+      node.unfocus();
+      await tester.pumpAndSettle();
+      final Color restFill = _face(tester).color!;
+
+      final TestGesture mouse = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+      );
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+
+      await mouse.moveTo(tester.getCenter(find.byKey(orionTextFieldFaceKey)));
+      await tester.pump();
+      expect(_face(tester).color, isNot(restFill));
+
+      // Opt-in focusRingColor + focusRingWidth renders halo when explicitly styled.
+      await _pumpField(
+        tester,
+        focusNode: node,
+        style: const OrionTextFieldStyle(
+          focusRingColor: Color(0x330000FF),
+          focusRingWidth: 3.0,
+        ),
+      );
+      node.requestFocus();
+      await tester.pumpAndSettle();
+      expect(_face(tester).boxShadow, isNotEmpty);
     });
   });
 
@@ -454,7 +744,7 @@ void main() {
       expect(merged.radius, base.radius);
     });
 
-    test('presets reproduce the shipped face', () {
+    test('presets reproduce refined medium typography and face tokens', () {
       final OrionTextFieldStyle style = OrionTextFieldPresets.resolve(
         variant: OrionTextFieldVariant.outline,
         size: OrionTextFieldSize.medium,
@@ -463,6 +753,9 @@ void main() {
       );
 
       expect(style.height, OrionSizing.controlHeightLarge);
+      expect(style.textStyle?.fontSize, 14.0);
+      expect(style.labelStyle?.fontSize, 13.0);
+      expect(style.iconSize, 18.0);
       expect(
         style.borderColor?.resolve(const <WidgetState>{}),
         OrionColors.lightScheme.outline,
@@ -474,6 +767,31 @@ void main() {
       expect(
         style.borderColor?.resolve(const <WidgetState>{WidgetState.error}),
         OrionColors.lightScheme.error,
+      );
+    });
+
+    test('lerp smoothly interpolates style and theme values', () {
+      final OrionTextFieldTheme a = OrionTextFieldTheme(
+        defaultStyle: OrionTextFieldStyle.from(
+          height: 40,
+          borderWidth: 1,
+          borderColor: const Color(0xFF000000),
+        ),
+      );
+      final OrionTextFieldTheme b = OrionTextFieldTheme(
+        defaultStyle: OrionTextFieldStyle.from(
+          height: 56,
+          borderWidth: 3,
+          borderColor: const Color(0xFFFFFFFF),
+        ),
+      );
+
+      final OrionTextFieldTheme mid = a.lerp(b, 0.5);
+      expect(mid.defaultStyle?.height, closeTo(48.0, 0.01));
+      expect(mid.defaultStyle?.borderWidth, closeTo(2.0, 0.01));
+      expect(
+        mid.defaultStyle?.borderColor?.resolve(const <WidgetState>{}),
+        Color.lerp(const Color(0xFF000000), const Color(0xFFFFFFFF), 0.5),
       );
     });
   });

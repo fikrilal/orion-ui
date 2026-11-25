@@ -9,7 +9,7 @@ import 'package:orion_ui/src/components/text_field/orion_text_field_style.dart';
 /// project re-skins its fields in one place. The effective style resolves the
 /// built-in presets, then [defaultStyle], then the instance style passed to
 /// the widget; when no extension is registered the fields fall back to
-/// [fallback] and behave exactly as they do without this class.
+/// [fallback].
 @immutable
 class OrionTextFieldTheme extends ThemeExtension<OrionTextFieldTheme> {
   const OrionTextFieldTheme({this.defaultStyle});
@@ -26,8 +26,6 @@ class OrionTextFieldTheme extends ThemeExtension<OrionTextFieldTheme> {
     return OrionTextFieldTheme(defaultStyle: defaultStyle ?? this.defaultStyle);
   }
 
-  /// Styles are discrete specs, not interpolable numbers; the theme animation
-  /// swaps at the midpoint, the same way the kit's springs do.
   @override
   OrionTextFieldTheme lerp(
     ThemeExtension<OrionTextFieldTheme>? other,
@@ -36,7 +34,13 @@ class OrionTextFieldTheme extends ThemeExtension<OrionTextFieldTheme> {
     if (other is! OrionTextFieldTheme) {
       return this;
     }
-    return t < 0.5 ? this : other;
+    return OrionTextFieldTheme(
+      defaultStyle: OrionTextFieldStyle.lerp(
+        defaultStyle,
+        other.defaultStyle,
+        t,
+      ),
+    );
   }
 
   @override

@@ -5,14 +5,14 @@
 **A zero-dependency, physics-driven Flutter UI component kit.**  
 Analytical spring motion · Tactile gestures · Semantic tokens · Composable 3-layer styling
 
-[![Release](https://img.shields.io/github/v/release/fikrilal/orion-ui?style=flat-square&color=171717)](https://github.com/fikrilal/orion-ui/releases)
+[![pub.dev](https://img.shields.io/pub/v/orion_ui?style=flat-square&color=171717&logo=dart&logoColor=white)](https://pub.dev/packages/orion_ui)
+[![Pub Points](https://img.shields.io/pub/points/orion_ui?style=flat-square&color=02569B)](https://pub.dev/packages/orion_ui/score)
 [![CI](https://img.shields.io/github/actions/workflow/status/fikrilal/orion-ui/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/fikrilal/orion-ui/actions/workflows/ci.yml)
 [![Flutter](https://img.shields.io/badge/Flutter-%3E%3D3.29.0-02569B?style=flat-square&logo=flutter&logoColor=white)](https://flutter.dev)
-[![Dart](https://img.shields.io/badge/Dart-%5E3.10.3-0175C2?style=flat-square&logo=dart&logoColor=white)](https://dart.dev)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-16A34A?style=flat-square)](pubspec.yaml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-525252?style=flat-square)](LICENSE)
 
-[Installation](#installation) · [Quick Start](#quick-start) · [Styling](#3-layer-styling) · [Components](#components) · [Showcase App](#showcase-app)
+[pub.dev](https://pub.dev/packages/orion_ui) · [Installation](#installation) · [Quick Start](#quick-start) · [Styling](#3-layer-styling) · [Components](#components) · [Showcase App](#showcase-app)
 
 </div>
 
@@ -29,17 +29,16 @@ Analytical spring motion · Tactile gestures · Semantic tokens · Composable 3-
 
 ## Installation
 
-Add `orion_ui` to your `pubspec.yaml`:
+```bash
+flutter pub add orion_ui
+```
+
+Or add it manually to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  orion_ui:
-    git:
-      url: https://github.com/fikrilal/orion-ui.git
-      ref: v0.2.0
+  orion_ui: ^0.2.0
 ```
-
-> Prefer tracking the latest unreleased commits? Use `ref: main`.
 
 ---
 

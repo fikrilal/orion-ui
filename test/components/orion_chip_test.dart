@@ -1024,5 +1024,35 @@ void main() {
         OrionColors.lightScheme.onSurface.withValues(alpha: 0.38),
       );
     });
+
+    testWidgets(
+      'icon passed directly as label inherits chip foreground color',
+      (WidgetTester tester) async {
+        Color? resolvedIconColor;
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: Center(
+                child: OrionChip(
+                  selected: true,
+                  showCheckmark: false,
+                  onSelected: (_) {},
+                  label: Builder(
+                    builder: (BuildContext context) {
+                      resolvedIconColor = IconTheme.of(context).color;
+                      return const Icon(Icons.star);
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(resolvedIconColor, OrionColors.lightScheme.onPrimary);
+      },
+    );
   });
 }

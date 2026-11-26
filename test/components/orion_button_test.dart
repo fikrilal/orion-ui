@@ -502,5 +502,43 @@ void main() {
       expect(merged.pressSpring, OrionSpringSpec.gentle);
       expect(merged.releaseSpring, isNull);
     });
+
+    testWidgets(
+      'icon passed directly as child inherits button foreground color',
+      (WidgetTester tester) async {
+        for (final ThemeData theme in <ThemeData>[
+          OrionTheme.light(),
+          OrionTheme.dark(),
+        ]) {
+          Color? resolvedIconColor;
+          await tester.pumpWidget(
+            MaterialApp(
+              key: ValueKey<Brightness>(theme.brightness),
+              theme: theme,
+              home: Scaffold(
+                body: Center(
+                  child: OrionButton(
+                    onPressed: () {},
+                    child: Builder(
+                      builder: (BuildContext context) {
+                        resolvedIconColor = IconTheme.of(context).color;
+                        return const Icon(Icons.add);
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+
+          expect(
+            resolvedIconColor,
+            theme.colorScheme.onPrimary,
+            reason:
+                '${theme.brightness.name} solid button child icon must tint with onPrimary',
+          );
+        }
+      },
+    );
   });
 }

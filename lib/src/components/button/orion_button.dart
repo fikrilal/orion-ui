@@ -372,38 +372,38 @@ Widget _buttonFace({
       width: expand ? double.infinity : null,
       child: Padding(
         padding: padding,
-        child: Row(
-          mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            if (loading)
-              _LeadingSlot(
-                gap: gap,
-                child:
-                    loadingIndicator ??
-                    SizedBox.square(
-                      dimension: OrionSizing.iconSmall,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.0,
-                        color: foreground,
-                      ),
-                    ),
-              )
-            else if (leading != null)
-              _LeadingSlot(
-                gap: gap,
-                child: _tint(foreground, style.iconSize, leading),
-              ),
-            DefaultTextStyle(
-              style: textStyle.copyWith(color: foreground),
-              child: loading ? (loadingChild ?? label) : label,
+        child: DefaultTextStyle(
+          style: textStyle.copyWith(color: foreground),
+          child: IconTheme.merge(
+            data: IconThemeData(color: foreground, size: style.iconSize),
+            child: Row(
+              mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                if (loading)
+                  _LeadingSlot(
+                    gap: gap,
+                    child:
+                        loadingIndicator ??
+                        SizedBox.square(
+                          dimension: OrionSizing.iconSmall,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.0,
+                            color: foreground,
+                          ),
+                        ),
+                  )
+                else if (leading != null)
+                  _LeadingSlot(gap: gap, child: leading),
+                loading ? (loadingChild ?? label) : label,
+                if (trailing != null)
+                  Padding(
+                    padding: EdgeInsets.only(left: gap),
+                    child: trailing,
+                  ),
+              ],
             ),
-            if (trailing != null)
-              Padding(
-                padding: EdgeInsets.only(left: gap),
-                child: _tint(foreground, style.iconSize, trailing),
-              ),
-          ],
+          ),
         ),
       ),
     ),
@@ -418,13 +418,6 @@ Widget _defaultLabel(String text) {
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
     ),
-  );
-}
-
-Widget _tint(Color color, double? size, Widget child) {
-  return IconTheme.merge(
-    data: IconThemeData(color: color, size: size),
-    child: child,
   );
 }
 

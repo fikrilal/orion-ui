@@ -379,15 +379,21 @@ class _OrionChipState extends State<OrionChip>
                                 ],
                                 // The label travels with the fill, so it never
                                 // snaps to onPrimary over a still-light pill.
-                                DefaultTextStyle(
-                                  style: baseStyle.copyWith(
+                                IconTheme.merge(
+                                  data: IconThemeData(
                                     color: currentLabelColor,
+                                    size: checkSize,
                                   ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  child: widget.semanticLabel == null
-                                      ? labelContent
-                                      : ExcludeSemantics(child: labelContent),
+                                  child: DefaultTextStyle(
+                                    style: baseStyle.copyWith(
+                                      color: currentLabelColor,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    child: widget.semanticLabel == null
+                                        ? labelContent
+                                        : ExcludeSemantics(child: labelContent),
+                                  ),
                                 ),
                                 if (widget.trailing != null) ...<Widget>[
                                   SizedBox(width: iconGap),

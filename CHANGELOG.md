@@ -2,6 +2,17 @@
 
 All notable changes to **Orion UI** are documented in this file.
 
+## 0.2.1
+
+Visual contrast, modal theme propagation, icon tinting, and navigation badge layout fixes verified across light and dark themes.
+
+### Fixed
+- **Modal routes & dropdown sheets:** Captured ambient `InheritedTheme` in `showOrionBottomSheet`, `showOrionDialog`, and `showOrionMenu` so modals (including `OrionDatePickerSheet` and `OrionDropdown` sheet mode) inherit locally scoped light/dark themes. `OrionDropdown` bottom sheets also now resolve their style dynamically from the live sheet `Theme`.
+- **Theme & dark-mode contrast (`OrionColors`):** Added explicit Material 3 container roles (`primaryContainer`, `secondaryContainer`, `tertiary`/`tertiaryContainer`, `errorContainer`, `surfaceContainerLowest`, `surfaceContainerLow`, and `surfaceContainerHigh`) to both `lightScheme` and `darkScheme`, and updated `darkScheme.onError` to `#171717` for WCAG AA+ contrast on `#FF6467`.
+- **Icon foreground propagation (`OrionButton`, `OrionChip`):** Propagated resolved button and chip foreground colors and icon sizes via `IconTheme.merge` to `OrionButton.child` (unified across the full button row) and `OrionChip.label`.
+- **Navigation bar count badges (`OrionNavigationBar`):** Anchored non-dot count badges outward from the icon shoulder so multi-digit badges (`12`, `99+`) never cover the destination icon, and added expanding-mode (`OrionNavigationLabelMode.selected`) layout so count badges glide cleanly inline beside the revealed label without overlap.
+- **Example showcase:** Moved `Theme.of(context)` and modal context lookups inside `OrionThemedScaffold.builder`, inherited parent brightness on open, replaced the AppBar toggle with `OrionSwitch`, and polished avatar contrast and synchronous modal launch triggers.
+
 ## 0.2.0
 
 A ground-up audit and polish pass across all 25 component families, adding new multi-control widgets, unified dark-mode elevation, keyboard/RTL/safe-area correctness, and a full interactive example showcase app.

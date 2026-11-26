@@ -37,7 +37,7 @@ Or add it manually to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  orion_ui: ^0.2.0
+  orion_ui: ^0.2.1
 ```
 
 ---

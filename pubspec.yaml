@@ -1,6 +1,6 @@
 name: orion_ui
 description: A tactile, physics-driven design engineering component kit for Flutter.
-version: 0.2.0
+version: 0.2.1
 repository: https://github.com/fikrilal/orion-ui
 issue_tracker: https://github.com/fikrilal/orion-ui/issues
 topics:

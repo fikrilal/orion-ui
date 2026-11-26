@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:orion_ui/orion_ui.dart';
 import 'package:orion_ui_example/showcase/orion_showcase_kit.dart';
@@ -60,7 +62,8 @@ class _OrionBottomSheetShowcaseScreenState
     ),
   };
 
-  Future<void> _openModalSheet({
+  Future<void> _openModalSheet(
+    BuildContext context, {
     OrionBottomSheetStyle? styleOverride,
     OrionBottomSheetVariant? variantOverride,
     bool? fitOverride,
@@ -153,6 +156,7 @@ class _OrionBottomSheetShowcaseScreenState
                       backgroundColor: Theme.of(
                         context,
                       ).colorScheme.surfaceContainerHighest,
+                      foregroundColor: Theme.of(context).colorScheme.onSurface,
                       child: Text('${index + 1}'),
                     ),
                     title: Text('Sheet Item ${index + 1}'),
@@ -216,13 +220,12 @@ class _OrionBottomSheetShowcaseScreenState
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme scheme = theme.colorScheme;
-    final bool isDark = theme.brightness == Brightness.dark;
-
     return OrionThemedScaffold(
       title: 'Orion Bottom Sheet',
       builder: (BuildContext context) {
+        final ThemeData theme = Theme.of(context);
+        final ColorScheme scheme = theme.colorScheme;
+        final bool isDark = theme.brightness == Brightness.dark;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
@@ -306,7 +309,9 @@ class _OrionBottomSheetShowcaseScreenState
                               label: 'Open Modal Bottom Sheet',
                               size: OrionButtonSize.medium,
                               variant: OrionButtonVariant.solid,
-                              onPressed: _openModalSheet,
+                              onPressed: () {
+                                unawaited(_openModalSheet(context));
+                              },
                               leading: const Icon(
                                 Icons.open_in_new_rounded,
                                 size: 18,
@@ -566,8 +571,14 @@ class _OrionBottomSheetShowcaseScreenState
                     label: 'Open ${_skinLabel(_skin)} Sheet',
                     size: OrionButtonSize.small,
                     variant: OrionButtonVariant.bordered,
-                    onPressed: () =>
-                        _openModalSheet(styleOverride: _skinStyle(scheme)),
+                    onPressed: () {
+                      unawaited(
+                        _openModalSheet(
+                          context,
+                          styleOverride: _skinStyle(scheme),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),

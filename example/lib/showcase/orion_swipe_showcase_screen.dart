@@ -212,13 +212,12 @@ class _OrionSwipeShowcaseScreenState extends State<OrionSwipeShowcaseScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme scheme = theme.colorScheme;
-    final bool isDark = theme.brightness == Brightness.dark;
-
     return OrionThemedScaffold(
       title: 'Orion Swipe',
       builder: (BuildContext context) {
+        final ThemeData theme = Theme.of(context);
+        final ColorScheme scheme = theme.colorScheme;
+        final bool isDark = theme.brightness == Brightness.dark;
         return OrionSwipeScope(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

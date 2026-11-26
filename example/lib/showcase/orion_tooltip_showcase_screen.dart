@@ -72,17 +72,16 @@ class _OrionTooltipShowcaseScreenState
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme scheme = theme.colorScheme;
-    final bool isDark = theme.brightness == Brightness.dark;
-    final Color stageBg = isDark
-        ? scheme.surfaceContainer
-        : scheme.surfaceContainerHighest.withValues(alpha: 0.45);
-    final Color stageBorder = scheme.outlineVariant;
-
     return OrionThemedScaffold(
       title: 'Orion Tooltip',
       builder: (BuildContext context) {
+        final ThemeData theme = Theme.of(context);
+        final ColorScheme scheme = theme.colorScheme;
+        final bool isDark = theme.brightness == Brightness.dark;
+        final Color stageBg = isDark
+            ? scheme.surfaceContainer
+            : scheme.surfaceContainerHighest.withValues(alpha: 0.45);
+        final Color stageBorder = scheme.outlineVariant;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[

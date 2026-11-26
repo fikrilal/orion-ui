@@ -240,13 +240,12 @@ class _OrionDialogShowcaseScreenState extends State<OrionDialogShowcaseScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme scheme = theme.colorScheme;
-    final bool isDark = theme.brightness == Brightness.dark;
-
     return OrionThemedScaffold(
       title: 'Orion Dialog & Alerts',
       builder: (BuildContext context) {
+        final ThemeData theme = Theme.of(context);
+        final ColorScheme scheme = theme.colorScheme;
+        final bool isDark = theme.brightness == Brightness.dark;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[

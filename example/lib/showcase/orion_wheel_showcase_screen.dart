@@ -168,20 +168,19 @@ class _OrionWheelShowcaseScreenState extends State<OrionWheelShowcaseScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme scheme = theme.colorScheme;
-    final bool isDark = theme.brightness == Brightness.dark;
-    final Color stageBg = isDark
-        ? scheme.surfaceContainer
-        : scheme.surfaceContainerHighest.withValues(alpha: 0.45);
-    final Color stageBorder = scheme.outlineVariant;
-    final Color unifiedPillBg = scheme.onSurface.withValues(
-      alpha: isDark ? 0.10 : 0.06,
-    );
-
     return OrionThemedScaffold(
       title: 'Orion Wheel',
       builder: (BuildContext context) {
+        final ThemeData theme = Theme.of(context);
+        final ColorScheme scheme = theme.colorScheme;
+        final bool isDark = theme.brightness == Brightness.dark;
+        final Color stageBg = isDark
+            ? scheme.surfaceContainer
+            : scheme.surfaceContainerHighest.withValues(alpha: 0.45);
+        final Color stageBorder = scheme.outlineVariant;
+        final Color unifiedPillBg = scheme.onSurface.withValues(
+          alpha: isDark ? 0.10 : 0.06,
+        );
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[

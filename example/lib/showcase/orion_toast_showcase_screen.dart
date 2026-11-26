@@ -219,13 +219,12 @@ class _OrionToastShowcaseScreenState extends State<OrionToastShowcaseScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme scheme = theme.colorScheme;
-    final bool isDark = theme.brightness == Brightness.dark;
-
     return OrionThemedScaffold(
       title: 'Orion Toast',
       builder: (BuildContext context) {
+        final ThemeData theme = Theme.of(context);
+        final ColorScheme scheme = theme.colorScheme;
+        final bool isDark = theme.brightness == Brightness.dark;
         return OrionToaster(
           controller: _controller,
           position: _position,

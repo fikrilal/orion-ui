@@ -21,6 +21,16 @@ class OrionThemedScaffold extends StatefulWidget {
 
 class _OrionThemedScaffoldState extends State<OrionThemedScaffold> {
   bool _dark = false;
+  bool _initialized = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_initialized) {
+      _dark = Theme.of(context).brightness == Brightness.dark;
+      _initialized = true;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,10 +46,13 @@ class _OrionThemedScaffoldState extends State<OrionThemedScaffold> {
                   _dark ? Icons.dark_mode : Icons.light_mode,
                   size: OrionSizing.iconSmall,
                 ),
-                Switch(
+                const SizedBox(width: OrionSpacing.space4),
+                OrionSwitch(
                   key: const ValueKey<String>('showcase-theme-toggle'),
+                  size: OrionSwitchSize.small,
                   value: _dark,
-                  onChanged: (value) => setState(() => _dark = value),
+                  semanticLabel: 'Toggle dark theme',
+                  onChanged: (bool value) => setState(() => _dark = value),
                 ),
                 const SizedBox(width: OrionSpacing.space8),
               ],

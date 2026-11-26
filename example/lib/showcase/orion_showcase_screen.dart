@@ -26,7 +26,7 @@ import 'package:orion_ui_example/showcase/orion_toast_showcase_screen.dart';
 import 'package:orion_ui_example/showcase/orion_tooltip_showcase_screen.dart';
 import 'package:orion_ui_example/showcase/orion_wheel_showcase_screen.dart';
 
-/// Index of all 25 Orion UI component showcases.
+/// Index of all 24 Orion UI component showcases.
 class OrionShowcaseScreen extends StatelessWidget {
   const OrionShowcaseScreen({
     super.key,

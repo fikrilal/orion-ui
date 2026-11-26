@@ -119,13 +119,12 @@ class _OrionOtpShowcaseScreenState extends State<OrionOtpShowcaseScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-
     return OrionThemedScaffold(
       title: 'Orion OTP & PIN Field',
       builder: (context) {
+        final theme = Theme.of(context);
+        final scheme = theme.colorScheme;
+        final isDark = theme.brightness == Brightness.dark;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:orion_ui_example/showcase/orion_showcase_kit.dart';
 import 'package:orion_ui_example/showcase/orion_showcase_scaffold.dart';
@@ -165,13 +167,12 @@ class _OrionPopoverShowcaseScreenState
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-
     return OrionThemedScaffold(
       title: 'Orion Popover & Menu',
       builder: (context) {
+        final theme = Theme.of(context);
+        final scheme = theme.colorScheme;
+        final isDark = theme.brightness == Brightness.dark;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -527,7 +528,9 @@ class _OrionPopoverShowcaseScreenState
                   OrionButton(
                     key: _imperativeBtnKey,
                     variant: OrionButtonVariant.bordered,
-                    onPressed: () => _openImperativeMenu(context),
+                    onPressed: () {
+                      unawaited(_openImperativeMenu(context));
+                    },
                     leading: const Icon(Icons.open_in_new_rounded, size: 18),
                     child: const Text('Open Imperative Menu'),
                   ),
@@ -566,9 +569,11 @@ class _OrionPopoverShowcaseScreenState
                   content: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const CircleAvatar(
+                      CircleAvatar(
                         radius: 28,
-                        child: Icon(Icons.person, size: 32),
+                        backgroundColor: scheme.surfaceContainerHighest,
+                        foregroundColor: scheme.onSurface,
+                        child: const Icon(Icons.person, size: 32),
                       ),
                       const SizedBox(height: 12),
                       const Text(

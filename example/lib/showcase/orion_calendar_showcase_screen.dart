@@ -44,7 +44,7 @@ class _OrionCalendarShowcaseScreenState
     return day.weekday != DateTime.saturday && day.weekday != DateTime.sunday;
   }
 
-  Future<void> _openSingleSheet() async {
+  Future<void> _openSingleSheet(BuildContext context) async {
     final MaterialLocalizations loc = MaterialLocalizations.of(context);
     final DateTime? picked = await showOrionDatePickerSheet(
       context: context,
@@ -63,7 +63,7 @@ class _OrionCalendarShowcaseScreenState
     });
   }
 
-  Future<void> _openRangeSheet() async {
+  Future<void> _openRangeSheet(BuildContext context) async {
     final MaterialLocalizations loc = MaterialLocalizations.of(context);
     final DateTimeRange? picked = await showOrionDateRangePickerSheet(
       context: context,
@@ -101,14 +101,13 @@ class _OrionCalendarShowcaseScreenState
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme scheme = theme.colorScheme;
-    final bool isDark = theme.brightness == Brightness.dark;
-    final MaterialLocalizations loc = MaterialLocalizations.of(context);
-
     return OrionThemedScaffold(
       title: 'Orion Calendar',
       builder: (BuildContext context) {
+        final ThemeData theme = Theme.of(context);
+        final ColorScheme scheme = theme.colorScheme;
+        final bool isDark = theme.brightness == Brightness.dark;
+        final MaterialLocalizations loc = MaterialLocalizations.of(context);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
@@ -252,7 +251,7 @@ class _OrionCalendarShowcaseScreenState
                     label: 'Single date',
                     hint: 'Select transfer date',
                     suffix: const Icon(Icons.calendar_today_outlined, size: 18),
-                    onTap: _openSingleSheet,
+                    onTap: () => _openSingleSheet(context),
                   ),
                   const SizedBox(height: OrionSpacing.space16),
                   OrionTextField(
@@ -262,7 +261,7 @@ class _OrionCalendarShowcaseScreenState
                     label: 'Date range',
                     hint: 'Select statement period',
                     suffix: const Icon(Icons.date_range_rounded, size: 18),
-                    onTap: _openRangeSheet,
+                    onTap: () => _openRangeSheet(context),
                   ),
                 ],
               ),

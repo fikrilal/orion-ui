@@ -1565,5 +1565,135 @@ void main() {
         expect(dockedStyle.shadows, isEmpty);
       },
     );
+
+    testWidgets(
+      'wide count badges anchor outward without covering icon center',
+      (WidgetTester tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              bottomNavigationBar: OrionNavigationBar(
+                selectedIndex: 0,
+                onChanged: (_) {},
+                destinations: const <OrionNavigationDestination>[
+                  OrionNavigationDestination(
+                    icon: Icon(Icons.home_outlined),
+                    label: 'Home',
+                  ),
+                  OrionNavigationDestination(
+                    icon: Icon(Icons.mail_outline),
+                    label: 'Inbox',
+                    badgeCount: 120,
+                  ),
+                  OrionNavigationDestination(
+                    icon: Icon(Icons.search_outlined),
+                    label: 'Search',
+                  ),
+                  OrionNavigationDestination(
+                    icon: Icon(Icons.bookmark_border),
+                    label: 'Saved',
+                  ),
+                  OrionNavigationDestination(
+                    icon: Icon(Icons.person_outline),
+                    label: 'Profile',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final Rect iconRect = tester.getRect(find.byIcon(Icons.mail_outline));
+        final Rect badgeTextRect = tester.getRect(find.text('99+'));
+        expect(
+          badgeTextRect.left,
+          greaterThanOrEqualTo(iconRect.center.dx),
+          reason:
+              '99+ count badge must grow outward instead of covering the icon',
+        );
+      },
+    );
+
+    testWidgets(
+      'expanding mode glides count badge inline beside selected label without overlap',
+      (WidgetTester tester) async {
+        int selected = 0;
+        late StateSetter rebuild;
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: OrionTheme.light(),
+            home: Scaffold(
+              body: Center(
+                child: SizedBox(
+                  width: 360,
+                  child: StatefulBuilder(
+                    builder: (BuildContext context, StateSetter setState) {
+                      rebuild = setState;
+                      return OrionNavigationBar(
+                        selectedIndex: selected,
+                        onChanged: (int idx) => setState(() => selected = idx),
+                        style: OrionNavigationBarStyle.from(
+                          labelMode: OrionNavigationLabelMode.selected,
+                        ),
+                        destinations: const <OrionNavigationDestination>[
+                          OrionNavigationDestination(
+                            icon: Icon(Icons.home_outlined),
+                            label: 'Home',
+                          ),
+                          OrionNavigationDestination(
+                            icon: Icon(Icons.search_outlined),
+                            label: 'Search',
+                          ),
+                          OrionNavigationDestination(
+                            icon: Icon(Icons.inbox_outlined),
+                            label: 'Inbox',
+                            badgeCount: 128,
+                          ),
+                          OrionNavigationDestination(
+                            icon: Icon(Icons.lock_outline),
+                            label: 'Pro',
+                            enabled: false,
+                          ),
+                          OrionNavigationDestination(
+                            icon: Icon(Icons.person_outline),
+                            label: 'Profile',
+                            badgeDot: true,
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final Rect collapsedIcon = tester.getRect(
+          find.byIcon(Icons.inbox_outlined),
+        );
+        final Rect collapsedBadge = tester.getRect(find.text('99+'));
+        expect(
+          collapsedBadge.left,
+          greaterThanOrEqualTo(collapsedIcon.center.dx),
+        );
+
+        rebuild(() => selected = 2);
+        await tester.pumpAndSettle();
+
+        final Rect labelRect = tester.getRect(find.text('Inbox'));
+        final Rect expandedBadge = tester.getRect(find.text('99+'));
+        expect(
+          expandedBadge.left,
+          greaterThan(labelRect.right),
+          reason:
+              'selected expanding destination must place count badge after label without overlapping text',
+        );
+      },
+    );
   });
 }

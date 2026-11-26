@@ -255,7 +255,12 @@ class _OrionNavigationBarState extends State<OrionNavigationBar>
   // Cached expanding-mode label measurements so per-frame dragPosition ticks
   // never re-run TextPainter layouts.
   List<String>? _cachedLabels;
+  List<String?>? _cachedBadgeKeys;
   TextStyle? _cachedActiveLabelStyle;
+  TextStyle? _cachedBadgeTextStyle;
+  EdgeInsets? _cachedBadgePadding;
+  double? _cachedBadgeMinWidth;
+  double? _cachedBadgeRingWidth;
   TextDirection? _cachedTextDirection;
   TextScaler? _cachedTextScaler;
   double? _cachedIconLabelGap;
@@ -530,8 +535,26 @@ class _OrionNavigationBarState extends State<OrionNavigationBar>
     return 0;
   }
 
+  static const double _expandingBadgeGap = 6.0;
+
+  String? _badgeMeasureKey(OrionNavigationDestination destination) {
+    if (destination.badge != null) {
+      return '\x00custom';
+    }
+    final int? count = destination.badgeCount;
+    if (count != null && count > 0) {
+      final int? maxCount = destination.maxBadgeCount;
+      return (maxCount != null && count > maxCount) ? '$maxCount+' : '$count';
+    }
+    return null;
+  }
+
   List<double> _labelAddsFor({
     required TextStyle activeLabelStyle,
+    required TextStyle badgeTextStyle,
+    required EdgeInsets badgePadding,
+    required double badgeMinWidth,
+    required double badgeRingWidth,
     required TextDirection textDirection,
     required TextScaler textScaler,
     required double iconLabelGap,
@@ -540,33 +563,87 @@ class _OrionNavigationBarState extends State<OrionNavigationBar>
       for (final OrionNavigationDestination destination in widget.destinations)
         destination.label,
     ];
+    final List<String?> badgeKeys = <String?>[
+      for (final OrionNavigationDestination destination in widget.destinations)
+        _badgeMeasureKey(destination),
+    ];
     if (_cachedLabels != null &&
         listEquals(_cachedLabels, labels) &&
+        listEquals(_cachedBadgeKeys, badgeKeys) &&
         _cachedActiveLabelStyle == activeLabelStyle &&
+        _cachedBadgeTextStyle == badgeTextStyle &&
+        _cachedBadgePadding == badgePadding &&
+        _cachedBadgeMinWidth == badgeMinWidth &&
+        _cachedBadgeRingWidth == badgeRingWidth &&
         _cachedTextDirection == textDirection &&
         _cachedTextScaler == textScaler &&
         _cachedIconLabelGap == iconLabelGap) {
       return _cachedLabelAdds;
     }
 
+    final TextStyle tabularBadgeStyle = badgeTextStyle.copyWith(
+      fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
+    );
     final List<double> measured = <double>[
-      for (final String label in labels)
+      for (int i = 0; i < labels.length; i++)
         iconLabelGap +
             _measureLabelWidth(
-              label,
+              labels[i],
               activeLabelStyle,
               textDirection: textDirection,
               textScaler: textScaler,
             ) +
-            1,
+            1 +
+            _measureBadgeAdd(
+              badgeKeys[i],
+              tabularBadgeStyle,
+              padding: badgePadding,
+              minWidth: badgeMinWidth,
+              ringWidth: badgeRingWidth,
+              textDirection: textDirection,
+              textScaler: textScaler,
+            ),
     ];
     _cachedLabels = labels;
+    _cachedBadgeKeys = badgeKeys;
     _cachedActiveLabelStyle = activeLabelStyle;
+    _cachedBadgeTextStyle = badgeTextStyle;
+    _cachedBadgePadding = badgePadding;
+    _cachedBadgeMinWidth = badgeMinWidth;
+    _cachedBadgeRingWidth = badgeRingWidth;
     _cachedTextDirection = textDirection;
     _cachedTextScaler = textScaler;
     _cachedIconLabelGap = iconLabelGap;
     _cachedLabelAdds = measured;
     return measured;
+  }
+
+  double _measureBadgeAdd(
+    String? badgeKey,
+    TextStyle badgeStyle, {
+    required EdgeInsets padding,
+    required double minWidth,
+    required double ringWidth,
+    required TextDirection textDirection,
+    required TextScaler textScaler,
+  }) {
+    if (badgeKey == null) {
+      return 0;
+    }
+    final double badgeWidth;
+    if (badgeKey == '\x00custom') {
+      badgeWidth = math.max(minWidth, 24.0) + ringWidth * 2;
+    } else {
+      final double textW = _measureLabelWidth(
+        badgeKey,
+        badgeStyle,
+        textDirection: textDirection,
+        textScaler: textScaler,
+      );
+      badgeWidth =
+          math.max(minWidth, textW + padding.horizontal) + ringWidth * 2;
+    }
+    return _expandingBadgeGap + badgeWidth;
   }
 
   double _measureLabelWidth(
@@ -738,9 +815,20 @@ class _OrionNavigationBarState extends State<OrionNavigationBar>
           final TextStyle activeLabelStyle = labelStyle.copyWith(
             fontWeight: _activeWeight(labelStyle),
           );
+          final OrionNavigationBadgeStyle effectiveBadgeStyle =
+              style.badge ?? OrionNavigationBadgeStyle.defaults(scheme: scheme);
           final List<double> labelAdds = expands
               ? _labelAddsFor(
                   activeLabelStyle: activeLabelStyle,
+                  badgeTextStyle: effectiveBadgeStyle.textStyle ?? labelStyle,
+                  badgePadding:
+                      (effectiveBadgeStyle.padding ??
+                              const EdgeInsets.symmetric(
+                                horizontal: OrionSpacing.space4,
+                              ))
+                          .resolve(textDirection),
+                  badgeMinWidth: effectiveBadgeStyle.minWidth ?? 16,
+                  badgeRingWidth: effectiveBadgeStyle.ringWidth ?? 1.33,
                   textDirection: textDirection,
                   textScaler: textScaler,
                   iconLabelGap: iconLabelGap,
@@ -1204,6 +1292,29 @@ class _DestinationButtonState extends State<_DestinationButton> {
     );
     final Color badgeRing = widget.badgeStyle.ringColor ?? activeSlotSurface;
 
+    final Widget badgeWidget = IgnorePointer(
+      child: _NavigationBadge(
+        badge: badgeContent,
+        isDot: badgeIsDot,
+        reduced: widget.reduced,
+        fill:
+            widget.badgeStyle.fill?.resolve(badgeStates) ??
+            widget.scheme.primary,
+        ink:
+            widget.badgeStyle.ink?.resolve(badgeStates) ??
+            widget.scheme.onPrimary,
+        textStyle: widget.badgeStyle.textStyle ?? widget.labelStyle,
+        height: widget.badgeStyle.height ?? 16,
+        minWidth: widget.badgeStyle.minWidth ?? 16,
+        dotSize: widget.badgeStyle.dotSize ?? 8,
+        padding:
+            widget.badgeStyle.padding ??
+            const EdgeInsets.symmetric(horizontal: OrionSpacing.space4),
+        ring: badgeRing,
+        ringWidth: widget.badgeStyle.ringWidth ?? 1.33,
+      ),
+    );
+
     final Widget iconStack = ExcludeSemantics(
       excluding: hasCustomSemantics,
       child: Stack(
@@ -1212,29 +1323,9 @@ class _DestinationButtonState extends State<_DestinationButton> {
           _buildIcon(foreground),
           PositionedDirectional(
             top: anchorDot ? -2 : -6,
-            end: anchorDot ? -3 : -7,
-            child: IgnorePointer(
-              child: _NavigationBadge(
-                badge: badgeContent,
-                isDot: badgeIsDot,
-                reduced: widget.reduced,
-                fill:
-                    widget.badgeStyle.fill?.resolve(badgeStates) ??
-                    widget.scheme.primary,
-                ink:
-                    widget.badgeStyle.ink?.resolve(badgeStates) ??
-                    widget.scheme.onPrimary,
-                textStyle: widget.badgeStyle.textStyle ?? widget.labelStyle,
-                height: widget.badgeStyle.height ?? 16,
-                minWidth: widget.badgeStyle.minWidth ?? 16,
-                dotSize: widget.badgeStyle.dotSize ?? 8,
-                padding:
-                    widget.badgeStyle.padding ??
-                    const EdgeInsets.symmetric(horizontal: OrionSpacing.space4),
-                ring: badgeRing,
-                ringWidth: widget.badgeStyle.ringWidth ?? 1.33,
-              ),
-            ),
+            start: anchorDot ? null : widget.iconSize * 0.54,
+            end: anchorDot ? -3 : null,
+            child: badgeWidget,
           ),
         ],
       ),
@@ -1267,34 +1358,55 @@ class _DestinationButtonState extends State<_DestinationButton> {
         ],
       );
     } else if (expands) {
-      content = Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          iconStack,
-          // The label's room follows the selection factor, so the slot grows
-          // into the label and the text arrives with it.
-          if (shown > 0)
-            ClipRect(
-              child: Align(
-                alignment: AlignmentDirectional.centerStart,
-                widthFactor: shown * widget.labelScale,
-                // Without it the align expands to the incoming max height and
-                // the whole capsule stretches with it.
-                heightFactor: 1,
-                child: Opacity(
-                  opacity: shown,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      SizedBox(width: widget.iconLabelGap),
-                      label,
-                    ],
+      content = SizedBox(
+        height: widget.iconSize,
+        child: CustomMultiChildLayout(
+          delegate: _ExpandingDestinationLayoutDelegate(
+            shown: shown,
+            labelScale: widget.labelScale,
+            isDot: anchorDot,
+            hasBadge: badgeContent != null,
+            textDirection: Directionality.of(context),
+            badgeGap: _OrionNavigationBarState._expandingBadgeGap,
+          ),
+          children: <Widget>[
+            LayoutId(
+              id: _ExpandingSlot.icon,
+              child: ExcludeSemantics(
+                excluding: hasCustomSemantics,
+                child: _buildIcon(foreground),
+              ),
+            ),
+            if (shown > 0)
+              LayoutId(
+                id: _ExpandingSlot.label,
+                child: ClipRect(
+                  child: Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    widthFactor: shown * widget.labelScale,
+                    heightFactor: 1,
+                    child: Opacity(
+                      opacity: shown,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          SizedBox(width: widget.iconLabelGap),
+                          label,
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
+            LayoutId(
+              id: _ExpandingSlot.badge,
+              child: ExcludeSemantics(
+                excluding: hasCustomSemantics,
+                child: badgeWidget,
+              ),
             ),
-        ],
+          ],
+        ),
       );
     } else {
       content = iconStack;
@@ -1512,5 +1624,106 @@ class _NavigationBadgeState extends State<_NavigationBadge> {
         child: chip,
       ),
     );
+  }
+}
+
+enum _ExpandingSlot { icon, label, badge }
+
+/// Lays out an expanding-mode destination (`OrionNavigationLabelMode.selected`)
+/// so non-dot count badges anchor outward from the icon shoulder when collapsed
+/// and glide cleanly into an inline trailing slot beside the label when
+/// expanded—preventing overlap with either the icon or the revealed label.
+class _ExpandingDestinationLayoutDelegate extends MultiChildLayoutDelegate {
+  _ExpandingDestinationLayoutDelegate({
+    required this.shown,
+    required this.labelScale,
+    required this.isDot,
+    required this.hasBadge,
+    required this.textDirection,
+    required this.badgeGap,
+  });
+
+  final double shown;
+  final double labelScale;
+  final bool isDot;
+  final bool hasBadge;
+  final TextDirection textDirection;
+  final double badgeGap;
+
+  @override
+  void performLayout(Size size) {
+    final Size iconSize = layoutChild(
+      _ExpandingSlot.icon,
+      BoxConstraints.loose(size),
+    );
+    final Size badgeSize = layoutChild(
+      _ExpandingSlot.badge,
+      const BoxConstraints(),
+    );
+
+    final bool inlineBadge = !isDot && hasBadge;
+    final double inlineAdd = inlineBadge
+        ? (badgeGap + badgeSize.width) * shown * labelScale
+        : 0.0;
+
+    Size labelSize = Size.zero;
+    if (hasChild(_ExpandingSlot.label)) {
+      labelSize = layoutChild(
+        _ExpandingSlot.label,
+        BoxConstraints(maxHeight: size.height),
+      );
+    }
+
+    final double groupWidth = iconSize.width + labelSize.width + inlineAdd;
+    final double startX = (size.width - groupWidth) / 2;
+    final double iconY = (size.height - iconSize.height) / 2;
+
+    void place(Object id, double logicalX, double y, Size childSize) {
+      final double dx = textDirection == TextDirection.rtl
+          ? size.width - logicalX - childSize.width
+          : logicalX;
+      positionChild(id, Offset(dx, y));
+    }
+
+    place(_ExpandingSlot.icon, startX, iconY, iconSize);
+    if (hasChild(_ExpandingSlot.label)) {
+      place(
+        _ExpandingSlot.label,
+        startX + iconSize.width,
+        (size.height - labelSize.height) / 2,
+        labelSize,
+      );
+    }
+
+    if (isDot) {
+      place(
+        _ExpandingSlot.badge,
+        startX + iconSize.width - badgeSize.width + 3.0,
+        iconY - 2.0,
+        badgeSize,
+      );
+    } else {
+      final double collapsedX = startX + iconSize.width * 0.54;
+      final double collapsedY = iconY - 6.0;
+      final double expandedX =
+          startX + iconSize.width + labelSize.width + badgeGap;
+      final double expandedY = (size.height - badgeSize.height) / 2;
+      place(
+        _ExpandingSlot.badge,
+        lerpDouble(collapsedX, expandedX, shown) ?? collapsedX,
+        lerpDouble(collapsedY, expandedY, shown) ?? collapsedY,
+        badgeSize,
+      );
+    }
+  }
+
+  @override
+  bool shouldRelayout(_ExpandingDestinationLayoutDelegate oldDelegate) {
+    return shown != oldDelegate.shown ||
+        labelScale != oldDelegate.labelScale ||
+        isDot != oldDelegate.isDot ||
+        hasBadge != oldDelegate.hasBadge ||
+        textDirection != oldDelegate.textDirection ||
+        badgeGap != oldDelegate.badgeGap;
   }
 }

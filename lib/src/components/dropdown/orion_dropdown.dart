@@ -907,7 +907,7 @@ class OrionDropdownState<T> extends State<OrionDropdown<T>>
           searchPlaceholder: widget.searchPlaceholder,
           emptyText: widget.emptyText,
           emptyState: widget.emptyState,
-          style: _resolvedStyle,
+          resolveStyle: (BuildContext ctx) => _resolveStyle(Theme.of(ctx)),
           optionBuilder: widget.optionBuilder,
           isSelected: _isValueSelected,
           filterOption: _optionMatches,
@@ -2083,7 +2083,7 @@ class _OrionDropdownSheetBody<T> extends StatefulWidget {
     required this.searchPlaceholder,
     required this.emptyText,
     required this.emptyState,
-    required this.style,
+    required this.resolveStyle,
     required this.optionBuilder,
     required this.isSelected,
     required this.filterOption,
@@ -2108,7 +2108,7 @@ class _OrionDropdownSheetBody<T> extends StatefulWidget {
   final String searchPlaceholder;
   final String emptyText;
   final Widget? emptyState;
-  final OrionDropdownStyle style;
+  final OrionDropdownStyle Function(BuildContext context) resolveStyle;
   final OrionDropdownOptionBuilder<T>? optionBuilder;
   final bool Function(T value) isSelected;
   final bool Function(OrionDropdownOption<T> option, String query) filterOption;
@@ -2155,6 +2155,7 @@ class _OrionDropdownSheetBodyState<T>
   @override
   Widget build(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
+    final OrionDropdownStyle style = widget.resolveStyle(context);
 
     return ValueListenableBuilder<int>(
       valueListenable: widget.revision,
@@ -2168,7 +2169,7 @@ class _OrionDropdownSheetBodyState<T>
           isLoading: widget.isLoading,
           emptyText: widget.emptyText,
           emptyState: widget.emptyState,
-          style: widget.style,
+          style: style,
           optionBuilder: widget.optionBuilder,
           isSelected: widget.isSelected,
           rowKeyFor: null,

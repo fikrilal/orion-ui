@@ -945,5 +945,56 @@ void main() {
         );
       },
     );
+
+    testWidgets('showOrionDialog preserves locally scoped dark Theme', (
+      WidgetTester tester,
+    ) async {
+      Brightness? capturedBrightness;
+      Color? capturedSurface;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: Theme(
+            data: OrionTheme.dark(),
+            child: Scaffold(
+              body: Builder(
+                builder: (BuildContext context) => ElevatedButton(
+                  onPressed: () {
+                    showOrionDialog<void>(
+                      context: context,
+                      builder: (BuildContext dialogContext) {
+                        final ThemeData dialogTheme = Theme.of(dialogContext);
+                        capturedBrightness = dialogTheme.brightness;
+                        capturedSurface = dialogTheme.colorScheme.surface;
+                        return OrionDialog(
+                          title: 'Scoped Dark Dialog',
+                          description: 'Inherits local theme.',
+                          actions: <OrionDialogAction>[
+                            OrionDialogAction.primary(
+                              label: 'Done',
+                              onPressed: () =>
+                                  OrionDialog.dismissOf<void>(dialogContext),
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                  },
+                  child: const Text('Launch Dialog'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Launch Dialog'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Scoped Dark Dialog'), findsOneWidget);
+      expect(capturedBrightness, Brightness.dark);
+      expect(capturedSurface, OrionColors.darkScheme.surface);
+    });
   });
 }

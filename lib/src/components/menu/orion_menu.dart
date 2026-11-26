@@ -595,8 +595,17 @@ Future<T?> showOrionMenu<T>({
   bool useRootNavigator = true,
   RouteSettings? routeSettings,
 }) {
-  return Navigator.of(context, rootNavigator: useRootNavigator).push<T>(
+  final NavigatorState navigator = Navigator.of(
+    context,
+    rootNavigator: useRootNavigator,
+  );
+  final CapturedThemes capturedThemes = InheritedTheme.capture(
+    from: context,
+    to: navigator.context,
+  );
+  return navigator.push<T>(
     _OrionMenuRoute<T>(
+      capturedThemes: capturedThemes,
       anchorRect: anchorRect,
       items: items,
       placement: placement,
@@ -612,6 +621,7 @@ Future<T?> showOrionMenu<T>({
 
 class _OrionMenuRoute<T> extends PopupRoute<T> {
   _OrionMenuRoute({
+    required this.capturedThemes,
     required this.anchorRect,
     required this.items,
     required this.placement,
@@ -623,6 +633,7 @@ class _OrionMenuRoute<T> extends PopupRoute<T> {
     super.settings,
   });
 
+  final CapturedThemes capturedThemes;
   final Rect anchorRect;
   final List<OrionMenuItem> items;
   final OrionPopoverPlacement placement;
@@ -660,16 +671,18 @@ class _OrionMenuRoute<T> extends PopupRoute<T> {
     Animation<double> animation,
     Animation<double> secondaryAnimation,
   ) {
-    return _OrionModalMenuOverlay<T>(
-      route: this,
-      anchorRect: anchorRect,
-      items: items,
-      placement: placement,
-      style: style,
-      showArrow: showArrow,
-      autoFlip: autoFlip,
-      cascade: cascade,
-      dismissOnScroll: dismissOnScroll,
+    return capturedThemes.wrap(
+      _OrionModalMenuOverlay<T>(
+        route: this,
+        anchorRect: anchorRect,
+        items: items,
+        placement: placement,
+        style: style,
+        showArrow: showArrow,
+        autoFlip: autoFlip,
+        cascade: cascade,
+        dismissOnScroll: dismissOnScroll,
+      ),
     );
   }
 }

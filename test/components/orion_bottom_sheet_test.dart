@@ -1072,5 +1072,51 @@ void main() {
       expect(merged.borderWidth, 2.0);
       expect(merged.backgroundColor, Colors.blue);
     });
+
+    testWidgets('showOrionBottomSheet preserves locally scoped dark Theme', (
+      WidgetTester tester,
+    ) async {
+      Brightness? capturedBrightness;
+      Color? capturedSurface;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: Theme(
+            data: OrionTheme.dark(),
+            child: Scaffold(
+              body: Builder(
+                builder: (BuildContext context) => ElevatedButton(
+                  onPressed: () {
+                    showOrionBottomSheet<void>(
+                      context: context,
+                      fitContent: true,
+                      builder:
+                          (BuildContext sheetContext, ScrollController scroll) {
+                            final ThemeData sheetTheme = Theme.of(sheetContext);
+                            capturedBrightness = sheetTheme.brightness;
+                            capturedSurface = sheetTheme.colorScheme.surface;
+                            return const SizedBox(
+                              height: 100,
+                              child: Center(child: Text('Dark Modal Sheet')),
+                            );
+                          },
+                    );
+                  },
+                  child: const Text('Launch Sheet'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Launch Sheet'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Dark Modal Sheet'), findsOneWidget);
+      expect(capturedBrightness, Brightness.dark);
+      expect(capturedSurface, OrionColors.darkScheme.surface);
+    });
   });
 }

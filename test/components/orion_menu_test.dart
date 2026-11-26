@@ -546,5 +546,51 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text('Action 0'), findsOneWidget);
     });
+
+    testWidgets('showOrionMenu preserves locally scoped dark Theme', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: Theme(
+            data: OrionTheme.dark(),
+            child: Scaffold(
+              body: Center(
+                child: Builder(
+                  builder: (BuildContext context) => ElevatedButton(
+                    onPressed: () {
+                      showOrionMenu<void>(
+                        context: context,
+                        anchorRect: const Rect.fromLTWH(40, 80, 120, 40),
+                        items: <OrionMenuItem>[
+                          OrionMenuItem(
+                            title: 'Scoped Dark Action',
+                            onTap: () {},
+                          ),
+                        ],
+                      );
+                    },
+                    child: const Text('Launch Imperative Menu'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Launch Imperative Menu'));
+      await tester.pumpAndSettle();
+
+      final Finder itemFinder = find.text('Scoped Dark Action');
+      expect(itemFinder, findsOneWidget);
+      final BuildContext itemContext = tester.element(itemFinder);
+      expect(Theme.of(itemContext).brightness, Brightness.dark);
+      expect(
+        Theme.of(itemContext).colorScheme.surface,
+        OrionColors.darkScheme.surface,
+      );
+    });
   });
 }

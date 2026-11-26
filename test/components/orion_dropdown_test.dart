@@ -1513,5 +1513,109 @@ void main() {
       expect(_state(tester).isOpen, isTrue);
       expect(find.text('Netherlands'), findsOneWidget);
     });
+
+    testWidgets('sheet presentation preserves locally scoped dark Theme', (
+      WidgetTester tester,
+    ) async {
+      await _setViewport(tester, const Size(400, 700));
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: OrionTheme.light(),
+          home: Theme(
+            data: OrionTheme.dark(),
+            child: Scaffold(
+              body: Center(
+                child: SizedBox(
+                  width: 300,
+                  child: OrionDropdown<String>(
+                    options: const <OrionDropdownOption<String>>[
+                      OrionDropdownOption<String>(
+                        value: 'id',
+                        label: 'Indonesia',
+                      ),
+                      OrionDropdownOption<String>(value: 'jp', label: 'Japan'),
+                    ],
+                    value: null,
+                    placeholder: 'Select country',
+                    presentation: OrionDropdownPresentation.sheet,
+                    onChanged: (_) {},
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Select country'));
+      await tester.pumpAndSettle();
+
+      final Finder optionFinder = find.text('Indonesia');
+      expect(optionFinder, findsOneWidget);
+      final BuildContext optionContext = tester.element(optionFinder);
+      expect(Theme.of(optionContext).brightness, Brightness.dark);
+      expect(
+        Theme.of(optionContext).colorScheme.surface,
+        OrionColors.darkScheme.surface,
+      );
+    });
+
+    testWidgets(
+      'sheet presentation updates row styles live when host theme flips while open',
+      (WidgetTester tester) async {
+        await _setViewport(tester, const Size(400, 700));
+        ThemeMode mode = ThemeMode.light;
+        late StateSetter setAppState;
+
+        await tester.pumpWidget(
+          StatefulBuilder(
+            builder: (BuildContext context, StateSetter setState) {
+              setAppState = setState;
+              return MaterialApp(
+                themeMode: mode,
+                theme: OrionTheme.light(),
+                darkTheme: OrionTheme.dark(),
+                home: Scaffold(
+                  body: Center(
+                    child: SizedBox(
+                      width: 300,
+                      child: OrionDropdown<String>(
+                        options: const <OrionDropdownOption<String>>[
+                          OrionDropdownOption<String>(
+                            value: 'id',
+                            label: 'Indonesia',
+                          ),
+                        ],
+                        value: null,
+                        placeholder: 'Select country',
+                        presentation: OrionDropdownPresentation.sheet,
+                        onChanged: (_) {},
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+
+        await tester.tap(find.text('Select country'));
+        await tester.pumpAndSettle();
+
+        Text rowText = tester.widget<Text>(find.text('Indonesia'));
+        expect(rowText.style?.color, OrionColors.lightScheme.onSurface);
+
+        setAppState(() => mode = ThemeMode.dark);
+        await tester.pumpAndSettle();
+
+        rowText = tester.widget<Text>(find.text('Indonesia'));
+        expect(
+          rowText.style?.color,
+          OrionColors.darkScheme.onSurface,
+          reason:
+              'sheet rows must resolve style dynamically from live sheet Theme',
+        );
+      },
+    );
   });
 }

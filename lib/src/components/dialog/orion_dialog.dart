@@ -502,8 +502,17 @@ Future<T?> showOrionDialog<T>({
   bool useRootNavigator = true,
   RouteSettings? routeSettings,
 }) {
-  return Navigator.of(context, rootNavigator: useRootNavigator).push<T>(
+  final NavigatorState navigator = Navigator.of(
+    context,
+    rootNavigator: useRootNavigator,
+  );
+  final CapturedThemes capturedThemes = InheritedTheme.capture(
+    from: context,
+    to: navigator.context,
+  );
+  return navigator.push<T>(
     _OrionDialogRoute<T>(
+      capturedThemes: capturedThemes,
       pageBuilder: (buildContext, animation, secondaryAnimation) =>
           builder(buildContext),
       style: style,
@@ -627,12 +636,14 @@ class _OrionDialogScope extends InheritedWidget {
 
 class _OrionDialogRoute<T> extends PopupRoute<T> {
   _OrionDialogRoute({
+    required this.capturedThemes,
     required this.pageBuilder,
     required this.style,
     required this.isBarrierDismissible,
     super.settings,
   });
 
+  final CapturedThemes capturedThemes;
   final RoutePageBuilder pageBuilder;
   final OrionDialogStyle? style;
   final bool isBarrierDismissible;
@@ -665,12 +676,14 @@ class _OrionDialogRoute<T> extends PopupRoute<T> {
     Animation<double> animation,
     Animation<double> secondaryAnimation,
   ) {
-    return _OrionDialogOverlay<T>(
-      route: this,
-      style: style,
-      barrierDismissible: isBarrierDismissible,
-      builder: (BuildContext dialogContext) =>
-          pageBuilder(dialogContext, animation, secondaryAnimation),
+    return capturedThemes.wrap(
+      _OrionDialogOverlay<T>(
+        route: this,
+        style: style,
+        barrierDismissible: isBarrierDismissible,
+        builder: (BuildContext dialogContext) =>
+            pageBuilder(dialogContext, animation, secondaryAnimation),
+      ),
     );
   }
 }

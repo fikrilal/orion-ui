@@ -1132,8 +1132,17 @@ Future<T?> showOrionBottomSheet<T>({
   OrionSheetController? controller,
   RouteSettings? routeSettings,
 }) {
-  return Navigator.of(context, rootNavigator: useRootNavigator).push<T>(
+  final NavigatorState navigator = Navigator.of(
+    context,
+    rootNavigator: useRootNavigator,
+  );
+  final CapturedThemes capturedThemes = InheritedTheme.capture(
+    from: context,
+    to: navigator.context,
+  );
+  return navigator.push<T>(
     _OrionBottomSheetRoute<T>(
+      capturedThemes: capturedThemes,
       builder: builder,
       detents: detents,
       initialDetentIndex: initialDetentIndex,
@@ -1157,6 +1166,7 @@ Future<T?> showOrionBottomSheet<T>({
 
 class _OrionBottomSheetRoute<T> extends PopupRoute<T> {
   _OrionBottomSheetRoute({
+    required this.capturedThemes,
     required this.builder,
     required this.detents,
     required this.initialDetentIndex,
@@ -1176,6 +1186,7 @@ class _OrionBottomSheetRoute<T> extends PopupRoute<T> {
     super.settings,
   });
 
+  final CapturedThemes capturedThemes;
   final OrionSheetContentBuilder builder;
   final List<double> detents;
   final int initialDetentIndex;
@@ -1224,41 +1235,43 @@ class _OrionBottomSheetRoute<T> extends PopupRoute<T> {
     Animation<double> animation,
     Animation<double> secondaryAnimation,
   ) {
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (bool didPop, Object? result) {
-        if (didPop) return;
-        if (isDismissible) {
-          _sheetKey.currentState?.dismiss(result: result);
-        }
-      },
-      child: _ModalSheetHost<T>(
-        sheetKey: _sheetKey,
-        onCompleteDismiss: (Object? result) {
-          if (navigator?.canPop() ?? false) {
-            navigator?.pop<T>(result as T?);
+    return capturedThemes.wrap(
+      PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (bool didPop, Object? result) {
+          if (didPop) return;
+          if (isDismissible) {
+            _sheetKey.currentState?.dismiss(result: result);
           }
         },
-        child: OrionBottomSheet(
-          key: _sheetKey,
-          builder: builder,
-          detents: detents,
-          initialDetentIndex: initialDetentIndex,
-          fitContent: fitContent,
-          maxHeightFraction: maxHeightFraction,
-          variant: variant,
-          title: title,
-          subtitle: subtitle,
-          header: header,
-          showCloseButton: showCloseButton,
-          enableDrag: enableDrag,
-          showDragHandle: showDragHandle,
-          useSafeArea: useSafeArea,
-          style: style,
-          controller: sheetController,
-          hasBarrier: true,
-          barrierDismissible: isDismissible,
-          isDismissible: isDismissible,
+        child: _ModalSheetHost<T>(
+          sheetKey: _sheetKey,
+          onCompleteDismiss: (Object? result) {
+            if (navigator?.canPop() ?? false) {
+              navigator?.pop<T>(result as T?);
+            }
+          },
+          child: OrionBottomSheet(
+            key: _sheetKey,
+            builder: builder,
+            detents: detents,
+            initialDetentIndex: initialDetentIndex,
+            fitContent: fitContent,
+            maxHeightFraction: maxHeightFraction,
+            variant: variant,
+            title: title,
+            subtitle: subtitle,
+            header: header,
+            showCloseButton: showCloseButton,
+            enableDrag: enableDrag,
+            showDragHandle: showDragHandle,
+            useSafeArea: useSafeArea,
+            style: style,
+            controller: sheetController,
+            hasBarrier: true,
+            barrierDismissible: isDismissible,
+            isDismissible: isDismissible,
+          ),
         ),
       ),
     );
